@@ -1,5 +1,7 @@
 extern "C" {
 #include <switch/arm/cache.h>
+#include <switch/kernel/event.h>
+#include <switch/kernel/uevent.h>
 #include <switch/runtime/hosversion.h>
 #include <switch/services/audout.h>
 }
@@ -8,7 +10,8 @@ extern "C" {
 
 #include <algorithm>
 #include <array>
-#include <condition_variable>
+#include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -30,6 +33,7 @@ constexpr uint32 kOutputBufferBytes = 0x10000;
 constexpr uint32 kOutputFramesPerBuffer = kOutputBufferBytes / (kOutputChannels * sizeof(sint16));
 constexpr uint32 kSwitchBlockCount = IAudioAPI::kBlockCount;
 constexpr uint32 kMaxQueuedFrames = kOutputRate;
+constexpr uint64 kPlayingBit = uint64{1} << 63;
 
 struct SwitchAudioEndpoint
 {
@@ -45,6 +49,7 @@ struct SwitchAudioEndpoint
 	size_t readFrame{};
 	size_t writeFrame{};
 	std::vector<sint16> samples;
+	std::atomic<uint64> queueState{0}; // Playing flag, in-flight buffer count, queued frame count.
 };
 
 class SwitchAudioMixer
@@ -52,6 +57,13 @@ class SwitchAudioMixer
   public:
 	bool Initialize()
 	{
+		ueventCreate(&m_wake, true);
+		Handle handle = INVALID_HANDLE;
+		const Result result = serviceDispatch(audoutGetServiceSession_AudioOut(), 4,
+			.out_handle_attrs = { SfOutHandleAttr_HipcCopy }, .out_handles = &handle);
+		if (R_FAILED(result))
+			return false;
+		eventLoadRemote(&m_bufferEvent, handle, true);
 		for (uint32 i = 0; i < kSwitchBlockCount; ++i)
 		{
 			void* memory = aligned_alloc(0x1000, kOutputBufferBytes);
@@ -83,6 +95,7 @@ class SwitchAudioMixer
 	{
 		StopWorker();
 		ReleaseMemory();
+		eventClose(&m_bufferEvent);
 	}
 
 	void Add(SwitchAudioEndpoint* endpoint)
@@ -151,13 +164,12 @@ class SwitchAudioMixer
 
 	bool NeedsBlocks(const SwitchAudioEndpoint& endpoint, uint32 delay)
 	{
-		std::scoped_lock lock(m_mutex);
-		if (ReclaimBuffers())
-			NotifyWorker();
-		if (!m_applicationActive || !endpoint.playing)
+		const uint64 state = endpoint.queueState.load(std::memory_order_acquire);
+		if ((state & kPlayingBit) == 0)
 			return false;
-		const uint32 wantedFrames = std::max(endpoint.framesPerBlock, 1U) * std::max(delay, 1U);
-		return InFlight() < static_cast<int>(delay) && endpoint.queuedFrames < wantedFrames;
+		const uint64 wantedFrames = uint64{std::max(endpoint.framesPerBlock, 1U)} * std::max(delay, 1U);
+		const uint32 inFlight = static_cast<uint32>((state & ~kPlayingBit) >> 32);
+		return inFlight < delay && static_cast<uint32>(state) < wantedFrames;
 	}
 
 	bool Feed(SwitchAudioEndpoint& endpoint, const sint16* data)
@@ -194,10 +206,20 @@ class SwitchAudioMixer
 	}
 
   private:
+	void PublishQueueState()
+	{
+		const uint64 inFlight = uint64{static_cast<uint32>(InFlight())} << 32;
+		for (auto* endpoint : m_endpoints)
+		{
+			const uint64 playing = m_applicationActive && endpoint->playing ? kPlayingBit : 0;
+			endpoint->queueState.store(playing | inFlight | endpoint->queuedFrames, std::memory_order_release);
+		}
+	}
+
 	void NotifyWorker()
 	{
-		m_workPending = true;
-		m_wake.notify_one();
+		PublishQueueState();
+		ueventSignal(&m_wake);
 	}
 
 	void StopWorker()
@@ -215,15 +237,19 @@ class SwitchAudioMixer
 	{
 		SetThreadName("SwitchAudio");
 		SwitchThread_PinToHelperCore("audio mixer", 43);
-		std::unique_lock lock(m_mutex);
-		while (!m_workerShutdown)
+		const Waiter waiters[] = {waiterForUEvent(&m_wake), waiterForEvent(&m_bufferEvent)};
+		for (;;)
 		{
-			m_wake.wait(lock, [&] { return m_workerShutdown || m_workPending; });
+			s32 signaled;
+			if (R_FAILED(waitObjects(&signaled, waiters, 2, UINT64_MAX)))
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			std::scoped_lock lock(m_mutex);
 			if (m_workerShutdown)
 				break;
-			m_workPending = false;
-			ReclaimBuffers();
+			if (InFlight() > 0)
+				ReclaimBuffers();
 			Pump();
+			PublishQueueState();
 		}
 	}
 
@@ -540,12 +566,12 @@ class SwitchAudioMixer
 	std::deque<AudioOutBuffer*> m_freeBuffers;
 	std::vector<SwitchAudioEndpoint*> m_endpoints;
 	std::mutex m_mutex;
-	std::condition_variable m_wake;
+	UEvent m_wake{};
+	Event m_bufferEvent{};
 	std::thread m_worker;
 	bool m_started{};
 	bool m_applicationActive{true};
 	bool m_workerShutdown{};
-	bool m_workPending{};
 };
 
 std::unique_ptr<SwitchAudioMixer> s_mixer;

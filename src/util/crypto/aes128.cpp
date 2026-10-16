@@ -10,6 +10,12 @@
 /* Includes:                                                                 */
 /*****************************************************************************/
 #include "aes128.h"
+#if defined(__SWITCH__)
+extern "C" {
+#include <switch/crypto/aes.h>
+#include <switch/crypto/aes_cbc.h>
+}
+#endif
 #include "Common/cpu_features.h"
 
 /*****************************************************************************/
@@ -487,6 +493,11 @@ void __soft__AES128_ECB_encrypt(uint8* input, const uint8* key, uint8* output)
 
 void AES128_ECB_decrypt(uint8* input, const uint8* key, uint8 *output)
 {
+#if defined(__SWITCH__)
+	Aes128Context context;
+	aes128ContextCreate(&context, key, false);
+	aes128DecryptBlock(&context, output, input);
+#else
 	aes128Ctx_t aesCtx;
 	// Copy input to output, and work in-memory on output
 	BlockCopy(output, input);
@@ -496,6 +507,7 @@ void AES128_ECB_decrypt(uint8* input, const uint8* key, uint8 *output)
 	KeyExpansion(&aesCtx, key);
 
 	InvCipher(&aesCtx);
+#endif
 }
 
 void XorWithIv(uint8* buf, const uint8* iv)
@@ -509,6 +521,17 @@ void XorWithIv(uint8* buf, const uint8* iv)
 
 void AES128_CBC_encrypt(uint8* output, uint8* input, uint32 length, const uint8* key, const uint8* iv)
 {
+#if defined(__SWITCH__)
+	cemu_assert_debug((length & 0xF) == 0);
+	if (length == 0 || (length & 0xF) != 0)
+		return;
+	const uint8 zeroIv[16]{};
+	Aes128CbcContext context;
+	aes128CbcContextCreate(&context, key, iv ? iv : zeroIv, true);
+	const size_t processed = aes128CbcEncrypt(&context, output, input, length);
+	cemu_assert_debug(processed == length);
+	(void)processed;
+#else
 	aes128Ctx_t aesCtx;
 	intptr_t i;
 	uint8 remainders = length % KEYLEN; /* Remaining bytes in the last non-full block */
@@ -531,6 +554,7 @@ void AES128_CBC_encrypt(uint8* output, uint8* input, uint32 length, const uint8*
 		output += KEYLEN;
 	}
 	cemu_assert_debug(remainders == 0);
+#endif
 }
 
 void __soft__AES128_CBC_decrypt(uint8* output, uint8* input, uint32 length, const uint8* key, const uint8* iv)
@@ -827,6 +851,28 @@ void AES128CTR_transform(uint8* data, sint32 length, uint8* key, uint8* nonceIv)
 	}
 }
 
+#if defined(__SWITCH__)
+static void SwitchAES128EcbEncrypt(uint8* input, const uint8* key, uint8* output)
+{
+	Aes128Context context;
+	aes128ContextCreate(&context, key, true);
+	aes128EncryptBlock(&context, output, input);
+}
+
+static void SwitchAES128CbcDecrypt(uint8* output, uint8* input, uint32 length, const uint8* key, const uint8* iv)
+{
+	cemu_assert_debug((length & 0xF) == 0);
+	if (length == 0 || (length & 0xF) != 0)
+		return;
+	const uint8 zeroIv[16]{};
+	Aes128CbcContext context;
+	aes128CbcContextCreate(&context, key, iv ? iv : zeroIv, false);
+	const size_t processed = aes128CbcDecrypt(&context, output, input, length);
+	cemu_assert_debug(processed == length);
+	(void)processed;
+}
+#endif
+
 void AES128_init()
 {
 	for (uint32 i = 0; i <= 0xFF; i++)
@@ -838,7 +884,10 @@ void AES128_init()
 		lookupTable_multiply[i] = (vE << 0) | (v9 << 8) | (vD << 16) | (vB << 24);
 	}
 	// check if AES-NI is available
-	#if defined(ARCH_X86_64)
+	#if defined(__SWITCH__)
+	AES128_CBC_decrypt = SwitchAES128CbcDecrypt;
+	AES128_ECB_encrypt = SwitchAES128EcbEncrypt;
+	#elif defined(ARCH_X86_64)
 	if (g_CPUFeatures.x86.aesni)
 	{
 		// AES-NI implementation

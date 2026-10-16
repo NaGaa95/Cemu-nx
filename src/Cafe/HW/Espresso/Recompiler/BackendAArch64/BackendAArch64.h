@@ -12,7 +12,11 @@ void PPCRecompilerAArch64Gen_generateRecompilerInterfaceFunctions();
 namespace IMLArchAArch64
 {
 	static constexpr int PHYSREG_GPR_BASE = 0;
+#if defined(__SWITCH__)
+	static constexpr int PHYSREG_GPR_COUNT = 24; // w24 holds remainingCycles across JIT blocks.
+#else
 	static constexpr int PHYSREG_GPR_COUNT = 25;
+#endif
 	static constexpr int PHYSREG_FPR_BASE = PHYSREG_GPR_COUNT;
 	static constexpr int PHYSREG_FPR_COUNT = 31;
 }; // namespace IMLArchAArch64

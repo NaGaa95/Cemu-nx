@@ -4,6 +4,11 @@
 #include "HW/Latte/Core/LattePM4.h"
 #include "OS/libs/coreinit/coreinit_Time.h"
 
+#if defined(__SWITCH__)
+extern "C" {
+#include <switch/kernel/uevent.h>
+}
+#endif
 
 namespace TCL
 {
@@ -70,6 +75,23 @@ namespace TCL
 	std::atomic<uint32> tclRingBufferA_readIndex{0};
 	std::atomic<uint32> tclRingBufferA_writeIndex{0};
 
+#if defined(__SWITCH__)
+	static struct CommandWakeEvent
+	{
+		UEvent event;
+		CommandWakeEvent() { ueventCreate(&event, true); }
+	} s_commandWake;
+
+	void TCLGPUWaitForCommands()
+	{
+		if (tclRingBufferA_readIndex.load(std::memory_order::relaxed) !=
+			tclRingBufferA_writeIndex.load(std::memory_order::acquire))
+			return;
+		// Keep servicing virtual vsync, async work, and shutdown while the ring is empty.
+		waitSingle(waiterForUEvent(&s_commandWake.event), 250'000);
+	}
+#endif
+
 	// GPU code calls this to grab the next command word
 	bool TCLGPUReadRBWord(uint32& cmdWord)
 	{
@@ -112,6 +134,9 @@ namespace TCL
 		}
 
 		tclRingBufferA_writeIndex.store(writeIndex, std::memory_order::release);
+#if defined(__SWITCH__)
+		ueventSignal(&s_commandWake.event);
+#endif
 	}
 
 	#define EVENT_TYPE_TS		5

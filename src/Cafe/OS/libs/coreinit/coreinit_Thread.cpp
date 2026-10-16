@@ -17,6 +17,11 @@
 
 #if defined(__SWITCH__)
 #include "platform/switch/SwitchJit.h"
+extern "C" {
+#include <switch/result.h>
+#include <switch/kernel/svc.h>
+#include <switch/kernel/uevent.h>
+}
 #endif
 
 #if defined(__arm64__) || defined(__aarch64__)
@@ -75,7 +80,80 @@ namespace coreinit
 	SysAllocator<OSThreadQueue> g_activeThreadQueue; // list of all threads (can include non-detached inactive threads)
 
 	SysAllocator<OSThreadQueue, 3> g_coreRunQueue;
+#if defined(__SWITCH__)
+	class alignas(64) RunQueueCount
+	{
+		static constexpr uint32 kWaiting = 1U << 31;
+		static constexpr uint32 kStopped = 1U << 30;
+		static constexpr uint32 kCountMask = kStopped - 1;
+		static_assert(std::atomic<uint32>::is_always_lock_free);
+
+	public:
+		RunQueueCount() { ueventCreate(&m_event, true); }
+
+		void reset()
+		{
+			m_state.store(0, std::memory_order_release);
+			ueventClear(&m_event);
+		}
+
+		void start()
+		{
+			m_state.fetch_and(kCountMask, std::memory_order_release);
+			ueventClear(&m_event);
+		}
+
+		void stop()
+		{
+			const uint32 previous = m_state.fetch_or(kStopped, std::memory_order_acq_rel);
+			if (previous & kWaiting)
+				ueventSignal(&m_event);
+		}
+
+		void increment()
+		{
+			const uint32 previous = m_state.fetch_add(1, std::memory_order_release);
+			if ((previous & kCountMask) == 0 && (previous & kWaiting))
+				ueventSignal(&m_event);
+		}
+
+		void decrement()
+		{
+			const uint32 previous = m_state.fetch_sub(1, std::memory_order_release);
+			cemu_assert_debug((previous & kCountMask) != 0);
+		}
+
+		bool isZero() const
+		{
+			return (m_state.load(std::memory_order_acquire) & kCountMask) == 0;
+		}
+
+		void waitUntilNonZero()
+		{
+			uint32 state = m_state.load(std::memory_order_acquire);
+			if (state & (kCountMask | kStopped))
+				return;
+			// The count and wait bit share an atomic to prevent lost wakeups.
+			state = m_state.fetch_or(kWaiting, std::memory_order_acq_rel);
+			while ((state & (kCountMask | kStopped)) == 0)
+			{
+				const Result result = waitSingle(waiterForUEvent(&m_event), UINT64_MAX);
+				if (R_FAILED(result))
+					svcSleepThread(1'000'000);
+				state = m_state.load(std::memory_order_acquire);
+			}
+			m_state.fetch_and(~kWaiting, std::memory_order_release);
+		}
+
+	private:
+		UEvent m_event{};
+		std::atomic<uint32> m_state{0};
+	};
+
+	RunQueueCount g_coreRunQueueThreadCount[3];
+#else
 	CounterSemaphore g_coreRunQueueThreadCount[3];
+#endif
 
 	bool g_isMulticoreMode;
 
@@ -1259,6 +1337,10 @@ namespace coreinit
 		__OSUnlockScheduler();
 		while (true)
 		{
+#if defined(__SWITCH__)
+			if (!sSchedulerActive.load(std::memory_order_acquire))
+				Fiber::Switch(*t_schedulerFiber);
+#endif
 			if (!g_coreRunQueueThreadCount[coreIndex].isZero()) // avoid hammering the lock on the main core if there is no runable thread
 			{
 				__OSLockScheduler();
@@ -1448,6 +1530,10 @@ namespace coreinit
 			return;
 		cemu_assert_debug(numCPUEmulationThreads == 1 || numCPUEmulationThreads == 3);
 		g_isMulticoreMode = numCPUEmulationThreads > 1;
+#if defined(__SWITCH__)
+		for (auto& queue : g_coreRunQueueThreadCount)
+			queue.start();
+#endif
 		if (numCPUEmulationThreads == 1)
 			sSchedulerThreads.emplace_back(OSSchedulerCoreEmulationThread, (void*)0);
 		else if (numCPUEmulationThreads == 3)
@@ -1466,8 +1552,13 @@ namespace coreinit
 	{
 		std::unique_lock _lock(sSchedulerStateMtx);
 		sSchedulerActive.store(false);
+#if defined(__SWITCH__)
+		for (auto& queue : g_coreRunQueueThreadCount)
+			queue.stop();
+#else
 		for (size_t i = 0; i < Espresso::CORE_COUNT; i++)
 			g_coreRunQueueThreadCount[i].increment(); // make sure to wake up cores if they are paused and waiting for runnable threads
+#endif
 		// wait for threads to stop execution
 		for (auto& threadItr : sSchedulerThreads)
 			threadItr.join();
@@ -1653,7 +1744,12 @@ namespace coreinit
 	{
 		OSInitThreadQueue(g_activeThreadQueue.GetPtr());
 		for (sint32 i = 0; i < Espresso::CORE_COUNT; i++)
+		{
 			OSInitThreadQueue(g_coreRunQueue.GetPtr() + i);
+#if defined(__SWITCH__)
+			g_coreRunQueueThreadCount[i].reset();
+#endif
+		}
 		for (sint32 i = 0; i < Espresso::CORE_COUNT; i++)
 			__currentCoreThread[i] = nullptr;
 		__OSInitDefaultThreads();

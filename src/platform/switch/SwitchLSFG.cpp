@@ -8,9 +8,6 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <string>
 #include <vector>
 
 namespace
@@ -53,15 +50,6 @@ bool FileReadable(const char* path)
 		return false;
 	std::fclose(file);
 	return true;
-}
-
-bool EnableNvkNoCbuf()
-{
-	const char* current = std::getenv("NVK_DEBUG");
-	if (current && std::strstr(current, "no_cbuf"))
-		return true;
-	const std::string value = current && *current ? std::string(current) + ",no_cbuf" : "no_cbuf";
-	return setenv("NVK_DEBUG", value.c_str(), 1) == 0;
 }
 
 void DestroyRuntime()
@@ -161,7 +149,7 @@ void SwitchLSFG_Configure(bool prepared, float flowScale, bool performanceMode)
 {
 	s_flowScale = std::isfinite(flowScale) && flowScale == 0.5f ? 0.5f : 0.25f;
 	s_performanceMode = performanceMode;
-	prepared = prepared && FileReadable(kShaderDllPath) && EnableNvkNoCbuf();
+	prepared = prepared && FileReadable(kShaderDllPath);
 	s_prepared.store(prepared, std::memory_order_release);
 	s_enabledRequested.store(false, std::memory_order_release);
 	s_available.store(false, std::memory_order_release);

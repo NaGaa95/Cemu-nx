@@ -32,6 +32,17 @@ void LatteThread_HandleOSScreen();
 
 void LatteThread_Exit();
 
+static void LatteCP_waitForProgress()
+{
+#if defined(__SWITCH__)
+	if (Latte_GetStopSignal())
+		LatteThread_Exit();
+	std::this_thread::sleep_for(std::chrono::microseconds(100));
+#else
+	std::this_thread::yield();
+#endif
+}
+
 class DrawPassContext
 {
 	struct CmdQueuePos
@@ -191,7 +202,11 @@ uint32 LatteCP_readU32Deprc()
 		// still no command data available, do some other tasks
 		LatteTiming_HandleTimedVsync();
 		LatteAsyncCommands_checkAndExecute();
+#if defined(__SWITCH__)
+		TCL::TCLGPUWaitForCommands();
+#else
 		std::this_thread::yield();
+#endif
 		performanceMonitor.gpuTime_idleTime.endMeasuring();
 	}
 	UNREACHABLE;
@@ -641,7 +656,7 @@ LatteCMDPtr LatteCP_itMemSemaphore(LatteCMDPtr cmd, uint32 nWords)
 			{
 				loopCount++;
 				if (loopCount > 2000)
-					std::this_thread::yield();
+					LatteCP_waitForProgress();
 				continue;
 			}
 			if (semaphoreData->compare_exchange_strong(oldVal, oldVal - 1))
@@ -972,7 +987,7 @@ LatteCMDPtr LatteCP_itHLEWaitForFlip(LatteCMDPtr cmd, uint32 nWords)
 		}
 		// check if any GPU events happened
 		LatteTiming_HandleTimedVsync();
-		std::this_thread::yield();
+		LatteCP_waitForProgress();
 	}
 	return cmd;
 }

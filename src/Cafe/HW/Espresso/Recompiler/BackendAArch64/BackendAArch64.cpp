@@ -52,6 +52,10 @@ static const XReg HCPU_REG{HCPU_REG_ID}, PPC_REC_INSTANCE_REG{PPC_RECOMPILER_INS
 static const GPReg TEMP_GPR1{TEMP_GPR_1_ID};
 static const GPReg TEMP_GPR2{TEMP_GPR_2_ID};
 static const GPReg LR{TEMP_GPR_2_ID};
+#if defined(__SWITCH__)
+static const WReg CYCLE_COUNTER_REG{IMLArchAArch64::PHYSREG_GPR_COUNT};
+static_assert(IMLArchAArch64::PHYSREG_GPR_COUNT == 24);
+#endif
 
 static const FPReg TEMP_FPR{TEMP_FPR_ID};
 
@@ -157,7 +161,7 @@ struct AArch64GenContext_t : CodeGenerator
 	void fpr_r_r_r(IMLInstruction* imlInstruction);
 	void fpr_r_r_r_r(IMLInstruction* imlInstruction);
 	void fpr_r(IMLInstruction* imlInstruction);
-	void fpr_compare(IMLInstruction* imlInstruction);
+	void fpr_compare(IMLInstruction* imlInstruction, bool reuseComparison = false);
 	void cjump(IMLInstruction* imlInstruction, IMLSegment* imlSegment);
 	void jump(IMLSegment* imlSegment);
 	void conditionalJumpCycleCheck(IMLSegment* imlSegment);
@@ -876,10 +880,15 @@ void AArch64GenContext_t::jump(IMLSegment* imlSegment)
 
 void AArch64GenContext_t::conditionalJumpCycleCheck(IMLSegment* imlSegment)
 {
+#if defined(__SWITCH__)
+	const WReg cycles = CYCLE_COUNTER_REG;
+#else
 	ldr(TEMP_GPR1.wReg, AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, remainingCycles)));
+	const WReg cycles = TEMP_GPR1.wReg;
+#endif
 	prepareJump(NegativeRegValueJumpInfo{
 		.target = imlSegment->nextSegmentBranchTaken,
-		.regValue = TEMP_GPR1.wReg,
+		.regValue = cycles,
 	});
 }
 
@@ -1008,10 +1017,14 @@ bool AArch64GenContext_t::macro(IMLInstruction* imlInstruction)
 	else if (imlInstruction->operation == PPCREC_IML_MACRO_COUNT_CYCLES)
 	{
 		uint32 cycleCount = imlInstruction->op_macro.param;
+#if defined(__SWITCH__)
+		sub_imm(CYCLE_COUNTER_REG, CYCLE_COUNTER_REG, cycleCount, TEMP_GPR1.wReg);
+#else
 		AdrUimm adrCycles = AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, remainingCycles));
 		ldr(TEMP_GPR1.wReg, adrCycles);
 		sub_imm(TEMP_GPR1.wReg, TEMP_GPR1.wReg, cycleCount, TEMP_GPR2.wReg);
 		str(TEMP_GPR1.wReg, adrCycles);
+#endif
 		return true;
 	}
 	else if (imlInstruction->operation == PPCREC_IML_MACRO_HLE)
@@ -1030,16 +1043,26 @@ bool AArch64GenContext_t::macro(IMLInstruction* imlInstruction)
 		mov(w1, funcId);
 		// call HLE function
 
+#if defined(__SWITCH__)
+		str(CYCLE_COUNTER_REG, AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, remainingCycles)));
+#endif
 		mov(TEMP_GPR1.xReg, (uint64)PPCRecompiler_virtualHLE);
 		blr(TEMP_GPR1.xReg);
 
 		mov(HCPU_REG, x0);
+#if defined(__SWITCH__)
+		ldr(CYCLE_COUNTER_REG, AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, remainingCycles)));
+#endif
 
 		ldr(x30, AdrPostImm(sp, 16));
 
 		// check if cycles where decreased beyond zero, if yes -> leave recompiler
+#if defined(__SWITCH__)
+		tbz(CYCLE_COUNTER_REG, 31, cyclesLeftLabel);
+#else
 		ldr(TEMP_GPR1.wReg, AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, remainingCycles)));
 		tbz(TEMP_GPR1.wReg, 31, cyclesLeftLabel); // check if negative
+#endif
 
 #if defined(__SWITCH__)
 		loadJumpTableEntry(0);
@@ -1496,21 +1519,28 @@ Cond ImlFPCondToArm64Cond(IMLCondition cond)
 	}
 }
 
-void AArch64GenContext_t::fpr_compare(IMLInstruction* imlInstruction)
+void AArch64GenContext_t::fpr_compare(IMLInstruction* imlInstruction, bool reuseComparison)
 {
 	WReg regR = gpReg<WReg>(imlInstruction->op_fpr_compare.regR);
 	DReg regA = fpReg<DReg>(imlInstruction->op_fpr_compare.regA);
 	DReg regB = fpReg<DReg>(imlInstruction->op_fpr_compare.regB);
 	auto cond = ImlFPCondToArm64Cond(imlInstruction->op_fpr_compare.cond);
-	fcmp(regA, regB);
+	if (!reuseComparison)
+		fcmp(regA, regB);
 	cset(regR, cond);
 }
 
 void AArch64GenContext_t::call_imm(IMLInstruction* imlInstruction)
 {
 	str(x30, AdrPreImm(sp, -16));
+#if defined(__SWITCH__)
+	str(CYCLE_COUNTER_REG, AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, remainingCycles)));
+#endif
 	mov(TEMP_GPR1.xReg, imlInstruction->op_call_imm.callAddress);
 	blr(TEMP_GPR1.xReg);
+#if defined(__SWITCH__)
+	ldr(CYCLE_COUNTER_REG, AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, remainingCycles)));
+#endif
 	ldr(x30, AdrPostImm(sp, 16));
 }
 
@@ -1529,9 +1559,13 @@ bool PPCRecompiler_generateAArch64Code(struct PPCRecFunction_t* PPCRecFunction, 
 
 		aarch64GenContext.storeSegmentStart(segIt);
 
+		const IMLInstruction* previousFpCompare = nullptr;
 		for (size_t i = 0; i < segIt->imlList.size(); i++)
 		{
 			IMLInstruction* imlInstruction = segIt->imlList.data() + i;
+			// Only CSETs and empty IML instructions may separate comparisons sharing NZCV.
+			if (imlInstruction->type != PPCREC_IML_TYPE_FPR_COMPARE && imlInstruction->type != PPCREC_IML_TYPE_NO_OP)
+				previousFpCompare = nullptr;
 			if (imlInstruction->type == PPCREC_IML_TYPE_R_NAME)
 			{
 				aarch64GenContext.r_name(imlInstruction);
@@ -1665,7 +1699,11 @@ bool PPCRecompiler_generateAArch64Code(struct PPCRecFunction_t* PPCRecFunction, 
 			}
 			else if (imlInstruction->type == PPCREC_IML_TYPE_FPR_COMPARE)
 			{
-				aarch64GenContext.fpr_compare(imlInstruction);
+				const bool reuseComparison = previousFpCompare &&
+					previousFpCompare->op_fpr_compare.regA == imlInstruction->op_fpr_compare.regA &&
+					previousFpCompare->op_fpr_compare.regB == imlInstruction->op_fpr_compare.regB;
+				aarch64GenContext.fpr_compare(imlInstruction, reuseComparison);
+				previousFpCompare = imlInstruction;
 			}
 			else
 			{
@@ -1740,6 +1778,9 @@ void AArch64GenContext_t::enterRecompilerCode()
 	st4((v8.d - v11.d)[0], AdrPostImm(x9, 32));
 	st4((v12.d - v15.d)[0], AdrPostImm(x9, 32));
 	mov(HCPU_REG, x1); // call argument 2
+#if defined(__SWITCH__)
+	ldr(CYCLE_COUNTER_REG, AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, remainingCycles)));
+#endif
 	mov(PPC_REC_INSTANCE_REG, (uint64)ppcRecompilerInstanceData);
 	mov(MEM_BASE_REG, (uint64)memory_base);
 
@@ -1763,6 +1804,9 @@ void AArch64GenContext_t::enterRecompilerCode()
 
 void AArch64GenContext_t::leaveRecompilerCode()
 {
+#if defined(__SWITCH__)
+	str(CYCLE_COUNTER_REG, AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, remainingCycles)));
+#endif
 	str(LR.wReg, AdrUimm(HCPU_REG, offsetof(PPCInterpreter_t, instructionPointer)));
 	ret();
 }
