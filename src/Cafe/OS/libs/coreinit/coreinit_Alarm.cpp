@@ -83,7 +83,7 @@ namespace coreinit
 			}
 #endif
 			// debug end
-			while (true)
+			while (!g_activeAlarmList.empty())
 			{
 				auto firstAlarm = g_activeAlarmList.begin();
 				if (currentTick >= (*firstAlarm)->m_nextFire)
@@ -176,6 +176,22 @@ namespace coreinit
 
 	/* alarm API */
 
+	void OSInitAlarmQueue(OSAlarmQueue* queue)
+	{
+		queue->magic = (uint32)'aLmQ';
+		queue->name = nullptr;
+		queue->ukn08 = 0;
+		OSInitThreadQueueEx(&queue->threadQueue, queue);
+		queue->head = nullptr;
+		queue->tail = nullptr;
+	}
+
+	void OSInitAlarmQueueEx(OSAlarmQueue* queue, const char* name)
+	{
+		OSInitAlarmQueue(queue);
+		queue->name = name;
+	}
+
 	void OSCreateAlarm(OSAlarm_t* alarm)
 	{
 		memset(alarm, 0, sizeof(OSAlarm_t));
@@ -191,6 +207,41 @@ namespace coreinit
 
 	std::unordered_map<OSAlarm_t*, OSHostAlarm*> g_activeAlarms;
 
+	// fired alarms wait in their alarm queue until they are taken out of it
+	static bool __OSIsAlarmInQueue(OSAlarm_t* alarm)
+	{
+		OSAlarmQueue* queue = alarm->alarmQueue.GetPtr();
+		return queue && (queue->head.GetPtr() == alarm || alarm->prev);
+	}
+
+	static void __OSAppendAlarmToQueue(OSAlarm_t* alarm)
+	{
+		OSAlarmQueue* queue = alarm->alarmQueue.GetPtr();
+		alarm->prev = queue->tail;
+		alarm->next = nullptr;
+		if (queue->tail)
+			queue->tail->next = alarm;
+		else
+			queue->head = alarm;
+		queue->tail = alarm;
+		queue->threadQueue.wakeupEntireWaitQueue(false);
+	}
+
+	static void __OSRemoveAlarmFromQueue(OSAlarm_t* alarm)
+	{
+		OSAlarmQueue* queue = alarm->alarmQueue.GetPtr();
+		if (alarm->next)
+			alarm->next->prev = alarm->prev;
+		else
+			queue->tail = alarm->prev;
+		if (alarm->prev)
+			alarm->prev->next = alarm->next;
+		else
+			queue->head = alarm->next;
+		alarm->prev = nullptr;
+		alarm->next = nullptr;
+	}
+
 	bool OSCancelAlarm(OSAlarm_t* alarm)
 	{
 		__OSLockScheduler();
@@ -202,9 +253,41 @@ namespace coreinit
 			g_activeAlarms.erase(itr);
 			alarmWasActive = true;
 		}
+		else if (__OSIsAlarmInQueue(alarm))
+		{
+			__OSRemoveAlarmFromQueue(alarm);
+			alarmWasActive = true;
+		}
 
 		__OSUnlockScheduler();
 		return alarmWasActive;
+	}
+
+	void OSCancelAlarms(uint32 group)
+	{
+		if (group == 0 || group == 0xFFFFFFFF)
+			return;
+		__OSLockScheduler();
+		for (auto itr = g_activeAlarms.begin(); itr != g_activeAlarms.end();)
+		{
+			if (itr->first->group == group)
+			{
+				OSHostAlarmDestroy(itr->second);
+				itr = g_activeAlarms.erase(itr);
+			}
+			else
+				++itr;
+		}
+		__OSUnlockScheduler();
+	}
+
+	void OSSetAlarmTag(OSAlarm_t* alarm, uint32 group)
+	{
+		if (group == 0xFFFFFFFF)
+			return;
+		__OSLockScheduler();
+		alarm->group = group;
+		__OSUnlockScheduler();
 	}
 
 	void __OSHostAlarmTriggered(uint64 currentTick, void* context)
@@ -215,10 +298,14 @@ namespace coreinit
 		OSSignalEventInternal(g_alarmEvent.GetPtr());
 	}
 
-	void __OSInitiateAlarm(OSAlarm_t* alarm, uint64 startTime, uint64 period, MPTR handlerFunc, bool isPeriodic)
+	void __OSInitiateAlarm(OSAlarm_t* alarm, uint64 startTime, uint64 period, MPTR handlerFunc, bool isPeriodic, OSAlarmQueue* alarmQueue)
 	{
         cemu_assert_debug(MMU_IsInPPCMemorySpace(alarm));
 		cemu_assert_debug(__OSHasSchedulerLock());
+
+		// alarms which fired and still wait in their alarm queue cannot be set
+		if (__OSIsAlarmInQueue(alarm))
+			return;
 
 		uint64 nextTime = startTime;
 
@@ -229,16 +316,19 @@ namespace coreinit
 
 		if (isPeriodic)
 		{
-			cemu_assert_debug(period != 0);
-			if (period == 0)
+			if ((sint64)period <= 0)
+			{
+				cemuLog_log(LogType::APIErrors, "OSSetPeriodicAlarm(): Period must be positive, alarm is not set");
 				return;
+			}
 
 			uint64 currentTime = OSGetTime();
-
-			uint64 ticksSinceStart = currentTime - startTime;
-			uint64 numPeriods = ticksSinceStart / period;
-
-			nextTime = startTime + (numPeriods + 1ull) * period;
+			if (startTime < currentTime)
+			{
+				uint64 ticksSinceStart = currentTime - startTime;
+				uint64 numPeriods = ticksSinceStart / period;
+				nextTime = startTime + (numPeriods + 1ull) * period;
+			}
 
 			alarm->startTime = _swapEndianU64(startTime);
 			alarm->nextTime = _swapEndianU64(nextTime);
@@ -251,6 +341,7 @@ namespace coreinit
 			alarm->period = 0;
 			alarm->handler = _swapEndianU32(handlerFunc);
 		}
+		alarm->alarmQueue = alarmQueue;
 
 		auto existingAlarmItr = g_activeAlarms.find(alarm);
 		if (existingAlarmItr != g_activeAlarms.end())
@@ -264,18 +355,71 @@ namespace coreinit
 		g_activeAlarms[alarm] = OSHostAlarmCreate(nextTime, period, __OSHostAlarmTriggered, nullptr);
 	}
 
-	void OSSetAlarm(OSAlarm_t* alarm, uint64 delayInTicks, MPTR handlerFunc)
+	bool OSSetAlarm(OSAlarm_t* alarm, uint64 delayInTicks, MPTR handlerFunc)
 	{
+		if ((sint64)delayInTicks <= 0)
+		{
+			cemuLog_log(LogType::APIErrors, "OSSetAlarm(): Delay must be positive, alarm is not set");
+			return true;
+		}
 		__OSLockScheduler();
-		__OSInitiateAlarm(alarm, OSGetTime() + delayInTicks, 0, handlerFunc, false);
+		__OSInitiateAlarm(alarm, OSGetTime() + delayInTicks, 0, handlerFunc, false, nullptr);
 		__OSUnlockScheduler();
+		return true;
 	}
 
-	void OSSetPeriodicAlarm(OSAlarm_t* alarm, uint64 nextFire, uint64 period, MPTR handlerFunc)
+	bool OSSetPeriodicAlarm(OSAlarm_t* alarm, uint64 nextFire, uint64 period, MPTR handlerFunc)
 	{
 		__OSLockScheduler();
-		__OSInitiateAlarm(alarm, nextFire, period, handlerFunc, true);
+		__OSInitiateAlarm(alarm, nextFire, period, handlerFunc, true, nullptr);
 		__OSUnlockScheduler();
+		return true;
+	}
+
+	bool OSSetAlarmEx(OSAlarm_t* alarm, uint64 delayInTicks, MPTR handlerFunc, OSAlarmQueue* alarmQueue)
+	{
+		if ((sint64)delayInTicks <= 0)
+		{
+			cemuLog_log(LogType::APIErrors, "OSSetAlarmEx(): Delay must be positive, alarm is not set");
+			return true;
+		}
+		__OSLockScheduler();
+		__OSInitiateAlarm(alarm, OSGetTime() + delayInTicks, 0, handlerFunc, false, alarmQueue);
+		__OSUnlockScheduler();
+		return true;
+	}
+
+	bool OSSetPeriodicAlarmEx(OSAlarm_t* alarm, uint64 nextFire, uint64 period, MPTR handlerFunc, OSAlarmQueue* alarmQueue)
+	{
+		__OSLockScheduler();
+		__OSInitiateAlarm(alarm, nextFire, period, handlerFunc, true, alarmQueue);
+		__OSUnlockScheduler();
+		return true;
+	}
+
+	bool OSGetAlarmFromQueue(OSAlarmQueue* queue, MEMPTR<OSAlarm_t>* alarmOut, MEMPTR<void>* contextOut, bool noWait)
+	{
+		__OSLockScheduler();
+		while (!queue->head)
+		{
+			if (noWait)
+			{
+				*alarmOut = nullptr;
+				*contextOut = nullptr;
+				__OSUnlockScheduler();
+				return false;
+			}
+			queue->threadQueue.queueAndWait(OSGetCurrentThread());
+		}
+		OSAlarm_t* alarm = queue->head.GetPtr();
+		__OSRemoveAlarmFromQueue(alarm);
+		// periodic alarms are only set again once they are taken out of their alarm queue
+		if (alarm->period != 0)
+			__OSInitiateAlarm(alarm, _swapEndianU64(alarm->startTime), _swapEndianU64(alarm->period), _swapEndianU32(alarm->handler), true, queue);
+		*alarmOut = alarm;
+		*contextOut = alarm->context;
+		__OSUnlockScheduler();
+		return true;
 	}
 
 	void OSSetAlarmUserData(OSAlarm_t* alarm, uint32 userData)
@@ -322,7 +466,12 @@ namespace coreinit
 					if (currentTick >= _swapEndianU64(itr->first->nextTime))
 					{
 						alarm = itr->first;
-						if (alarm->period == 0)
+						if (alarm->alarmQueue)
+						{
+							OSHostAlarmDestroy(itr->second);
+							g_activeAlarms.erase(itr);
+						}
+						else if (alarm->period == 0)
 						{
 							// end alarm
 							g_activeAlarms.erase(itr);
@@ -335,6 +484,13 @@ namespace coreinit
 						break;
 					}
 					++itr;
+				}
+				if (alarm && alarm->alarmQueue)
+				{
+					alarm->context = &g_alarmThread.GetPtr()->context;
+					__OSAppendAlarmToQueue(alarm);
+					__OSUnlockScheduler();
+					continue;
 				}
 				__OSUnlockScheduler();
 				if (!alarm)
@@ -354,8 +510,15 @@ namespace coreinit
 		cafeExportRegister("coreinit", OSCreateAlarm, LogType::CoreinitAlarm);
 		cafeExportRegister("coreinit", OSCreateAlarmEx, LogType::CoreinitAlarm);
 		cafeExportRegister("coreinit", OSCancelAlarm, LogType::CoreinitAlarm);
+		cafeExportRegister("coreinit", OSCancelAlarms, LogType::CoreinitAlarm);
+		cafeExportRegister("coreinit", OSSetAlarmTag, LogType::CoreinitAlarm);
 		cafeExportRegister("coreinit", OSSetAlarm, LogType::CoreinitAlarm);
 		cafeExportRegister("coreinit", OSSetPeriodicAlarm, LogType::CoreinitAlarm);
+		cafeExportRegister("coreinit", OSSetAlarmEx, LogType::CoreinitAlarm);
+		cafeExportRegister("coreinit", OSSetPeriodicAlarmEx, LogType::CoreinitAlarm);
+		cafeExportRegister("coreinit", OSInitAlarmQueue, LogType::CoreinitAlarm);
+		cafeExportRegister("coreinit", OSInitAlarmQueueEx, LogType::CoreinitAlarm);
+		cafeExportRegister("coreinit", OSGetAlarmFromQueue, LogType::CoreinitAlarm);
 		cafeExportRegister("coreinit", OSSetAlarmUserData, LogType::CoreinitAlarm);
 		cafeExportRegister("coreinit", OSGetAlarmUserData, LogType::CoreinitAlarm);
 	}

@@ -534,9 +534,9 @@ public:
 		return ((word1 >> 21) & 1) != 0;
 	}
 
-	LatteConst::VertexFetchFormat getField_DATA_FORMAT() const // shared field
+	Latte::E_HWFMT getField_DATA_FORMAT() const // shared field
 	{
-		return (LatteConst::VertexFetchFormat)((word1 >> 22) & 0x3F);
+		return (Latte::E_HWFMT)((word1 >> 22) & 0x3F);
 	}
 
 	NUM_FORMAT_ALL getField_NUM_FORMAT_ALL() const // shared field
@@ -640,7 +640,7 @@ public:
 		return *this;
 	}
 
-	LatteClauseInstruction_VTX& setField_DATA_FORMAT(LatteConst::VertexFetchFormat fetchFormat)
+	LatteClauseInstruction_VTX& setField_DATA_FORMAT(Latte::E_HWFMT fetchFormat)
 	{
 		 word1 &= ~(0x3F << 22);
 		 word1 |= ((uint32)fetchFormat << 22);
@@ -750,6 +750,7 @@ public:
 		SQRT_IEEE = 0x6A,
 		SIN = 0x06E,
 		COS = 0x06F,
+		RECIP_CLAMPED = 0x64,
 		RECIP_FF = 0x65,
 		RECIP_IEEE = 0x66,
 		RECIPSQRT_CLAMPED = 0x67,
@@ -896,6 +897,7 @@ public:
 		{
 		case COS:
 		case SIN:
+		case RECIP_CLAMPED:
 		case RECIP_FF: // todo: verify
 		case RECIP_IEEE: // todo: verify
 		case RECIPSQRT_IEEE: // todo: verify

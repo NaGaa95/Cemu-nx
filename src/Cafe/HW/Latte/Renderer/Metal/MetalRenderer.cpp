@@ -1019,12 +1019,14 @@ void MetalRenderer::bufferCache_copyStreamoutToMainBuffer(uint32 srcOffset, uint
     CopyBufferToBuffer(GetXfbRingBuffer(), srcOffset, m_memoryManager->GetBufferCache(), dstOffset, size, MTL::RenderStageVertex | MTL::RenderStageMesh, ALL_MTL_RENDER_STAGES);
 }
 
-void MetalRenderer::buffer_bindVertexBuffer(uint32 bufferIndex, uint32 offset, uint32 size)
+void MetalRenderer::buffer_bindVertexBuffers(std::span<BindBufferParam> bindings)
 {
     cemu_assert_debug(!m_memoryManager->UseHostMemoryForCache());
-    cemu_assert_debug(bufferIndex < LATTE_MAX_VERTEX_BUFFERS);
-
-    m_state.m_vertexBufferOffsets[bufferIndex] = offset;
+    for (const auto& binding : bindings)
+    {
+        cemu_assert_debug(binding.index < LATTE_MAX_VERTEX_BUFFERS);
+        m_state.m_vertexBufferOffsets[binding.index] = binding.bindOffset;
+    }
 }
 
 void MetalRenderer::buffer_bindUniformBuffer(LatteConst::ShaderType shaderType, uint32 bufferIndex, uint32 offset, uint32 size)
@@ -2195,6 +2197,15 @@ void MetalRenderer::BindStageResources(MTL::RenderCommandEncoder* renderCommandE
 		if (shader->uniform.loc_fragCoordScale >= 0)
 		{
 			LatteMRT::GetCurrentFragCoordScale(GET_UNIFORM_DATA_PTR(shader->uniform.loc_fragCoordScale));
+		}
+		for (sint32 t = 0; t < LATTE_NUM_MAX_TEX_UNITS; t++)
+		{
+			if (shader->uniform.loc_framebufferFetchSize[t] < 0)
+				continue;
+			const auto& texture = LatteGPUState.contextNew.SQ_TEX_START_PS[t];
+			sint32* size = reinterpret_cast<sint32*>(GET_UNIFORM_DATA_PTR(shader->uniform.loc_framebufferFetchSize[t]));
+			size[0] = texture.word0.get_WIDTH() + 1;
+			size[1] = texture.word1.get_HEIGHT() + 1;
 		}
 		if (shader->uniform.loc_verticesPerInstance >= 0)
 		{

@@ -12,6 +12,7 @@
 #include "HW/Latte/ISA/LatteReg.h"
 #ifdef ENABLE_METAL
 #include "HW/Latte/Renderer/Metal/MetalCommon.h"
+#include "HW/Latte/Renderer/Metal/MetalRenderer.h"
 #endif
 
 // Defined in LatteTextureLegacy.cpp
@@ -125,6 +126,7 @@ bool _isIntegerInstruction(const LatteDecompilerALUInstruction& aluInstruction)
 		case ALU_OP2_INST_KILLE:
 		case ALU_OP2_INST_KILLGT:
 		case ALU_OP2_INST_KILLGE:
+		case ALU_OP2_INST_RECIP_CLAMPED:
 		case ALU_OP2_INST_RECIP_FF:
 		case ALU_OP2_INST_RECIP_IEEE:
 		case ALU_OP2_INST_RECIPSQRT_CLAMPED:
@@ -414,7 +416,16 @@ void LatteDecompiler_analyzeExport(LatteDecompilerShaderContext* shaderContext, 
 	{
 		if (cfInstruction->exportType == 2 && cfInstruction->exportArrayBase < 32)
 		{
-			shaderContext->shader->outputParameterMask |= (1<<cfInstruction->exportArrayBase);
+			for (uint32 burstIndex = 0; burstIndex < (cfInstruction->exportBurstCount + 1); burstIndex++)
+			{
+				uint32 paramIndex = cfInstruction->exportArrayBase + burstIndex;
+				if (paramIndex >= 32)
+				{
+					cemu_assert_unimplemented();
+					break;
+				}
+				shaderContext->shader->outputParameterMask |= (1u << paramIndex);
+			}
 		}
 		else if (cfInstruction->exportType == 1 && cfInstruction->exportArrayBase == GPU7_DECOMPILER_CF_EXPORT_POINT_SIZE)
 		{
@@ -577,6 +588,14 @@ namespace LatteDecompiler
 #ifdef ENABLE_METAL
 		if (g_renderer->GetType() == RendererAPI::Metal)
 		{
+			if (static_cast<MetalRenderer*>(g_renderer.get())->SupportsFramebufferFetch())
+			{
+				for (sint32 t = 0; t < LATTE_NUM_MAX_TEX_UNITS; t++)
+				{
+					if (decompilerContext->shader->textureRenderTargetIndex[t] != 255)
+						decompilerContext->hasUniformVarBlock = true; // framebufferFetchSize
+				}
+			}
             bool usesGeometryShader = UseGeometryShader(*decompilerContext->contextRegistersNew, decompilerContext->options->usesGeometryShader);
 
 		    if (decompilerContext->shaderType == LatteConst::ShaderType::Vertex && usesGeometryShader)

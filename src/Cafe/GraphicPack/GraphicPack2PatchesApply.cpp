@@ -8,7 +8,7 @@
 
 bool _relocateAddress(PatchGroup* group, PatchContext_t* ctx, uint32 addr, uint32& relocatedAddress)
 {
-	if (addr >= 0 && addr <= 1024 * 1024 * 8)
+	if (addr <= PatchGroup::CODECAVE_MAX_OFFSET)
 	{
 		// codecave address
 		relocatedAddress = group->getCodeCaveBase() + addr;
@@ -514,37 +514,31 @@ bool _resolverPass(PatchContext_t& patchContext, std::vector<UnresolvedPatches_t
 	{
 		resolverState.currentGroup = unresolvedGroup.patchGroup;
 		auto& list_unresolvedPatches = unresolvedGroup.list_unresolvedPatches;
-		for (auto it = list_unresolvedPatches.begin(); it != list_unresolvedPatches.end();)
+		std::erase_if(list_unresolvedPatches, [&](PatchEntry* entry)
 		{
-			auto r = (*it)->resolve(patchContext);
+			auto r = entry->resolve(patchContext);
 			if (r == PATCH_RESOLVE_RESULT::RESOLVED)
 			{
-				// remove from list
-				it = list_unresolvedPatches.erase(it);
 				numResolvedEntries++;
-				continue;
+				return true;
 			}
 			else if (r == PATCH_RESOLVE_RESULT::UNKNOWN_VARIABLE)
 			{
 				// dependency on other not yet resolved entry, continue iterating
-				it++;
-				continue;
 			}
 			else if (r == PATCH_RESOLVE_RESULT::INVALID_ADDRESS ||
 				r == PATCH_RESOLVE_RESULT::VARIABLE_CONFLICT)
 			{
 				// errors handled and printed inside resolve()
-				it++;
-				continue;
 			}
 			else
 			{
 				// unknown error
-				sint32 lineNumber = (*it)->getLineNumber();
+				sint32 lineNumber = entry->getLineNumber();
 				patchContext.errorHandler.printError(resolverState.currentGroup, lineNumber, "Unable to parse expression or other internal error");
-				it++;
 			}
-		}
+			return false;
+		});
 	}
 	return numResolvedEntries;
 }
@@ -574,6 +568,12 @@ void GraphicPack2::ApplyPatchGroups(std::vector<PatchGroup*>& groups, const RPLM
 		if (patchGroup->codeCaveSize > 0)
 		{
 			auto codeCaveMem = RPLLoader_AllocateCodeCaveMem(256, patchGroup->codeCaveSize);
+			if (!codeCaveMem)
+			{
+				patchContext.errorHandler.printError(patchGroup, -1, fmt::format("Not enough code cave memory for {} bytes, the code caves of all graphic packs share {} bytes", patchGroup->codeCaveSize, MEMORY_CODECAVEAREA_SIZE));
+				patchContext.errorHandler.showStageErrorMessageBox();
+				return;
+			}
 			cemuLog_log(LogType::Force, "Applying patch group \'{}\' (Codecave: {:08x}-{:08x})", patchGroup->name, codeCaveMem.GetMPTR(), codeCaveMem.GetMPTR() + patchGroup->codeCaveSize);
 			patchGroup->codeCaveMem = codeCaveMem;
 		}

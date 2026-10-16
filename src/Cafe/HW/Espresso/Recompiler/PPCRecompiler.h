@@ -175,7 +175,7 @@ struct PPCRecompilerInstanceData_t
 	alignas(16) uint64 _x64XMM_andAbsMaskBottom[2];
 	alignas(16) uint64 _x64XMM_andAbsMaskPair[2];
 	alignas(16) uint32 _x64XMM_andFloatAbsMaskBottom[4];
-	alignas(16) uint64 _x64XMM_singleWordMask[2];
+	alignas(16) double _x64XMM_constDouble2p149[2];
 	alignas(16) double _x64XMM_constDouble1_1[2];
 	alignas(16) double _x64XMM_constDouble0_0[2];
 	alignas(16) float  _x64XMM_constFloat0_0[2];
@@ -186,6 +186,8 @@ struct PPCRecompilerInstanceData_t
 	// MXCSR
 	uint32 _x64XMM_mxCsr_ftzOn;
 	uint32 _x64XMM_mxCsr_ftzOff;
+	// PEXT mask
+	uint64 _x64_pextSingleMask;
 };
 
 extern PPCRecompilerInstanceData_t* ppcRecompilerInstanceData;

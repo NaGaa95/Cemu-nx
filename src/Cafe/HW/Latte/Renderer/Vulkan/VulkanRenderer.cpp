@@ -2135,6 +2135,10 @@ void VulkanRenderer::ImguiEnd()
 	ImGui::Render();
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), m_state.currentCommandBuffer);
 	vkCmdEndRenderPass(m_state.currentCommandBuffer);
+
+	// restore viewport and scissor box
+	vkCmdSetViewport(m_state.currentCommandBuffer, 0, 1, &m_state.currentViewport);
+	vkCmdSetScissor(m_state.currentCommandBuffer, 0, 1, &m_state.currentScissorRect);
 }
 
 ImTextureID VulkanRenderer::GenerateTexture(const std::vector<uint8>& data, const Vector2i& size)
@@ -3980,22 +3984,23 @@ void VulkanRenderer::streamout_rendererFinishDrawcall()
 	m_streamoutState.buffer[3].enabled = false;
 }
 
-
-void VulkanRenderer::buffer_bindVertexBuffer(uint32 bufferIndex, uint32 offset, uint32 size)
+void VulkanRenderer::buffer_bindVertexBuffers(std::span<BindBufferParam> bindings)
 {
 	cemu_assert_debug(!m_useHostMemoryForCache);
-	if (m_state.currentVertexBinding[bufferIndex].offset == offset)
-		return;
-	cemu_assert_debug(bufferIndex < LATTE_MAX_VERTEX_BUFFERS);
-	m_state.currentVertexBinding[bufferIndex].offset = offset;
-	VkBuffer attrBuffer = m_bufferCache;
-	VkDeviceSize attrOffset = offset;
-	vkCmdBindVertexBuffers(m_state.currentCommandBuffer, bufferIndex, 1, &attrBuffer, &attrOffset);
+	VkBuffer buffer = m_bufferCache;
+	for (auto& binding : bindings)
+	{
+		if (m_state.currentVertexBinding[binding.index].offset == binding.bindOffset)
+			continue;
+		m_state.currentVertexBinding[binding.index].offset = binding.bindOffset;
+		VkDeviceSize bindOffset = binding.bindOffset;
+		vkCmdBindVertexBuffers(m_state.currentCommandBuffer, binding.index, 1, &buffer, &bindOffset);
+	}
 }
 
 void VulkanRenderer::buffer_bindVertexStrideWorkaroundBuffer(VkBuffer fixedBuffer, uint32 offset, uint32 bufferIndex, uint32 size)
 {
-	cemu_assert_debug(bufferIndex < LATTE_MAX_VERTEX_BUFFERS);
+	cemu_assert_debug(bufferIndex < Latte::GPU_LIMITS::NUM_VERTEX_BUFFERS);
 	m_state.currentVertexBinding[bufferIndex].offset = 0xFFFFFFFF;
 	VkBuffer attrBuffer = fixedBuffer;
 	VkDeviceSize attrOffset = offset;

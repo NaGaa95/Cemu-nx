@@ -159,10 +159,12 @@ void PPCRecompiler_recompileIfUnvisited(uint32 enterAddress)
 void PPCRecompiler_enter(PPCInterpreter_t* hCPU, PPCREC_JUMP_ENTRY funcPtr)
 {
 #if BOOST_OS_WINDOWS
-	uint32 prevState = _controlfp(0, 0);
-	_controlfp(_RC_NEAR, _MCW_RC);
+	uint32 prevCsr = _mm_getcsr();
+	if (prevCsr & _MM_ROUND_MASK) [[unlikely]]
+		_mm_setcsr(prevCsr & ~_MM_ROUND_MASK);
 	PPCRecompiler_enterRecompilerCode((uint64)funcPtr, (uint64)hCPU);
-	_controlfp(prevState, _MCW_RC);
+	if (prevCsr & _MM_ROUND_MASK) [[unlikely]]
+		_mm_setcsr((_mm_getcsr() & ~_MM_ROUND_MASK) | (prevCsr & _MM_ROUND_MASK));
 	// debug recompiler exit - useful to find frequently executed functions which couldn't be recompiled
 	#ifdef CEMU_DEBUG_ASSERT
 	if (hCPU->remainingCycles > 0 && GetAsyncKeyState(VK_F4))
@@ -396,6 +398,8 @@ bool PPCRecompiler_ApplyIMLPasses(ppcImlGenContext_t& ppcImlGenContext)
 	IMLOptimizer_OptimizeDirectIntegerCopies(&ppcImlGenContext);
 
 	IMLOptimizer_StandardOptimizationPass(ppcImlGenContext);
+
+	IMLOptimizer_OptimizeSinglePrecisionStores(ppcImlGenContext);
 
 	PPCRecompiler_NativeRegisterAllocatorPass(ppcImlGenContext);
 
@@ -860,8 +864,8 @@ void PPCRecompiler_initPlatform()
 	ppcRecompilerInstanceData->_x64XMM_andFloatAbsMaskBottom[1] = 0xFFFFFFFF;
 	ppcRecompilerInstanceData->_x64XMM_andFloatAbsMaskBottom[2] = 0xFFFFFFFF;
 	ppcRecompilerInstanceData->_x64XMM_andFloatAbsMaskBottom[3] = 0xFFFFFFFF;
-	ppcRecompilerInstanceData->_x64XMM_singleWordMask[0] = 0xFFFFFFFFULL;
-	ppcRecompilerInstanceData->_x64XMM_singleWordMask[1] = 0ULL;
+	ppcRecompilerInstanceData->_x64XMM_constDouble2p149[0] = 0x1p149;
+	ppcRecompilerInstanceData->_x64XMM_constDouble2p149[1] = 0.0;
 	ppcRecompilerInstanceData->_x64XMM_constDouble1_1[0] = 1.0;
 	ppcRecompilerInstanceData->_x64XMM_constDouble1_1[1] = 1.0;
 	ppcRecompilerInstanceData->_x64XMM_constDouble0_0[0] = 0.0;
@@ -884,6 +888,7 @@ void PPCRecompiler_initPlatform()
 	// mxcsr
 	ppcRecompilerInstanceData->_x64XMM_mxCsr_ftzOn = 0x1F80 | 0x8000;
 	ppcRecompilerInstanceData->_x64XMM_mxCsr_ftzOff = 0x1F80;
+	ppcRecompilerInstanceData->_x64_pextSingleMask = 0xC7FFFFFFE0000000ULL; // sign, exponent bit 62, then bits 58-29
 }
 #else
 void PPCRecompiler_initPlatform()

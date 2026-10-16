@@ -302,6 +302,7 @@ bool LatteDecompiler_IsALUTransInstruction(bool isOP3, uint32 opcode)
 
 	if( opcode == ALU_OP2_INST_COS ||
 		opcode == ALU_OP2_INST_SIN ||
+		opcode == ALU_OP2_INST_RECIP_CLAMPED ||
 		opcode == ALU_OP2_INST_RECIP_FF ||
 		opcode == ALU_OP2_INST_RECIP_IEEE ||
 		opcode == ALU_OP2_INST_RECIPSQRT_IEEE ||
@@ -928,7 +929,7 @@ void LatteDecompiler_ParseTEXClause(LatteDecompilerShader* shaderContext, LatteD
 				texInstruction.dstSel[2] = dstSelZ;
 				texInstruction.dstSel[3] = dstSelW;
 
-				texInstruction.memRead.format = dataFormat;
+				texInstruction.memRead.format = static_cast<Latte::E_HWFMT>(dataFormat);
 				texInstruction.memRead.nfa = nfa;
 				texInstruction.memRead.isSigned = isSigned;
 
@@ -1068,6 +1069,11 @@ void _LatteDecompiler_Process(LatteDecompilerShaderContext* shaderContext, uint8
 		LatteDecompiler_analyze(shaderContext, shaderContext->shader);
 	if (shaderContext->shader->hasError == false)
 		LatteDecompiler_analyzeDataTypes(shaderContext);
+	// check for usage errors
+	if ( shaderContext->analyzer.uniformRegisterAccessTracker.HasAccess() && shaderContext->analyzer.uniformBufferAccessTracker->HasAccess() )
+	{
+		cemuLog_log(LogType::APIErrors, "Shader {:08x} accesses both uniform registers and uniform blocks. Latte does not support using both at the same time (uniform mode is configured via GX2SetShaderModeEx)", shaderContext->shaderBaseHash);
+	}
 	// emit code
 	if (shaderContext->shader->hasError == false)
 	{
