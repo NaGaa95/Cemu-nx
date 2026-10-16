@@ -245,7 +245,7 @@ bool parseKey(std::string text, AesKey &key) {
   if (comment != std::string::npos)
     text.resize(comment);
   text.erase(std::remove_if(text.begin(), text.end(), [](char c) {
-    return c == ' ' || c == '\t' || c == '-' || c == '_';
+    return std::isspace(static_cast<unsigned char>(c)) || c == '-' || c == '_';
   }), text.end());
   if (text.size() != 32)
     return false;

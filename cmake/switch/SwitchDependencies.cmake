@@ -285,15 +285,14 @@ if(NOT _cemu_libusbhsfs_revision_result EQUAL 0 OR
 		"libusbhsfs source is not the pinned ${_cemu_libusbhsfs_pinned_revision} revision")
 endif()
 
-# Apply the verified Dolphin/Nether UASP command/status-IU transport, BOT
-# fallback and reset cleanup. Forward and reverse checks keep reconfiguration
-# idempotent while still failing on an unexpected source tree.
+# Apply transport and FatFs patches once against the pinned source.
 set(_cemu_libusbhsfs_uasp_dir "${CMAKE_SOURCE_DIR}/dist/switch/libusbhsfs")
-set(_cemu_libusbhsfs_uasp_patches
+set(_cemu_libusbhsfs_patches
 	"${_cemu_libusbhsfs_uasp_dir}/0001-add-uasp-transport-hooks.patch"
 	"${_cemu_libusbhsfs_uasp_dir}/0002-fallback-to-bot-interface.patch"
-	"${_cemu_libusbhsfs_uasp_dir}/0003-cleanup-after-uasp-reset.patch")
-foreach(_cemu_libusbhsfs_patch IN LISTS _cemu_libusbhsfs_uasp_patches)
+	"${_cemu_libusbhsfs_uasp_dir}/0003-cleanup-after-uasp-reset.patch"
+	"${_cemu_libusbhsfs_uasp_dir}/0004-fix-fatfs-lock-order.patch")
+foreach(_cemu_libusbhsfs_patch IN LISTS _cemu_libusbhsfs_patches)
 	execute_process(
 		COMMAND "${GIT_EXECUTABLE}"
 			-c "safe.directory=${libusbhsfs_SOURCE_DIR}"

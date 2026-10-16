@@ -1,16 +1,27 @@
 #include "ui_audio.h"
 
-#include <SDL2/SDL.h>
+#include <switch.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 namespace
 {
 constexpr int SampleRate = 48000;
-SDL_AudioDeviceID s_device = 0;
+constexpr size_t BufferCount = 4;
+constexpr size_t BufferSize = 0x3000;
+struct alignas(0x1000) SampleBuffer
+{
+	std::array<uint8_t, BufferSize> samples;
+};
+std::array<SampleBuffer, BufferCount> s_samples;
+std::array<AudioOutBuffer, BufferCount> s_buffers{};
+std::array<bool, BufferCount> s_queued{};
+bool s_initialized = false;
 bool s_enabled = true;
 std::vector<int16_t> s_navigate;
 std::vector<int16_t> s_confirm;
@@ -46,52 +57,104 @@ const std::vector<int16_t>& samplesFor(UiSound sound)
 	}
 	return s_navigate;
 }
+
+void closeOutput()
+{
+	if (!s_initialized)
+		return;
+	audoutStopAudioOut();
+	audoutExit();
+	s_initialized = false;
+	s_queued.fill(false);
+}
+
+bool reclaimBuffers()
+{
+	for (size_t index = 0; index < BufferCount; ++index)
+	{
+		AudioOutBuffer* released = nullptr;
+		u32 count = 0;
+		const Result result = audoutGetReleasedAudioOutBuffer(&released, &count);
+		if (R_FAILED(result))
+			return false;
+		if (!count || !released)
+			break;
+		for (size_t slot = 0; slot < BufferCount; ++slot)
+			if (released == &s_buffers[slot]) s_queued[slot] = false;
+	}
+	return true;
+}
 } // namespace
 
 bool uiAudioInit()
 {
-	if (s_device)
+	if (s_initialized)
 		return true;
-	SDL_AudioSpec requested{};
-	requested.freq = SampleRate;
-	requested.format = AUDIO_S16SYS;
-	requested.channels = 2;
-	requested.samples = 512;
-	s_device = SDL_OpenAudioDevice(nullptr, 0, &requested, nullptr, 0);
-	if (!s_device)
+	if (R_FAILED(audoutInitialize()))
 		return false;
+	if (audoutGetSampleRate() != SampleRate || audoutGetChannelCount() != 2 ||
+	    audoutGetPcmFormat() != PcmFormat_Int16)
+	{
+		audoutExit();
+		return false;
+	}
+	for (size_t index = 0; index < BufferCount; ++index)
+	{
+		s_buffers[index] = {};
+		s_buffers[index].buffer = s_samples[index].samples.data();
+		s_buffers[index].buffer_size = BufferSize;
+	}
+	s_queued.fill(false);
+	if (R_FAILED(audoutStartAudioOut()))
+	{
+		audoutExit();
+		return false;
+	}
+	s_initialized = true;
 	s_navigate = makeTone(920.0f, 1040.0f, 18, 0.10f);
 	s_confirm = makeTone(620.0f, 980.0f, 42, 0.16f);
 	s_back = makeTone(760.0f, 420.0f, 48, 0.14f);
-	SDL_PauseAudioDevice(s_device, 0);
 	return true;
 }
 
 void uiAudioPlay(UiSound sound)
 {
-	if (!s_device || !s_enabled)
+	if (!s_initialized || !s_enabled)
 		return;
-	if (SDL_GetQueuedAudioSize(s_device) > SampleRate * sizeof(int16_t))
-		SDL_ClearQueuedAudio(s_device);
+	if (!reclaimBuffers())
+		return;
 	const auto& samples = samplesFor(sound);
-	SDL_QueueAudio(s_device, samples.data(), static_cast<Uint32>(samples.size() * sizeof(samples[0])));
+	const size_t bytes = samples.size() * sizeof(samples[0]);
+	if (!bytes || bytes > BufferSize)
+		return;
+	for (size_t index = 0; index < BufferCount; ++index)
+	{
+		if (s_queued[index])
+			continue;
+		auto& buffer = s_buffers[index];
+		std::memcpy(buffer.buffer, samples.data(), bytes);
+		armDCacheFlush(buffer.buffer, bytes);
+		buffer.data_size = bytes;
+		const Result result = audoutAppendAudioOutBuffer(&buffer);
+		s_queued[index] = R_SUCCEEDED(result);
+		return;
+	}
 }
 
 void uiAudioSetEnabled(bool enabled)
 {
+	if (s_enabled == enabled)
+		return;
 	s_enabled = enabled;
-	if (!enabled && s_device)
-		SDL_ClearQueuedAudio(s_device);
+	if (enabled)
+		uiAudioInit();
+	else
+		closeOutput();
 }
 
 void uiAudioShutdown()
 {
-	if (s_device)
-	{
-		SDL_ClearQueuedAudio(s_device);
-		SDL_CloseAudioDevice(s_device);
-		s_device = 0;
-	}
+	closeOutput();
 	s_navigate.clear();
 	s_confirm.clear();
 	s_back.clear();

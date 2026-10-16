@@ -969,10 +969,7 @@ void SetUsbStatusCallback(UsbStatusCallback callback, void* userData)
 UsbSnapshot GetUsbSnapshot()
 {
 	UsbSnapshot snapshot;
-	{
-		std::lock_guard<std::mutex> lock(s_mountMutex);
-		if(!s_usbInitialized) return snapshot;
-	}
+	if (!s_usbInitialized.load(std::memory_order_acquire)) return snapshot;
 	std::lock_guard<std::mutex> lock(s_usbMutex);
 	snapshot.generation=s_usbGeneration.load(std::memory_order_acquire);
 	for(const auto& device:s_usbDevices)

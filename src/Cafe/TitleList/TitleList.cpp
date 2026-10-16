@@ -7,7 +7,7 @@
 
 #if defined(__SWITCH__)
 // libnx headers carry no C++ linkage guard.
-extern "C" bool fsdevCommitDevice(const char* name);
+extern "C" uint32_t fsdevCommitDevice(const char* name);
 #endif
 
 bool sTLInitialized{ false };

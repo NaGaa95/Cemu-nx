@@ -1,0 +1,174 @@
+diff --git a/source/usbhsfs_manager.c b/source/usbhsfs_manager.c
+--- a/source/usbhsfs_manager.c
++++ b/source/usbhsfs_manager.c
+@@ -504,43 +504,9 @@
+ /* Non-static function not meant to be disclosed to users. */
+ UsbHsFsDriveLogicalUnitContext *usbHsFsManagerGetLogicalUnitContextForFatFsDriveNumber(u8 pdrv)
+ {
+-    UsbHsFsDriveLogicalUnitContext *ret = NULL;
+-
+-    SCOPED_LOCK(&g_managerMutex)
+-    {
+-        if (!g_driveCount || !g_driveContexts || pdrv >= FF_VOLUMES)
+-        {
+-            USBHSFS_LOG_MSG("Invalid parameters!");
+-            break;
+-        }
+-
+-        for(u32 i = 0; i < g_driveCount; i++)
+-        {
+-            UsbHsFsDriveContext *drive_ctx = g_driveContexts[i];
+-            if (!drive_ctx) continue;
+-
+-            for(u8 j = 0; j < drive_ctx->lun_count; j++)
+-            {
+-                UsbHsFsDriveLogicalUnitContext *lun_ctx = drive_ctx->lun_ctx[j];
+-
+-                for(u32 k = 0; k < lun_ctx->fs_count; k++)
+-                {
+-                    UsbHsFsDriveLogicalUnitFileSystemContext *fs_ctx = lun_ctx->fs_ctx[k];
+-
+-                    if (fs_ctx->fs_type == UsbHsFsDriveLogicalUnitFileSystemType_FAT && fs_ctx->fatfs && fs_ctx->fatfs->pdrv == pdrv)
+-                    {
+-                        ret = lun_ctx;
+-                        goto end;
+-                    }
+-                }
+-            }
+-        }
+-
+-end:
+-        if (!ret) USBHSFS_LOG_MSG("Unable to find a matching LUN context for filesystem context with FatFs drive number %u!", pdrv);
+-    }
+-
+-    return ret;
++    /* FatFs calls this while holding the drive mutex. Taking the manager
++     * mutex here deadlocks against another devoptab call waiting on that drive. */
++    return usbHsFsMountGetLogicalUnitContextForFatFsDriveNumber(pdrv);
+ }
+ 
+ /* Used to create and start a new thread with preemptive multithreading enabled without using libnx's newlib wrappers. */
+diff --git a/source/usbhsfs_mount.c b/source/usbhsfs_mount.c
+--- a/source/usbhsfs_mount.c
++++ b/source/usbhsfs_mount.c
+@@ -190,7 +190,7 @@
+ static u32 g_devoptabDefaultDeviceId = DEVOPTAB_INVALID_ID;
+ static Mutex g_devoptabDefaultDeviceMutex = 0;
+ 
+-static bool g_fatFsVolumeTable[FF_VOLUMES] = { false };
++static UsbHsFsDriveLogicalUnitContext *g_fatFsVolumeTable[FF_VOLUMES] = { NULL };
+ 
+ static const u8 g_microsoftBasicDataPartitionGuid[0x10] = { 0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44, 0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7 };   /* EBD0A0A2-B9E5-4433-87C0-68B6B72699C7. */
+ static const u8 g_linuxFilesystemDataGuid[0x10] = { 0xAF, 0x3D, 0xC6, 0x0F, 0x83, 0x84, 0x72, 0x47, 0x8E, 0x79, 0x3D, 0x69, 0xD8, 0x47, 0x7D, 0xE4 };           /* 0FC63DAF-8483-4772-8E79-3D69D8477DE4. */
+@@ -395,6 +395,12 @@
+     }
+ }
+ 
++UsbHsFsDriveLogicalUnitContext *usbHsFsMountGetLogicalUnitContextForFatFsDriveNumber(u8 pdrv)
++{
++    if (pdrv >= FF_VOLUMES) return NULL;
++    return __atomic_load_n(&g_fatFsVolumeTable[pdrv], __ATOMIC_ACQUIRE);
++}
++
+ u32 usbHsFsMountGetDevoptabDeviceCount(void)
+ {
+     return g_devoptabDeviceCount;
+@@ -924,7 +930,7 @@
+     /* Check if there's a free FatFs volume slot. */
+     for(pdrv = 0; pdrv < FF_VOLUMES; pdrv++)
+     {
+-        if (!g_fatFsVolumeTable[pdrv])
++        if (!usbHsFsMountGetLogicalUnitContextForFatFsDriveNumber(pdrv))
+         {
+             /* Jackpot. Prepare mount name. */
+             sprintf(name, "%u:", pdrv);
+@@ -955,6 +961,9 @@
+     fs_ctx->fatfs->winsect = (LBA_t)block_addr;
+     memcpy(fs_ctx->fatfs->win, block, sizeof(VolumeBootRecord));
+ 
++    /* Publish before mounting: FatFs reads the volume through diskio callbacks. */
++    __atomic_store_n(&g_fatFsVolumeTable[pdrv], lun_ctx, __ATOMIC_RELEASE);
++
+     /* Try to mount FAT volume. */
+     ff_res = ff_mount(fs_ctx->fatfs, name, 1);
+     if (ff_res != FR_OK)
+@@ -966,9 +975,6 @@
+     /* Register devoptab device. */
+     if (!usbHsFsMountRegisterDevoptabDevice(fs_ctx)) goto end;
+ 
+-    /* Update FatFs volume slot. */
+-    g_fatFsVolumeTable[pdrv] = true;
+-
+     /* Update return value. */
+     ret = true;
+ 
+@@ -976,7 +982,8 @@
+     /* Free stuff if something went wrong. */
+     if (!ret && fs_ctx->fatfs)
+     {
+-        if (ff_res == FR_OK) ff_unmount(name);
++        ff_unmount(name);
++        __atomic_store_n(&g_fatFsVolumeTable[pdrv], NULL, __ATOMIC_RELEASE);
+         free(fs_ctx->fatfs);
+         fs_ctx->fatfs = NULL;
+     }
+@@ -986,14 +993,12 @@
+ 
+ static void usbHsFsMountUnregisterFatVolume(char *name, UsbHsFsDriveLogicalUnitFileSystemContext *fs_ctx)
+ {
+-    /* Update FatFs volume slot. */
+-    g_fatFsVolumeTable[fs_ctx->fatfs->pdrv] = false;
+-
+     /* Prepare mount name. */
+     sprintf(name, "%u:", fs_ctx->fatfs->pdrv);
+ 
+-    /* Unmount FAT volume. */
++    /* Unmount FAT volume before clearing its diskio context. */
+     ff_unmount(name);
++    __atomic_store_n(&g_fatFsVolumeTable[fs_ctx->fatfs->pdrv], NULL, __ATOMIC_RELEASE);
+ 
+     /* Free FATFS object. */
+     free(fs_ctx->fatfs);
+diff --git a/source/usbhsfs_mount.h b/source/usbhsfs_mount.h
+--- a/source/usbhsfs_mount.h
++++ b/source/usbhsfs_mount.h
+@@ -25,6 +25,10 @@
+ /// Destroys the provided filesystem context, unregistering the devoptab virtual device and unmounting the filesystem in the process.
+ void usbHsFsMountDestroyLogicalUnitFileSystemContext(UsbHsFsDriveLogicalUnitFileSystemContext *fs_ctx);
+ 
++/// Returns the diskio context. Callers hold the owning drive mutex during I/O,
++/// or the manager mutex during mount/unmount, to keep the returned context alive.
++UsbHsFsDriveLogicalUnitContext *usbHsFsMountGetLogicalUnitContextForFatFsDriveNumber(u8 pdrv);
++
+ /// Returns the total number of registered devoptab virtual devices.
+ u32 usbHsFsMountGetDevoptabDeviceCount(void);
+ 
+diff --git a/source/fatfs/ff_dev.c b/source/fatfs/ff_dev.c
+--- a/source/fatfs/ff_dev.c
++++ b/source/fatfs/ff_dev.c
+@@ -342,6 +342,7 @@
+ static int ffdev_stat(struct _reent *r, const char *file, struct stat *st)
+ {
+     FILINFO info = {0};
++    const char *relative = NULL;
+     FRESULT res = FR_OK;
+ 
+     ff_declare_error_state;
+@@ -354,6 +355,17 @@
+     if (!ffdev_fixpath(r, file, &fs_ctx, NULL)) ff_end;
+ 
+     USBHSFS_LOG_MSG("Getting stats for \"%s\" (\"%s\").", file, __usbhsfs_dev_path_buf);
++
++    /* FatFs does not return FILINFO for a volume root. The mounted devoptab
++     * already proves it exists; report it as a directory without ff_stat. */
++    relative = strchr(__usbhsfs_dev_path_buf, ':') + 1;
++    if (relative[strspn(relative, "/")] == '\0')
++    {
++        memset(st, 0, sizeof(*st));
++        st->st_mode = S_IFDIR | S_IRWXU | S_IRWXG | S_IRWXO;
++        st->st_nlink = 1;
++        goto end;
++    }
+ 
+     /* Get stats. */
+     res = ff_stat(__usbhsfs_dev_path_buf, &info);

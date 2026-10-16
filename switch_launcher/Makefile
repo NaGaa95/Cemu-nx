@@ -18,7 +18,7 @@ TARGET		:=	cemu
 BUILD		:=	build
 SOURCES		:=	source ../src/platform/switch/common
 DATA		:=	data
-INCLUDES	:=	include ../src/platform/switch/common \
+INCLUDES	:=	../src/platform/switch/common \
 			../dependencies/ZArchive/include \
 			../build_switch/_deps/libsmb2-src/include \
 			../build_switch/_deps/libusbhsfs-src/include
@@ -146,8 +146,11 @@ else
 $(OUTPUT).nro	:	$(OUTPUT).elf
 endif
 
-# Repackage whenever staged core, hash or forwarder assets change.
-$(OUTPUT).nro : $(APP_ICON) $(shell find $(TOPDIR)/$(ROMFS) -type f)
+ROMFS_FILES := $(shell find $(TOPDIR)/$(ROMFS) -type f)
+$(OUTPUT).nro : $(APP_ICON) $(ROMFS_FILES)
+
+$(ROMFS_FILES) $(STORAGE_LIBS) $(ARCHIVE_LIBS):
+	@test -f "$@" || { echo "Missing build input: $@" >&2; exit 1; }
 
 # The launcher consumes CMake's storage archives directly. Relink when the
 # backend or its NTFS dependency changes, even if launcher sources do not.
