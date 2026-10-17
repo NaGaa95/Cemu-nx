@@ -104,6 +104,7 @@ if(PLATFORM_SWITCH)
 		platform/switch/SwitchToys.cpp
 		platform/switch/SwitchSwkbd.cpp
 		platform/switch/common/SwitchPosixCompat.cpp
+		platform/switch/common/SwitchPerformance.cpp
 		platform/switch/common/SwitchStorage.cpp
 		platform/switch/switch_stubs.cpp
 	)
