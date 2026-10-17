@@ -13,16 +13,12 @@
 #include "Cafe/HW/Latte/Renderer/OpenGL/CachedFBOGL.h"
 #include "Cafe/HW/Latte/Renderer/OpenGL/RendererShaderGL.h"
 
-#if defined(__SWITCH__)
-#include "platform/switch/SwitchGpuCapture.h"
-#endif
 #include "Cafe/HW/Latte/ISA/RegDefines.h"
 #include "Cafe/OS/libs/gx2/GX2.h"
 
 #include "Cafe/GameProfile/GameProfile.h"
 #include "HW/Latte/Renderer/RendererCore.h"
 #include "config/ActiveSettings.h"
-
 
 using _INDEX_TYPE = Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE;
 
@@ -371,7 +367,6 @@ void _decodeAndUploadIndexData(indexDataCacheEntry2_t* cacheEntry)
 		cemu_assert_debug(false);
 	}
 }
-
 
 void LatteDraw_cleanupAfterFrame()
 {
@@ -1154,9 +1149,6 @@ void OpenGLRenderer::draw_beginSequence()
 
 void OpenGLRenderer::draw_execute(uint32 baseVertex, uint32 baseInstance, uint32 instanceCount, uint32 count, MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType, const LatteDrawcallContext& drawcallContext)
 {
-#if defined(__SWITCH__)
-	SwitchGpuCapture_NoteDraw(count, instanceCount, baseVertex, indexDataMPTR != MPTR_NULL);
-#endif
 	bool isMinimal = !drawcallContext.isFirst;
     if (isMinimal)
         draw_genericDrawHandler<true, false>(baseVertex, baseInstance, instanceCount, count, indexDataMPTR, indexType);
@@ -1203,7 +1195,6 @@ void OpenGLRenderer::bufferCache_copy(uint32 srcOffset, uint32 dstOffset, uint32
 	attributeStream_bindVertexCacheBuffer();
 	glCopyBufferSubData(GL_ARRAY_BUFFER, GL_ARRAY_BUFFER, srcOffset, dstOffset, size);
 }
-
 
 GLint glClampTable[] =
 {

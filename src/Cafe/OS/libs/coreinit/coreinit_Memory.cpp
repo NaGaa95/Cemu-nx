@@ -33,7 +33,9 @@ namespace coreinit
 	{
 		MPTR addrEnd = (addr + size + 0x1F) & ~0x1F;
 		addr &= ~0x1F;
-		//LatteBufferCache_notifyDCFlush(addr, addrEnd - addr);
+#if defined(__SWITCH__)
+		LatteBufferCache_notifyDCFlush(addr, addrEnd - addr);
+#endif
 	}
 
 	void DCStoreRangeNoSync(MPTR addr, uint32 size)

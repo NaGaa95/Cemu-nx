@@ -146,6 +146,7 @@ bool LatteTextureReadback_ReadbackToLinearBlocking(LatteTextureView* sourceView,
 // query
 
 void LatteQuery_Init();
+void LatteQuery_UnloadAll();
 void LatteQuery_BeginOcclusionQuery(MPTR queryMPTR);
 void LatteQuery_EndOcclusionQuery(MPTR queryMPTR);
 void LatteQuery_UpdateFinishedQueries();

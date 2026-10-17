@@ -1,0 +1,18 @@
+--- a/spirv_glsl.cpp
++++ b/spirv_glsl.cpp
+@@ -8254,13 +8254,13 @@
+ 			// Create a composite which merges coord/dref into a single vector.
+ 			auto type = expression_type(args.coord);
+ 			type.vecsize = args.coord_components + 1;
+-			if (imgtype.image.dim == Dim1D && options.es)
++			if (imgtype.image.dim == Dim1D && (options.es || !imgtype.image.arrayed))
+ 				type.vecsize++;
+ 			farg_str += ", ";
+ 			farg_str += type_to_glsl_constructor(type);
+ 			farg_str += "(";
+ 
+-			if (imgtype.image.dim == Dim1D && options.es)
++			if (imgtype.image.dim == Dim1D && (options.es || !imgtype.image.arrayed))
+ 			{
+ 				if (imgtype.image.arrayed)
+ 				{

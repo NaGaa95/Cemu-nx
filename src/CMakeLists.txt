@@ -1,5 +1,6 @@
 project(cemuMain)
 
+
 option(CEMU_CXX_FLAGS "Additional flags used for compiling Cemu source code")
 separate_arguments(CEMU_CXX_FLAGS NATIVE_COMMAND ${CEMU_CXX_FLAGS})
 if(CEMU_CXX_FLAGS)
@@ -68,20 +69,26 @@ add_subdirectory(imgui)
 add_subdirectory(resource)
 
 if(PLATFORM_SWITCH)
-	file(GLOB_RECURSE SWITCH_LSFG_SOURCES CONFIGURE_DEPENDS
-		"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-common/src/*.cpp"
-		"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-backend/src/*.cpp")
-	add_library(SwitchLsfgBackend STATIC
-		platform/switch/lsfg/lsfg_bridge.cpp
-		${SWITCH_LSFG_SOURCES})
-	target_include_directories(SwitchLsfgBackend PRIVATE
-		"${CMAKE_SOURCE_DIR}/src/platform/switch/lsfg"
-		"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-common/include"
-		"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-backend/include"
-		"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-backend/src")
-	target_compile_definitions(SwitchLsfgBackend PRIVATE
-		VK_USE_PLATFORM_VI_NN
-		CEMU_LSFG_VULKAN_DISPATCH)
+	if(ENABLE_VULKAN)
+		file(GLOB_RECURSE SWITCH_LSFG_SOURCES CONFIGURE_DEPENDS
+			"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-common/src/*.cpp"
+			"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-backend/src/*.cpp")
+		add_library(SwitchLsfgBackend STATIC
+			platform/switch/lsfg/lsfg_bridge.cpp
+			${SWITCH_LSFG_SOURCES})
+		target_include_directories(SwitchLsfgBackend PRIVATE
+			"${CMAKE_SOURCE_DIR}/src/platform/switch/lsfg"
+			"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-common/include"
+			"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-backend/include"
+			"${CMAKE_SOURCE_DIR}/third_party/lsfg-vk/lsfg-vk-backend/src")
+		target_compile_definitions(SwitchLsfgBackend PRIVATE
+			VK_USE_PLATFORM_VI_NN
+			CEMU_LSFG_VULKAN_DISPATCH)
+
+		set(SWITCH_LSFG_CONTROL platform/switch/SwitchLSFG.cpp)
+	else()
+		set(SWITCH_LSFG_CONTROL platform/switch/SwitchLSFGDeko.cpp)
+	endif()
 
 	add_executable(CemuBin
 		platform/switch/main_switch.cpp
@@ -93,8 +100,7 @@ if(PLATFORM_SWITCH)
 		platform/switch/SwitchInput.cpp
 		platform/switch/SwitchAmiibo.cpp
 		platform/switch/SwitchOverlay.cpp
-		platform/switch/SwitchGpuCapture.cpp
-		platform/switch/SwitchLSFG.cpp
+		${SWITCH_LSFG_CONTROL}
 		platform/switch/SwitchToys.cpp
 		platform/switch/SwitchSwkbd.cpp
 		platform/switch/common/SwitchPosixCompat.cpp
@@ -234,10 +240,11 @@ else()
     endif()
 endif()
 
+set(CEMU_RUNTIME_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../bin" CACHE PATH "Runtime output directory")
 set_target_properties(CemuBin PROPERTIES
 	# multi-configuration generators will add a config subdirectory to RUNTIME_OUTPUT_DIRECTORY if no generator expression is used
 	# to get the same behavior everywhere we append an empty generator expression
-	RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../bin/$<1:>"
+	RUNTIME_OUTPUT_DIRECTORY "${CEMU_RUNTIME_OUTPUT_DIR}/$<1:>"
 	OUTPUT_NAME "${OUTPUT_NAME}"
 )
 
@@ -271,14 +278,24 @@ endif()
 
 if (PLATFORM_SWITCH)
 	set(SWITCH_LTO_JOBS "auto" CACHE STRING "Parallel GCC LTO jobs for the Switch link")
+	target_link_libraries(CemuBin PRIVATE PNG::PNG)
 	# Reserve guest VA after libnx has carved argument storage out of the heap,
 	# but before __appInit starts services. argvSetup is defined in a separate
 	# libnx object, so --wrap redirects the call from its runtime init object.
 	target_link_options(CemuBin PRIVATE "-Wl,--wrap=argvSetup")
+	if(ENABLE_DEKO3D)
+		target_link_options(CemuBin PRIVATE
+			"-Wl,--wrap=nvGpuChannelKickoff,--undefined=__wrap_nvGpuChannelKickoff"
+			"-Wl,--wrap=nvGpuChannelAppendEntry,--undefined=__wrap_nvGpuChannelAppendEntry")
+	endif()
 	# The headless build still consumes fonts through imgui.
-	target_link_libraries(CemuBin PRIVATE SwitchVulkanDriver SwitchLsfgBackend imguiImpl
+	target_link_libraries(CemuBin PRIVATE SwitchVulkanDriver imguiImpl
 		smb2 libusbhsfs
 		"-Wl,--whole-archive" CemuResource "-Wl,--no-whole-archive")
+	if(ENABLE_VULKAN)
+		target_link_libraries(CemuBin PRIVATE SwitchLsfgBackend)
+	endif()
+
 	if(ENABLE_OPENGL)
 		target_link_libraries(CemuBin PRIVATE OpenGL::GL)
 	endif()
@@ -312,7 +329,7 @@ if (PLATFORM_SWITCH)
 		VERSION "${EMULATOR_VERSION_MAJOR}.${EMULATOR_VERSION_MINOR}.${EMULATOR_VERSION_PATCH}")
 	nx_create_nro(CemuNro
 		TARGET CemuBin
-		OUTPUT "${CMAKE_SOURCE_DIR}/bin/cemu_core.nro"
+		OUTPUT "${CEMU_RUNTIME_OUTPUT_DIR}/cemu_core.nro"
 		NACP "${CMAKE_BINARY_DIR}/Cemu.nacp"
 		ICON "${CMAKE_SOURCE_DIR}/dist/switch/icon.jpg"
 		ROMFS SwitchRomfs)

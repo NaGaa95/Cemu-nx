@@ -1,5 +1,4 @@
 #include "platform/switch/SwitchOverlay.h"
-#include "platform/switch/SwitchGpuCapture.h"
 
 #include <switch.h>
 
@@ -20,6 +19,9 @@
 #include "platform/switch/SwitchAmiibo.h"
 #include "platform/switch/SwitchInput.h"
 #include "platform/switch/SwitchLSFG.h"
+#if defined(ENABLE_DEKO3D)
+#include "platform/switch/SwitchLSFGDeko.h"
+#endif
 #include "platform/switch/SwitchPlatform.h"
 #include "platform/switch/SwitchToys.h"
 
@@ -44,7 +46,6 @@ enum class HotkeyAction : size_t
 	ToggleShaderNotice,
 	CycleController,
 	ScanAmiibo,
-	CaptureFrame,
 	ExitLauncher,
 	Count,
 };
@@ -75,7 +76,6 @@ constexpr std::array<HotkeyInfo, kHotkeyCount> kHotkeys{{
 	{"Toggle shader notice", "shader_notice", 0},
 	{"Cycle controller type", "controller", 0},
 	{"Scan Amiibo", "amiibo", 0},
-	{"Capture a frame", "gpu_capture", HidNpadButton_L | HidNpadButton_R | HidNpadButton_Minus},
 	{"Exit to launcher", "exit", HidNpadButton_L | HidNpadButton_R | HidNpadButton_ZL | HidNpadButton_ZR},
 }};
 
@@ -329,9 +329,6 @@ void DispatchHotkey(HotkeyAction action)
 	case HotkeyAction::ScanAmiibo:
 		s_amiiboScanRequests.fetch_add(1, std::memory_order_release);
 		break;
-	case HotkeyAction::CaptureFrame:
-		SwitchGpuCapture_Request();
-		break;
 	case HotkeyAction::ExitLauncher:
 		s_exitRequests.fetch_add(1, std::memory_order_release);
 		break;
@@ -433,6 +430,10 @@ void RenderMainPage()
 		(!SwitchLSFG_IsAvailable() ? "Unavailable" :
 		(!SwitchLSFG_IsEnabled() ? "Off" :
 		(SwitchLSFG_IsHighRatePassthrough() ? "On (native rate)" : "On")));
+#if defined(ENABLE_DEKO3D)
+	if (SwitchLSFGDeko_IsPreparing())
+		frameGenerationStatus = "Preparing";
+#endif
 	std::snprintf(row, sizeof(row), "Frame generation    <  %s  >", frameGenerationStatus);
 	SelectableRow(row, 2);
 	std::snprintf(row, sizeof(row), "FPS counter         <  %s  >", config.overlay.fps ? "On" : "Off");

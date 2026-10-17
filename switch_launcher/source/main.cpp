@@ -351,7 +351,7 @@ static const Opt S_audio[] = {
   O_RANGE ("Audio latency",    "AudioDelay",  0, 23,  1, "2"),
 };
 static const Opt S_framegen[] = {
-  O_CHOICE("LSFG 2x (Vulkan)", "Wrapper/LSFGEnabled", C_bool, "false"),
+  O_CHOICE("LSFG 2x", "Wrapper/LSFGEnabled", C_bool, "false"),
   O_CHOICE("Flow resolution", "Wrapper/LSFGFlowScale", C_lsfgFlowScale, "0.25"),
   O_CHOICE("Performance mode", "Wrapper/LSFGPerformance", C_bool, "true"),
   O_STATUS("Lossless.dll"),
@@ -412,14 +412,14 @@ static const SettingHelpEntry SETTING_HELP[] = {
    "Uses the Switch hardware video decoder for Wii U H.264 movies. Disable it only when troubleshooting broken or missing in-game video playback."},
 
   {"Wrapper/Renderer", "Display backend",
-   "Chooses the graphics backend in the unified Cemu core. Vulkan (NVK) is recommended and is required by LSFG. OpenGL uses native NVC0, while Zink runs Cemu's OpenGL renderer on NVK as an additional compatibility path."},
+   "Selects Vulkan, native Deko3D, or OpenGL. LSFG frame generation is available with Vulkan and Deko3D."},
 
   {"VSync", "Presentation",
    "Synchronizes completed frames to the display refresh to reduce tearing. It can add latency or expose performance drops when a game cannot maintain its target frame rate."},
   {"TripleBuffer", "Presentation / performance",
    "Keeps a third Vulkan swapchain image available while another frame is being displayed. This can make presentation steadier under load, at the cost of some memory and potentially more latency."},
   {"AsyncCompile", "Shader compilation",
-   "Compiles Vulkan shaders asynchronously to reduce long gameplay stalls. Newly encountered effects may be missing briefly while their shaders finish compiling."},
+   "Compiles shaders asynchronously to reduce long gameplay stalls. Newly encountered effects may be missing briefly while their shaders finish compiling."},
   {"vkAccurateBarriers", "Graphics compatibility",
    "Uses more accurate Vulkan synchronization between rendering operations. Keep it enabled for correct effects; disabling it may improve performance slightly but can cause game-specific rendering errors."},
   {"UpscaleFilter", "Image scaling",
@@ -441,7 +441,7 @@ static const SettingHelpEntry SETTING_HELP[] = {
    "Controls Cemu's audio buffer target. Lower values reduce latency but can crackle when emulation is uneven; higher values are more stable but respond later."},
 
   {"Wrapper/LSFGEnabled", "Frame generation",
-   "Generates one intermediate display frame for each real frame to target a smoother 2x presentation. It does not increase emulation speed and may add artifacts or latency. Vulkan only."},
+   "Generates one intermediate display frame for each real frame to target a smoother 2x presentation. It does not increase emulation speed and may add artifacts or latency. Available with Vulkan and Deko3D."},
   {"Wrapper/LSFGFlowScale", "Frame generation quality",
    "Sets the resolution used for optical-flow analysis. Half resolution can retain more motion detail but costs more GPU time and memory; Quarter is recommended on Switch."},
   {"Wrapper/LSFGPerformance", "Frame generation performance",
@@ -4321,7 +4321,8 @@ static bool resetOption(const Opt &option) {
 static bool optionEnabled(int screen,const Opt &option) {
   if(option.type==OT_STATUS) return false;
   const bool nativeVulkan=!strcmp(iniGet("Wrapper/Renderer","vk"),"vk");
-  if(!nativeVulkan && screen==SCR_FRAMEGEN) return false;
+  const bool nativeDeko=!strcmp(iniGet("Wrapper/Renderer","vk"),"deko3d");
+  if(!nativeVulkan && !nativeDeko && screen==SCR_FRAMEGEN) return false;
   if(!nativeVulkan && option.key && !strcmp(option.key,"vkAccurateBarriers")) return false;
   if(screen==SCR_FRAMEGEN&&option.key&&
      (!strcmp(option.key,"Wrapper/LSFGFlowScale")||!strcmp(option.key,"Wrapper/LSFGPerformance")))
@@ -4464,8 +4465,8 @@ static void showOptionHelp(const char *section,const Opt &option,const char *sco
 static const char *settingsScreenDescription(int screen) {
   switch(screen){
     case SCR_CPU: return "Controls Cemu's CPU execution mode, emulated timer rate, and hardware video decoding. Compatibility overrides should normally be applied per game.";
-    case SCR_GRAPHICS: return "Controls Vulkan presentation, shader compilation, synchronization, image scaling, and how the Wii U TV and GamePad screens are arranged.";
-    case SCR_FRAMEGEN: return "Configures Vulkan-only LSFG 2x frame generation. It creates intermediate display frames but does not make Wii U emulation run faster.";
+    case SCR_GRAPHICS: return "Controls presentation, shader compilation, image scaling, and how the Wii U TV and GamePad screens are arranged.";
+    case SCR_FRAMEGEN: return "Configures LSFG 2x frame generation for Vulkan and Deko3D. It creates intermediate display frames but does not make Wii U emulation run faster.";
     case SCR_AUDIO: return "Controls the Wii U TV and GamePad audio streams, their volume, and the balance between output latency and stability.";
     case SCR_OVERLAY: return "Controls Cemu's in-game FPS and shader-compilation status displays and where the performance overlay appears.";
     case SCR_INPUT: return "Selects the emulated Wii U controller, local player count, rumble, stick dead zone, press-to-bind controller mappings, and Cemu's virtual USB portals for Skylanders, Disney Infinity, and LEGO Dimensions.";
@@ -5792,7 +5793,7 @@ static void runSettingsRoot(const char *ctx) {
                             slot,colW,labelX,valX,cur,labelColor,valueColor,false,rowH);
       } else if(global && i==framegenRow){
         drawSettingsRowText(LauncherLocalization::Translate("Frame Generation").data(),
-                            LauncherLocalization::Translate("LSFG 2x / Vulkan").data(),
+                            LauncherLocalization::Translate("LSFG 2x / Vulkan / Deko3D").data(),
                             slot,colW,labelX,valX,cur,labelColor,valueColor,false,rowH);
       } else {
         drawSettingsRowText(LauncherLocalization::Translate(g_screens[order[global?i-screenStart:i]].title).data(),">",
@@ -7166,6 +7167,8 @@ static void clearShaderCaches(const Game &g) {
 
   static const char *formats[] = {
     "/cache/shaderCache/driver/vk/%016llx.bin",
+    "/cache/shaderCache/driver/deko3d/%016llx",
+    "/cache/shaderCache/driver/deko3d/v1",
     "/cache/shaderCache/precompiled/%016llx_spirv.bin",
     "/cache/shaderCache/precompiled/%016llx_gl.bin",
     "/cache/shaderCache/precompiled/%016llx_air.bin",
@@ -7180,7 +7183,7 @@ static void clearShaderCaches(const Game &g) {
     int length = snprintf(suffix, sizeof(suffix), format, (unsigned long long)g.titleId);
     if (length > 0 && (size_t)length < sizeof(suffix)) {
       std::string path = std::string(DATA_DIR) + suffix;
-      if (regularFileExists(path)) paths.emplace_back(std::move(path));
+      if (regularFileExists(path) || directoryExists(path)) paths.emplace_back(std::move(path));
     }
   }
   if (paths.empty()) {
@@ -7194,7 +7197,7 @@ static void clearShaderCaches(const Game &g) {
 
   int failed = 0;
   for (const auto &path : paths)
-    if (remove(path.c_str()) != 0 && errno != ENOENT)
+    if (!removeTreeInternal(path))
       failed++;
   if (failed) {
     modalMessageStatic("Cache cleanup failed", {
@@ -7460,9 +7463,9 @@ static bool validNro(const std::string &path, long long expectedSize) {
   return true;
 }
 
-static bool readEmbeddedEmulatorHash(std::array<u8, SHA256_HASH_SIZE> &hash,
+static bool readEmbeddedEmulatorHash(const char *path, std::array<u8, SHA256_HASH_SIZE> &hash,
                                      std::string &text) {
-  FILE *file=fopen(EMU_HASH_SRC,"rb");
+  FILE *file=fopen(path,"rb");
   if(!file) return false;
   char buffer[128];
   const size_t size=fread(buffer,1,sizeof(buffer),file);
@@ -7507,16 +7510,30 @@ static void cleanupLegacyEmuHosts() {
   if(changed) fsdevCommitDevice("sdmc");
 }
 
-static bool ensureEmu() {
-  std::string marker = std::string(DATA_DIR) + "/.emu_core_build";
-  const std::string tmp = std::string(EMU_NRO_DST) + ".tmp";
-  const std::string old = std::string(EMU_NRO_DST) + ".old";
+struct EmulatorPayload {
+  const char *source;
+  const char *hash;
+  const char *destination;
+  const char *marker;
+};
+
+static const EmulatorPayload &emulatorPayload(const std::string &renderer) {
+  static const EmulatorPayload unified{EMU_NRO_SRC,EMU_HASH_SRC,EMU_NRO_DST,".emu_core_build"};
+  static const EmulatorPayload deko{"romfs:/emu/cemu_deko3d.nro","romfs:/emu/cemu_deko3d.sha256",
+                                    "sdmc:/switch/cemu/.emu/cemu_deko3d.nro",".emu_deko3d_build"};
+  return renderer=="deko3d"?deko:unified;
+}
+
+static bool ensureEmu(const EmulatorPayload &payload) {
+  std::string marker = std::string(DATA_DIR) + "/" + payload.marker;
+  const std::string tmp = std::string(payload.destination) + ".tmp";
+  const std::string old = std::string(payload.destination) + ".old";
   bool destinationExists=false,oldExists=false,tmpExists=false;
-  if(!queryRegularFile(EMU_NRO_DST,destinationExists) || !queryRegularFile(old,oldExists) ||
+  if(!queryRegularFile(payload.destination,destinationExists) || !queryRegularFile(old,oldExists) ||
      !queryRegularFile(tmp,tmpExists)) return false;
   if (!destinationExists && oldExists) {
     if (validNro(old,-1)) {
-      if(rename(old.c_str(),EMU_NRO_DST)!=0) return false;
+      if(rename(old.c_str(),payload.destination)!=0) return false;
       destinationExists=true;
     } else if(remove(old.c_str())!=0) {
       return false;
@@ -7524,8 +7541,8 @@ static bool ensureEmu() {
     oldExists=false;
     fsdevCommitDevice("sdmc");
   } else if (destinationExists && oldExists) {
-    if (!validNro(EMU_NRO_DST, -1) && validNro(old, -1)) {
-      if (remove(EMU_NRO_DST) != 0 || rename(old.c_str(), EMU_NRO_DST) != 0) return false;
+    if (!validNro(payload.destination, -1) && validNro(old, -1)) {
+      if (remove(payload.destination) != 0 || rename(old.c_str(), payload.destination) != 0) return false;
     } else {
       if(remove(old.c_str())!=0) return false;
     }
@@ -7535,18 +7552,18 @@ static bool ensureEmu() {
 
   std::array<u8,SHA256_HASH_SIZE> expectedHash{};
   std::string expectedHashText;
-  if(!readEmbeddedEmulatorHash(expectedHash,expectedHashText) || !recoverAtomicFile(marker)) return false;
+  if(!readEmbeddedEmulatorHash(payload.hash,expectedHash,expectedHashText) || !recoverAtomicFile(marker)) return false;
 
   struct stat sourceStat{};
-  if (stat(EMU_NRO_SRC, &sourceStat) != 0 || sourceStat.st_size <= 0 || !S_ISREG(sourceStat.st_mode)) return false;
+  if (stat(payload.source, &sourceStat) != 0 || sourceStat.st_size <= 0 || !S_ISREG(sourceStat.st_mode)) return false;
   char cur[80] = {0};
   if (FILE *mf = fopen(marker.c_str(), "r")) { if (!fgets(cur, sizeof(cur), mf)) cur[0] = 0; fclose(mf); }
   struct stat destinationStat{};
-  if (trim(cur) == expectedHashText && stat(EMU_NRO_DST, &destinationStat) == 0 &&
-      destinationStat.st_size == sourceStat.st_size && validNro(EMU_NRO_DST, sourceStat.st_size))
+  if (trim(cur) == expectedHashText && stat(payload.destination, &destinationStat) == 0 &&
+      destinationStat.st_size == sourceStat.st_size && validNro(payload.destination, sourceStat.st_size))
     return true;
 
-  FILE *in = fopen(EMU_NRO_SRC, "rb"), *out = fopen(tmp.c_str(), "wb");
+  FILE *in = fopen(payload.source, "rb"), *out = fopen(tmp.c_str(), "wb");
   if (!in || !out) {
     if (in) fclose(in);
     if (out) fclose(out);
@@ -7585,7 +7602,7 @@ static bool ensureEmu() {
     remove(tmp.c_str());
     return false;
   }
-  if (!replaceAtomic(EMU_NRO_DST, tmp)) {
+  if (!replaceAtomic(payload.destination, tmp)) {
     remove(tmp.c_str());
     return false;
   }
@@ -8349,8 +8366,10 @@ int main(int argc, char **argv){
     std::vector<CemuKV> effective=buildEffectiveSettings(directGame.key);
     const char *configuredRenderer=cemuKVGet(effective,"Wrapper/Renderer","vk");
     const std::string renderer=!strcmp(configuredRenderer,"gl")?"gl":
-                               !strcmp(configuredRenderer,"zink")?"zink":"vk";
-    const bool haveEmu=ensureEmu();
+                               !strcmp(configuredRenderer,"zink")?"zink":
+                               !strcmp(configuredRenderer,"deko3d")?"deko3d":"vk";
+    const auto &payload=emulatorPayload(renderer);
+    const bool haveEmu=ensureEmu(payload);
     appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
     std::vector<CemuGraphicPack> enabledPacks;
     bool configOk=haveEmu&&readEnabledPacks(enabledPacks);
@@ -8360,7 +8379,7 @@ int main(int argc, char **argv){
       configOk=cemu_writeGameProfile(GAMEPROFILES_DIR,directGame.titleId,
                                      directGame.title.c_str(),effective);
     if(configOk){
-      const bool lsfgPrepared=renderer=="vk" &&
+      const bool lsfgPrepared=(renderer=="vk"||renderer=="deko3d") &&
         !strcmp(cemuKVGet(effective,"Wrapper/LSFGEnabled","false"),"true") &&
         regularFileExists(LSFG_DLL_FILE);
       configOk=writeLaunchHandoff(effective,renderer,directGame.path,directGame.titleId,lsfgPrepared);
@@ -8368,7 +8387,7 @@ int main(int argc, char **argv){
     appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
     if(!configOk) remove(LAUNCH_HANDOFF);
     cleanupLauncher();
-    if(configOk) envSetNextLoad(EMU_NRO_DST,EMU_NRO_DST);
+    if(configOk) envSetNextLoad(payload.destination,payload.destination);
     return configOk?0:1;
   }
 
@@ -8837,12 +8856,15 @@ int main(int argc, char **argv){
   storeSave(g_recent, RECENT_INI);
 
   bool willChain = false;
+  const char *launchNro=EMU_NRO_DST;
   if(launch && envHasNextLoad()){
     std::vector<CemuKV> eff = buildEffectiveSettings(launchKey);
     const char *configuredRenderer=cemuKVGet(eff,"Wrapper/Renderer","vk");
     const std::string renderer=!strcmp(configuredRenderer,"gl") ? "gl" :
-                               !strcmp(configuredRenderer,"zink") ? "zink" : "vk";
-    const bool haveEmu=ensureEmu();
+                               !strcmp(configuredRenderer,"zink") ? "zink" :
+                               !strcmp(configuredRenderer,"deko3d") ? "deko3d" : "vk";
+    const auto &payload=emulatorPayload(renderer);
+    const bool haveEmu=ensureEmu(payload);
     appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
 
     std::vector<CemuGraphicPack> enabledPacks;
@@ -8858,7 +8880,7 @@ int main(int argc, char **argv){
       configOk = cemu_writeGameProfile(GAMEPROFILES_DIR, launchTitleId, gname, eff);
     }
     if (configOk) {
-      bool lsfgPrepared = renderer=="vk" &&
+      bool lsfgPrepared = (renderer=="vk"||renderer=="deko3d") &&
                           !strcmp(cemuKVGet(eff,"Wrapper/LSFGEnabled","false"),"true");
       if (lsfgPrepared && !regularFileExists(LSFG_DLL_FILE)) {
         lsfgPrepared = false;
@@ -8870,7 +8892,7 @@ int main(int argc, char **argv){
       configOk=writeLaunchHandoff(eff,renderer,launchPath,launchTitleId,lsfgPrepared);
     }
     appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
-    if(configOk) willChain=true;
+    if(configOk){ willChain=true; launchNro=payload.destination; }
     else {
       remove(LAUNCH_HANDOFF);
       if (!haveEmu) {
@@ -8891,6 +8913,6 @@ int main(int argc, char **argv){
 
   cleanupLauncher();
 
-  if(willChain) envSetNextLoad(EMU_NRO_DST,EMU_NRO_DST);
+  if(willChain) envSetNextLoad(launchNro,launchNro);
   return 0;
 }

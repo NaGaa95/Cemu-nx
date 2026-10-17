@@ -1,6 +1,11 @@
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
+#if defined(ENABLE_VULKAN)
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
+#endif
+#if defined(ENABLE_DEKO3D)
+#include "Cafe/HW/Latte/Renderer/Deko3D/Deko3DRenderer.h"
+#endif
 #include "config/CemuConfig.h"
 #include "platform/switch/SwitchPlatform.h"
 #include "platform/switch/SwitchSwkbd.h"
@@ -202,6 +207,13 @@ bool SwitchCreateRenderer(int width, int height, std::string_view backend)
 	ConfigureMesaBackend(backend);
 	try
 	{
+#if defined(ENABLE_DEKO3D)
+		if (backend == "deko3d")
+		{
+			g_renderer = std::make_unique<Deko3DRenderer>();
+			return true;
+		}
+#endif
 		if (backend == "gl" || backend == "zink")
 		{
 #if defined(ENABLE_OPENGL)
@@ -218,11 +230,15 @@ bool SwitchCreateRenderer(int width, int height, std::string_view backend)
 #endif
 		}
 
+#if defined(ENABLE_VULKAN)
 		if (!InitializeGlobalVulkan())
 			return false;
 		g_renderer = std::make_unique<VulkanRenderer>();
 		VulkanRenderer::GetInstance()->InitializeSurface({width, height}, true);
 		return true;
+#else
+		return false;
+#endif
 	}
 	catch (...)
 	{

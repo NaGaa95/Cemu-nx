@@ -453,18 +453,23 @@ namespace WindowSystem
 			n_config.Load();
 
 		LoadHandoff();
+#if defined(ENABLE_DEKO3D)
+		s_rendererBackend = "deko3d";
+		GetConfig().graphic_api = kDeko3D;
+#else
 		const std::string requestedRenderer = Handoff("renderer", "vk");
 		s_rendererBackend = requestedRenderer == "gl" || requestedRenderer == "zink" ?
 			requestedRenderer : "vk";
 		GetConfig().graphic_api = s_rendererBackend == "vk" ? kVulkan : kOpenGL;
-		const bool importGuestMemory = s_rendererBackend == "vk";
+#endif
+		const bool importGuestMemory = s_rendererBackend == "vk" || s_rendererBackend == "deko3d";
 		MemMapper::SetGuestMemoryImportRequired(importGuestMemory);
 		// Older global/per-game settings must not disable the mandatory path.
 		GetConfig().vk_host_memory_import = importGuestMemory;
 		const std::string lsfgEnabled = Handoff("lsfg_enabled", "false");
 		const std::string lsfgPerformance = Handoff("lsfg_performance", "true");
 		SwitchLSFG_Configure(
-			s_rendererBackend == "vk" && (lsfgEnabled == "true" || lsfgEnabled == "1"),
+			(s_rendererBackend == "vk" || s_rendererBackend == "deko3d") && (lsfgEnabled == "true" || lsfgEnabled == "1"),
 			std::strtof(Handoff("lsfg_flow_scale", "0.25").c_str(), nullptr),
 			lsfgPerformance != "false" && lsfgPerformance != "0");
 		if (int shift = atoi(Handoff("timer_shift", "3").c_str()); shift >= 0 && shift <= 7)

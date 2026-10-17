@@ -166,6 +166,7 @@ set(glslang_VERSION "15.1.0")
 
 # The top-level build adds ZArchive after package discovery fails.
 
+if(ENABLE_VULKAN)
 # Mesa NVK Vulkan driver.  Accept both the historical NVK-only package and the
 # unified Horizon Mesa SDK.  The latter is intentionally selected explicitly so
 # a developer's system portlibs can never silently change a release build.
@@ -207,6 +208,11 @@ target_link_libraries(SwitchVulkanDriver INTERFACE
 	"${SWITCH_PORTLIBS}/lib/libdrm_nouveau.a")
 
 add_compile_definitions(VK_USE_PLATFORM_VI_NN)
+
+else()
+    add_library(SwitchVulkanDriver INTERFACE)
+    target_include_directories(SwitchVulkanDriver INTERFACE "${CMAKE_SOURCE_DIR}/dependencies/Vulkan-Headers/include")
+endif()
 
 # Compatibility headers and OpenSSL shim
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/dependencies/switch_shims/include")

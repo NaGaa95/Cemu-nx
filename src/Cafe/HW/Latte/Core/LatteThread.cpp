@@ -352,7 +352,11 @@ bool Latte_GetStopSignal()
 void LatteThread_Exit()
 {
 	if (g_renderer)
+	{
+		LatteQuery_UnloadAll();
+		LatteTextureReadback_UpdateFinishedTransfers(true);
 		g_renderer->Shutdown();
+	}
     // clean up vertex/uniform cache
     LatteBufferCache_UnloadAll();
 	// clean up texture cache

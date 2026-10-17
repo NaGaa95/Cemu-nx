@@ -70,6 +70,7 @@ enum GraphicAPI
 	kOpenGL = 0,
 	kVulkan,
 	kMetal,
+	kDeko3D,
 	COUNT
 };
 
@@ -79,6 +80,8 @@ constexpr GraphicAPI kDefaultGraphicsAPI = kVulkan;
 constexpr GraphicAPI kDefaultGraphicsAPI = kMetal;
 #elif defined(ENABLE_OPENGL)
 constexpr GraphicAPI kDefaultGraphicsAPI = kOpenGL;
+#elif defined(ENABLE_DEKO3D)
+constexpr GraphicAPI kDefaultGraphicsAPI = kDeko3D;
 #endif
 
 enum AudioChannels

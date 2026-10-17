@@ -3,6 +3,7 @@
 #include "Cafe/HW/Latte/ISA/RegDefines.h"
 #include "Cafe/HW/Latte/ISA/LatteReg.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
+#include "util/containers/robin_hood.h"
 #include "Cafe/HW/Latte/LegacyShaderDecompiler/LatteDecompiler.h"
 #include "Cafe/HW/Latte/Core/FetchShader.h"
 #include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
@@ -349,7 +350,7 @@ void LatteShader_CreateRendererShader(LatteDecompilerShader* shader, bool compil
 	// check if a custom shader is present
 	std::string shaderSrc;
 
-	const std::string* customShaderSrc = GraphicPack2::FindCustomShaderSource(shader->baseHash, shader->auxHash, gpShaderType, g_renderer->GetType() == RendererAPI::Vulkan, g_renderer->GetType() == RendererAPI::Metal);
+	const std::string* customShaderSrc = GraphicPack2::FindCustomShaderSource(shader->baseHash, shader->auxHash, gpShaderType, (g_renderer->GetType() == RendererAPI::Vulkan || g_renderer->GetType() == RendererAPI::Deko3D), g_renderer->GetType() == RendererAPI::Metal);
 	if (customShaderSrc)
 	{
 		shaderSrc.assign(*customShaderSrc);
@@ -751,6 +752,7 @@ LatteDecompilerShader* LatteShader_CreateShaderFromDecompilerOutput(LatteDecompi
 		shader->resourceMapping = decompilerOutput.resourceMappingGL;
 		break;
 	case RendererAPI::Vulkan:
+	case RendererAPI::Deko3D:
 		shader->resourceMapping = decompilerOutput.resourceMappingVK;
 		break;
 	case RendererAPI::Metal:
@@ -848,7 +850,6 @@ LatteDecompilerShader* LatteShader_CompileSeparableVertexShader2(uint64 baseHash
 	std::string dbg;
 	dbg.insert(0, glslSourceBuffer.c_str(), glslSourceBuffer.getLen());
 	assert_dbg();
-
 
 	return nullptr;
 }

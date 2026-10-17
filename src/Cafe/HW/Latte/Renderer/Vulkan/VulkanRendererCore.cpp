@@ -9,9 +9,6 @@
 #include "Cafe/HW/Latte/Core/FetchShader.h"
 #include "Cafe/HW/Latte/Core/LatteIndices.h"
 #include "Cafe/HW/Latte/Core/LatteBufferCache.h"
-#if defined(__SWITCH__)
-#include "platform/switch/SwitchGpuCapture.h"
-#endif
 #include "Cafe/OS/libs/gx2/GX2.h"
 #include "imgui/imgui_impl_vulkan.h"
 #include "Cafe/GameProfile/GameProfile.h"
@@ -550,7 +547,6 @@ uint64 VulkanRenderer::GetDescriptorSetStateHash(LatteDecompilerShader* shader)
 		UNREACHABLE;
 	}
 
-
 	for (int i = 0; i < textureCount; ++i)
 	{
 		const auto relative_textureUnit = shader->resourceMapping.getRelativeTextureUnitFromRelativeBindingPoint(i);
@@ -936,6 +932,10 @@ VkDescriptorSetInfo* VulkanRenderer::draw_getOrCreateDescriptorSet(PipelineInfo*
 
 	VkDescriptorBufferInfo uniformBufferInfo{};
 	uniformBufferInfo.buffer = m_useHostMemoryForCache ? m_importedMem : m_bufferCache;
+#if defined(__SWITCH__)
+	if (m_guestBuffers)
+		uniformBufferInfo.buffer = m_guestBuffers->GetBuffer();
+#endif
 	uniformBufferInfo.offset = 0; // fixed offset is always zero since we only use dynamic offsets
 
 	if (m_vendor == GfxVendor::AMD)
@@ -968,7 +968,6 @@ VkDescriptorSetInfo* VulkanRenderer::draw_getOrCreateDescriptorSet(PipelineInfo*
 			dsInfo->statsNumDynUniformBuffers++;
 		}
 	}
-
 
 	VkDescriptorBufferInfo tfStorageBufferInfo{};
 
@@ -1043,7 +1042,9 @@ void VulkanRenderer::sync_inputTexturesChanged(bool withinFeedbackLoopRenderPass
 		// Relax color feedback without a guest sync, but keep the read indices above updated for later passes.
 		if (withinFeedbackLoopRenderPass && !m_state.descriptorSetsChanged && !m_state.colorBufferSyncPending
 			&& m_state.m_curRenderpassSelfDependencyInfo.GetAspectMask() == VK_IMAGE_ASPECT_COLOR_BIT)
+		{
 			return;
+		}
 
 		VkMemoryBarrier memoryBarrier{};
 		memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
@@ -1098,7 +1099,6 @@ void VulkanRenderer::sync_RenderPassLoadTextures(CachedFBOVk* fboVk)
 		// write-before-write
 		if (texVk->m_vkFlushIndex_write == m_state.currentFlushIndex)
 			readFlushRequired = true;
-
 
 		texVk->m_vkFlushIndex_write = m_state.currentFlushIndex;
 		// todo - also check for write-before-write ?
@@ -1361,9 +1361,6 @@ void VulkanRenderer::draw_beginSequence()
 
 void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, uint32 instanceCount, uint32 count, MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType, const LatteDrawcallContext& drawcallContext)
 {
-#if defined(__SWITCH__)
-	SwitchGpuCapture_NoteDraw(count, instanceCount, baseVertex, indexDataMPTR != MPTR_NULL);
-#endif
 	if (m_state.drawSequenceSkip)
 	{
 		return;
@@ -1432,7 +1429,10 @@ void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, 
 	if (m_useHostMemoryForCache)
 	{
 		// direct memory access (Wii U memory space imported as a Vulkan buffer), update buffer bindings
-		LatteBufferCache_processDCFlushQueue();
+#if defined(__SWITCH__)
+		if (!m_guestBuffers)
+#endif
+			LatteBufferCache_processDCFlushQueue();
 		draw_updateVertexBuffersDirectAccess();
 		LatteDecompilerShader* vertexShader = LatteSHRC_GetActiveVertexShader();
 		if (vertexShader)
@@ -1522,6 +1522,10 @@ void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, 
 		draw_prepareDynamicOffsetsForDescriptorSet(VulkanRendererConst::SHADER_STAGE_INDEX_GEOMETRY, dynamicOffsets, numDynOffsets, pipeline_info);
 		vkCmdBindDescriptorSets(m_state.currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkObjPipeline->m_pipelineLayout, 2, 1, &geometryDS->m_vkObjDescriptorSet->descriptorSet, numDynOffsets, dynamicOffsets);
 	}
+#if defined(__SWITCH__)
+	if (RestartGuestDraw())
+		return;
+#endif
 	// draw
 	if (hostIndexType != INDEX_TYPE::NONE)
 		vkCmdDrawIndexed(m_state.currentCommandBuffer, hostIndexCount, instanceCount, 0, baseVertex, baseInstance);
@@ -1532,9 +1536,6 @@ void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, 
 
 void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstance, uint32 instanceCount, uint32 count, MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType, const LatteDrawcallContext& drawcallContext)
 {
-#if defined(__SWITCH__)
-	SwitchGpuCapture_NoteDraw(count, instanceCount, baseVertex, indexDataMPTR != MPTR_NULL);
-#endif
 	if (m_state.drawSequenceSkip)
 	{
 		return;
@@ -1604,7 +1605,10 @@ void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstan
 	if (m_useHostMemoryForCache)
 	{
 		// direct memory access (Wii U memory space imported as a Vulkan buffer), update buffer bindings
-		LatteBufferCache_processDCFlushQueue();
+#if defined(__SWITCH__)
+		if (!m_guestBuffers)
+#endif
+			LatteBufferCache_processDCFlushQueue();
 		draw_updateVertexBuffersDirectAccess();
 		LatteDecompilerShader* vertexShader = LatteSHRC_GetActiveVertexShader();
 		if (vertexShader && draw_updateUniformBuffersDirectAccess(vertexShader, mmSQ_VTX_UNIFORM_BLOCK_START, LatteConst::ShaderType::Vertex))
@@ -1749,6 +1753,10 @@ void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstan
 		vkCmdBindDescriptorSets(m_state.currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkObjPipeline->m_pipelineLayout, 2, 1, &geometryDS->m_vkObjDescriptorSet->descriptorSet, numDynOffsets, dynamicOffsets);
 	}
 
+#if defined(__SWITCH__)
+	if (RestartGuestDraw())
+		return;
+#endif
 	// draw
 	if (hostIndexType != INDEX_TYPE::NONE)
 		vkCmdDrawIndexed(m_state.currentCommandBuffer, hostIndexCount, instanceCount, 0, baseVertex, baseInstance);
@@ -1760,10 +1768,28 @@ void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstan
 
 void VulkanRenderer::draw_execute(uint32 baseVertex, uint32 baseInstance, uint32 instanceCount, uint32 count, MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType, const LatteDrawcallContext& drawcallContext)
 {
-	if (drawcallContext.isFirst)
-		draw_execute_first(baseVertex, baseInstance, instanceCount, count, indexDataMPTR, indexType, drawcallContext);
-	else
-		draw_execute_continued(baseVertex, baseInstance, instanceCount, count, indexDataMPTR, indexType, drawcallContext);
+	bool restart = drawcallContext.isFirst;
+	for (;;)
+	{
+#if defined(__SWITCH__)
+		m_guestDrawRetry = false;
+		if (m_guestBuffers && !m_state.drawSequenceSkip && !LatteGPUState.contextNew.GetSpecialStateValues()[8] && !LatteGPUState.contextNew.GetSpecialStateValues()[5])
+			restart |= PrepareGuestDraw(baseVertex, baseInstance, instanceCount, count, indexDataMPTR, indexType);
+		m_guestPreparedCommandBuffer = GetCurrentCommandBufferId();
+#endif
+		if (restart)
+			draw_execute_first(baseVertex, baseInstance, instanceCount, count, indexDataMPTR, indexType, drawcallContext);
+		else
+			draw_execute_continued(baseVertex, baseInstance, instanceCount, count, indexDataMPTR, indexType, drawcallContext);
+#if defined(__SWITCH__)
+		if (m_guestDrawRetry)
+		{
+			restart = true;
+			continue;
+		}
+#endif
+		break;
+	}
 	m_state.colorBufferSyncPending = false;
 	LatteGPUState.drawCallCounter++;
 }
@@ -1780,6 +1806,23 @@ void VulkanRenderer::draw_updateVertexBuffersDirectAccess()
 	LatteFetchShader* parsedFetchShader = LatteSHRC_GetActiveFetchShader();
 	if (!parsedFetchShader)
 		return;
+#if defined(__SWITCH__)
+	if (m_guestBuffers)
+	{
+		for (const auto& group : parsedFetchShader->bufferGroups)
+		{
+			const auto index = group.attributeBufferIndex;
+			const auto binding = m_guestVertexBindings[index];
+			if (m_state.currentVertexBinding[index].offset == binding.offset && m_guestVertexBoundBuffers[index] == binding.buffer)
+				continue;
+			const VkDeviceSize offset = binding.offset;
+			vkCmdBindVertexBuffers(m_state.currentCommandBuffer, index, 1, &binding.buffer, &offset);
+			m_state.currentVertexBinding[index].offset = binding.offset;
+			m_guestVertexBoundBuffers[index] = binding.buffer;
+		}
+		return;
+	}
+#endif
 	for (auto& bufferGroup : parsedFetchShader->bufferGroups)
 	{
 		uint32 bufferIndex = bufferGroup.attributeBufferIndex;
@@ -1831,6 +1874,21 @@ void VulkanRenderer::draw_updateVertexBuffersDirectAccess()
 bool VulkanRenderer::draw_updateUniformBuffersDirectAccess(LatteDecompilerShader* shader, const uint32 uniformBufferRegOffset, LatteConst::ShaderType shaderType)
 {
 	bool changed = false;
+#if defined(__SWITCH__)
+	if (m_guestBuffers)
+	{
+		if (shader->uniformMode != LATTE_DECOMPILER_UNIFORM_MODE_FULL_CBANK)
+			return false;
+		const auto stage = static_cast<uint32>(shaderType);
+		for (const auto& bank : shader->list_quickBufferList)
+		{
+			auto& offset = dynamicOffsetInfo.shaderUB[stage].uniformBufferOffset[bank.index];
+			changed |= offset != m_guestUniformOffsets[stage][bank.index];
+			offset = m_guestUniformOffsets[stage][bank.index];
+		}
+		return changed;
+	}
+#endif
 	if (shader->uniformMode == LATTE_DECOMPILER_UNIFORM_MODE_FULL_CBANK)
 	{
 		for(const auto& buf : shader->list_quickBufferList)
@@ -1876,6 +1934,95 @@ bool VulkanRenderer::draw_updateUniformBuffersDirectAccess(LatteDecompilerShader
 	}
 	return changed;
 }
+
+#if defined(__SWITCH__)
+bool VulkanRenderer::RestartGuestDraw()
+{
+	m_guestDrawRetry = m_guestBuffers && m_guestPreparedCommandBuffer != GetCurrentCommandBufferId();
+	return m_guestDrawRetry;
+}
+
+bool VulkanRenderer::PrepareGuestDraw(uint32 baseVertex, uint32 baseInstance, uint32 instanceCount, uint32 count,
+	MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType)
+{
+	bool submitted = false;
+	if (m_guestReadbackFence && !HasCommandBufferFinished(*m_guestReadbackFence))
+	{
+		WaitCommandBufferFinished(*m_guestReadbackFence);
+		submitted = true;
+	}
+	const auto primitive = static_cast<LattePrimitiveMode>(LatteGPUState.contextRegister[mmVGT_PRIMITIVE_TYPE]);
+	Renderer::INDEX_TYPE hostIndexType;
+	uint32 hostIndexCount, indexMax = 0;
+	Renderer::IndexAllocation allocation;
+	LatteIndices_decode(memory_getPointerFromVirtualOffset(indexDataMPTR), indexType, count, primitive, indexMax, hostIndexType, hostIndexCount, allocation);
+	for (bool fallback : {false, true})
+	{
+		LatteBufferCache_processDCFlushQueue([&](MPTR address, uint32 size) { m_guestBuffers->Invalidate(address, size); }, false);
+		if (PrepareGuestBuffers(indexMax + baseVertex, baseInstance, instanceCount, fallback))
+			return submitted;
+		if (fallback)
+			throw std::bad_alloc();
+		WaitCommandBufferFinished(GetCurrentCommandBufferId());
+		submitted = true;
+	}
+	return submitted;
+}
+
+bool VulkanRenderer::PrepareGuestBuffers(uint32 maxVertex, uint32 baseInstance, uint32 instanceCount, bool fallback)
+{
+	const uint64 draw = ++m_guestBufferDraw;
+	LatteDecompilerShader* shaders[]{LatteSHRC_GetActiveVertexShader(), LatteSHRC_GetActivePixelShader(), LatteSHRC_GetActiveGeometryShader()};
+	constexpr uint32 registerBases[]{mmSQ_VTX_UNIFORM_BLOCK_START, mmSQ_PS_UNIFORM_BLOCK_START, mmSQ_GS_UNIFORM_BLOCK_START};
+	for (uint32 stage = 0; stage < 3; ++stage)
+	{
+		const auto* shader = shaders[stage];
+		if (!shader || shader->uniformMode != LATTE_DECOMPILER_UNIFORM_MODE_FULL_CBANK)
+			continue;
+		for (const auto& bank : shader->list_quickBufferList)
+		{
+			const auto* registers = LatteGPUState.contextRegister + registerBases[stage] + bank.index * 7;
+			const uint32 size = static_cast<uint32>(std::min<uint64>(static_cast<uint64>(registers[1]) + 1, bank.size));
+			if (size > 64 * 1024 || static_cast<uint64>(registers[0]) + size > 0x1'0000'0000ULL)
+				throw std::runtime_error("Vulkan uniform buffer exceeds the hardware limit");
+			const auto offset = m_guestBuffers->Get(registers[0], {memory_getPointerFromVirtualOffset(registers[0]), size}, m_guestBufferEpoch, draw);
+			if (!offset)
+				return false;
+			m_guestUniformOffsets[stage][bank.index] = *offset;
+		}
+	}
+	const auto* fetch = LatteSHRC_GetActiveFetchShader();
+	if (!fetch)
+		return true;
+	const uint64 maxInstance = static_cast<uint64>(baseInstance) + std::max(instanceCount, 1u) - 1;
+	for (const auto& group : fetch->bufferGroups)
+	{
+		const auto index = group.attributeBufferIndex;
+		const auto* registers = LatteGPUState.contextRegister + mmSQ_VTX_ATTRIBUTE_BLOCK_START + index * 7;
+		const uint32 stride = (registers[2] >> 11) & 0xffff;
+		const uint64 last = std::max(group.hasVtxIndexAccess ? static_cast<uint64>(maxVertex) : 0, group.hasInstanceIndexAccess ? maxInstance : 0);
+		const uint64 size = last * stride + group.totalAttribRangeSize;
+		if (size > std::numeric_limits<uint32>::max() || static_cast<uint64>(registers[0]) + size > 0x1'0000'0000ULL)
+			throw std::runtime_error("Vulkan vertex buffer exceeds the Wii U address space");
+		const std::span<const uint8> bytes{memory_getPointerFromVirtualOffset(registers[0]), static_cast<size_t>(size)};
+		const auto offset = m_guestBuffers->Get(registers[0], bytes, m_guestBufferEpoch, draw);
+		if (offset)
+			m_guestVertexBindings[index] = {m_guestBuffers->GetBuffer(), *offset};
+		else
+		{
+			if (!fallback && size <= m_guestBuffers->Capacity())
+				return false;
+			auto& allocator = memoryManager->getMetalStrideWorkaroundAllocator();
+			auto reservation = allocator.AllocateBufferMemory(static_cast<uint32>(size), 128);
+			if (!reservation.memPtr)
+				throw std::bad_alloc();
+			std::memcpy(reservation.memPtr, bytes.data(), bytes.size());
+			m_guestVertexBindings[index] = {reservation.vkBuffer, reservation.bufferOffset};
+		}
+	}
+	return true;
+}
+#endif
 
 void VulkanRenderer::draw_endSequence()
 {

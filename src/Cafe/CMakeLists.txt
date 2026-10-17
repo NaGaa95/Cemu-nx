@@ -530,6 +530,8 @@ if (ENABLE_VULKAN)
     HW/Latte/Renderer/Vulkan/VKRBase.h
     HW/Latte/Renderer/Vulkan/VKRMemoryManager.cpp
     HW/Latte/Renderer/Vulkan/VKRMemoryManager.h
+    HW/Latte/Renderer/Vulkan/VKRGuestBufferCache.cpp
+    HW/Latte/Renderer/Vulkan/VKRGuestBufferCache.h
     HW/Latte/Renderer/Vulkan/VKRPipelineInfo.cpp
     HW/Latte/Renderer/Vulkan/VsyncDriver.cpp
     HW/Latte/Renderer/Vulkan/VsyncDriver.h
@@ -616,6 +618,13 @@ if(ENABLE_METAL)
         "-framework Metal"
         "-framework QuartzCore"
     )
+endif()
+
+if(ENABLE_DEKO3D)
+    file(GLOB DEKO3D_SOURCES CONFIGURE_DEPENDS "HW/Latte/Renderer/Deko3D/*.cpp")
+    list(REMOVE_ITEM DEKO3D_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/HW/Latte/Renderer/Deko3D/UamBridge.cpp")
+    target_sources(CemuCafe PRIVATE ${DEKO3D_SOURCES})
+    target_link_libraries(CemuCafe PRIVATE deko3d uam lsfg lsfg_spirv_cross glslang-default-resource-limits)
 endif()
 
 if(CEMU_ARCHITECTURE MATCHES "(aarch64)|(AARCH64)|(arm64)|(ARM64)")

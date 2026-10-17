@@ -218,7 +218,7 @@ namespace GX2
 	{
 		// optional force full sync (texture readback and occlusion queries)
 		bool forceFullSync = false;
-		if (g_renderer && g_renderer->GetType() == RendererAPI::Vulkan)
+		if (g_renderer && (g_renderer->GetType() == RendererAPI::Vulkan || g_renderer->GetType() == RendererAPI::Deko3D))
 			forceFullSync = true;
 		if (forceFullSync || ActiveSettings::WaitForGX2DrawDoneEnabled())
 		{

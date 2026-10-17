@@ -13,6 +13,7 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanPipelineCompiler.h"
 
 #include "Cafe/HW/Latte/Core/LatteBufferCache.h"
+#include "Cafe/HW/Latte/Core/LatteIndices.h"
 #include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
 #include "Cafe/HW/Latte/Core/LatteOverlay.h"
 
@@ -448,7 +449,6 @@ static void LinuxBreathOfTheWildWorkaround(VkInstance& instance, const VkInstanc
 	if (version == 0)
 		return;
 
-
 	int major = VK_API_VERSION_MAJOR(version);
 	int minor = VK_API_VERSION_MINOR(version);
 	int patch = VK_API_VERSION_PATCH(version);
@@ -560,6 +560,7 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 
 	if (err == VK_ERROR_LAYER_NOT_PRESENT) {
 		cemuLog_log(LogType::Force, "Failed to enable vulkan validation (VK_LAYER_KHRONOS_validation)");
+		m_layerNames.clear();
 		create_info.enabledLayerCount = 0;
 		err = vkCreateInstance(&create_info, nullptr, &m_instance);
 	}
@@ -803,9 +804,10 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 		debugCallback.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		debugCallback.pfnUserCallback = &DebugUtilsCallback;
 
-		vkCreateDebugUtilsMessengerEXT(m_instance, &debugCallback, nullptr, &m_debugCallback);
-
-		cemuLog_log(LogType::Force, "Debug: Vulkan validation layer enabled, vkCreateDebugUtilsMessengerEXT will be used to log validation errors");
+		if (vkCreateDebugUtilsMessengerEXT && vkCreateDebugUtilsMessengerEXT(m_instance, &debugCallback, nullptr, &m_debugCallback) == VK_SUCCESS)
+			cemuLog_log(LogType::Force, "Debug: Vulkan debug messenger active; validation layer {}", m_layerNames.empty() ? "unavailable" : "enabled");
+		else
+			cemuLog_log(LogType::Force, "Debug: Vulkan debug messenger unavailable");
 	}
 
 	if (this->IsTracingToolEnabled())
@@ -927,6 +929,9 @@ VulkanRenderer::~VulkanRenderer()
 	DeleteNullObjects();
 
 	// delete buffers
+#if defined(__SWITCH__)
+	m_guestBuffers.reset();
+#endif
 	memoryManager->DeleteBuffer(m_uniformVarBuffer, m_uniformVarBufferMemory);
 	memoryManager->DeleteBuffer(m_textureReadbackBuffer, m_textureReadbackBufferMemory);
 	memoryManager->DeleteBuffer(m_xfbRingBuffer, m_xfbRingBufferMemory);
@@ -1775,7 +1780,6 @@ bool VulkanRenderer::IsSwapchainInfoValid(bool mainWindow) const
 	return chainInfo && chainInfo->IsValid();
 }
 
-
 void VulkanRenderer::CreateNullTexture(NullTexture& nullTex, VkImageType imageType)
 {
 	// these are used when the game requests NULL ptr textures
@@ -1934,6 +1938,9 @@ void VulkanRenderer::Shutdown()
 {
 	SubmitCommandBuffer();
 	WaitDeviceIdle();
+#if defined(__SWITCH__)
+	ProcessFinishedCommandBuffers();
+#endif
 	// stop compilation threads
 	RendererShaderVk::Shutdown();
 	PipelineCompiler::CompileThreadPool_Stop();
@@ -2174,7 +2181,6 @@ void VulkanRenderer::DeleteFontTextures()
 	ImGui_ImplVulkan_DestroyFontsTexture();
 }
 
-
 bool VulkanRenderer::BeginFrame(bool mainWindow)
 {
 	if (!AcquireNextSwapchainImage(mainWindow))
@@ -2255,6 +2261,12 @@ void VulkanRenderer::ProcessFinishedCommandBuffers()
 #endif
 		ProcessStreamoutReadbacks();
 		LatteTextureReadback_UpdateFinishedTransfers(false);
+#if defined(__SWITCH__)
+		if (m_countCommandBufferFinished)
+			m_guestCompletions.Complete(m_countCommandBufferFinished - 1);
+		if (m_guestBuffers)
+			m_guestBuffers->Reclaim();
+#endif
 	}
 }
 
@@ -2281,6 +2293,10 @@ void VulkanRenderer::SubmitCommandBuffer(VkSemaphore signalSemaphore, VkSemaphor
 
 	occlusionQuery_notifyEndCommandBuffer();
 	memoryManager->FlushPendingRanges();
+#if defined(__SWITCH__)
+	if (m_guestBuffers)
+		m_guestBuffers->Flush();
+#endif
 
 	const auto ensureSuccess = [this](VkResult result, const char* operation) {
 		if (result != VK_SUCCESS)
@@ -2335,7 +2351,6 @@ void VulkanRenderer::SubmitCommandBuffer(VkSemaphore signalSemaphore, VkSemaphor
 	}
 	m_cmdBufferUniformRingbufIndices[nextCmdBufferIndex] = m_cmdBufferUniformRingbufIndices[m_commandBufferIndex];
 	m_commandBufferIndex = nextCmdBufferIndex;
-
 
 	m_state.currentCommandBuffer = m_commandBuffers[m_commandBufferIndex];
 	ensureSuccess(vkResetFences(m_logicalDevice, 1, &m_cmdBufferFences[m_commandBufferIndex]), "vkResetFences");
@@ -3238,7 +3253,45 @@ void VulkanRenderer::NotifyLatteCommandProcessorIdle()
 #endif
 	if (m_submitOnIdle)
 		SubmitCommandBuffer();
+#if defined(__SWITCH__)
+	if (!m_guestCompletions.Empty())
+		ProcessFinishedCommandBuffers();
+#endif
 }
+
+#if defined(__SWITCH__)
+void VulkanRenderer::QueueGuestCompletion(std::function<void()> completion)
+{
+	if (m_guestBuffers && (!m_guestReadbackFence || HasCommandBufferFinished(*m_guestReadbackFence)))
+	{
+		if (!m_guestCompletions.Empty())
+			ProcessFinishedCommandBuffers();
+		LatteIndices_invalidateAll();
+		completion();
+		return;
+	}
+	const auto fence = m_guestBuffers ? *m_guestReadbackFence : GetCurrentCommandBufferId();
+	m_guestCompletions.Push(fence, [completion = std::move(completion), versioned = !!m_guestBuffers] {
+		if (versioned)
+			LatteIndices_invalidateAll();
+		completion();
+	});
+	RequestSubmitSoon();
+	RequestSubmitOnIdle();
+}
+
+void VulkanRenderer::NotifyGuestReadback()
+{
+	m_guestReadbackFence = GetCurrentCommandBufferId();
+	++m_guestBufferEpoch;
+}
+
+void VulkanRenderer::bufferCache_invalidate(uint32 address, uint32 size)
+{
+	if (m_guestBuffers)
+		m_guestBuffers->Invalidate(address, size);
+}
+#endif
 
 void VulkanBenchmarkPrintResults();
 
@@ -3262,6 +3315,13 @@ void VulkanRenderer::SwapBuffers(bool swapTV, bool swapDRC)
 		SwapBuffer(false);
 	if(swapTV || (gamePadOutput && swapDRC))
 		VulkanBenchmarkPrintResults();
+#if defined(__SWITCH__)
+	if (m_guestBuffers)
+	{
+		if (ActiveSettings::FlushGPUCacheOnSwap())
+			++m_guestBufferEpoch;
+	}
+#endif
 }
 
 void VulkanRenderer::ClearColorbuffer(bool padView)
@@ -3509,7 +3569,6 @@ VkDescriptorSet VulkanRenderer::backbufferBlit_createDescriptorSet(VkDescriptorS
 	uniformBufferInfo.range = sizeof(RendererOutputShader::OutputUniformVariables);
 	uniformBufferWrite.pBufferInfo = &uniformBufferInfo;
 
-
 	vkUpdateDescriptorSets(m_logicalDevice, std::size(descriptorWrites), descriptorWrites, 0, nullptr);
 	performanceMonitor.vk.numDescriptorSamplerTextures.increment();
 
@@ -3539,7 +3598,6 @@ void VulkanRenderer::renderTarget_setViewport(float x, float y, float width, flo
 
 	vkCmdSetViewport(m_state.currentCommandBuffer, 0, 1, &m_state.currentViewport);
 }
-
 
 void VulkanRenderer::renderTarget_setScissor(sint32 scissorX, sint32 scissorY, sint32 scissorWidth, sint32 scissorHeight)
 {
@@ -4132,7 +4190,13 @@ void VulkanRenderer::bufferCache_init(const sint32 bufferSize)
 				SwitchMemory_CleanForGpu(hostPointer, hostAllocationSize);
 #endif
 				LatteBufferCache_setHostMemorySync(m_importedMemBaseAddress, (uint32)hostAllocationSize);
+#if defined(__SWITCH__)
+				const uint32 cacheSize = std::min(static_cast<uint32>(bufferSize), 64u * 1024 * 1024);
+				m_guestBuffers = std::make_unique<VKRGuestBufferCache>(*this, cacheSize, m_featureControl.limits.minUniformBufferOffsetAlignment);
+				cemuLog_log(LogType::Force, "Host memory import: active, MEM2 imported with {} MB versioned vertex/uniform snapshots", cacheSize / (1024 * 1024));
+#else
 				cemuLog_log(LogType::Force, "Host memory import: active, MEM2 imported directly; skipped {}MB vertex/uniform buffer cache", bufferSize / (1024 * 1024));
+#endif
 			}
 #if !defined(__SWITCH__)
 			else
@@ -4246,6 +4310,15 @@ void VulkanRenderer::ProcessStreamoutReadbacks()
 
 void VulkanRenderer::bufferCache_copyStreamoutToMainBuffer(uint32 srcOffset, uint32 dstOffset, uint32 size)
 {
+	if (!size)
+		return;
+#if defined(__SWITCH__)
+	if (m_useHostMemoryForCache)
+	{
+		NotifyGuestReadback();
+		bufferCache_invalidate(dstOffset, size);
+	}
+#endif
 	draw_endRenderPass();
 
 	VkBuffer dstBuffer;
@@ -4329,7 +4402,6 @@ void VulkanRenderer::AppendOverlayDebugInfo()
 	m_spinlockDestructionQueue.lock();
 	ImGui::Text("DestructionQ   %u", (unsigned int)m_destructionQueue.size());
 	m_spinlockDestructionQueue.unlock();
-
 
 	ImGui::Text("BeginRP/f      %u", performanceMonitor.vk.numBeginRenderpassPerFrame.get());
 	ImGui::Text("Barriers/f     %u", performanceMonitor.vk.numDrawBarriersPerFrame.get());

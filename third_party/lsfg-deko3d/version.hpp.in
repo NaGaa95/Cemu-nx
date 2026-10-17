@@ -1,0 +1,13 @@
+// Copyright 2026 PalindromicBreadLoaf (palindromicbreadloaf@tuta.com)
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#pragma once
+
+#include <string_view>
+
+namespace lsfg::version {
+
+inline constexpr std::string_view spirv_cross_revision = "@LSFG_SPIRV_CROSS_COMMIT@";
+inline constexpr std::string_view uam_revision = "@LSFG_UAM_COMMIT@";
+
+}

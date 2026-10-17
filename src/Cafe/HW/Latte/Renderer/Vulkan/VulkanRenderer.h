@@ -1,6 +1,10 @@
 #pragma once
 
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
+#if defined(__SWITCH__)
+#include "Cafe/HW/Latte/Renderer/FenceCallbacks.h"
+#include "Cafe/HW/Latte/Renderer/Vulkan/VKRGuestBufferCache.h"
+#endif
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/RendererShaderVk.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/LatteTextureVk.h"
@@ -77,7 +81,6 @@ public:
 	{
 		return true;
 	}
-
 
 	template<typename T>
 	struct direct_hash
@@ -243,6 +246,9 @@ public:
 
 	void Flush(bool waitIdle = false) override;
 	void NotifyLatteCommandProcessorIdle() override;
+#if defined(__SWITCH__)
+	void QueueGuestCompletion(std::function<void()> completion) override;
+#endif
 	void SurfaceSync(Latte::E_COHER_CNTL coher, MPTR address, uint32 size) override;
 
 	uint64 GenUniqueId(); // return unique id (uses incrementing counter)
@@ -338,6 +344,9 @@ public:
 	// renderer interface
 	void bufferCache_init(const sint32 bufferSize) override;
 	void bufferCache_upload(uint8* buffer, sint32 size, uint32 bufferOffset) override;
+#if defined(__SWITCH__)
+	void bufferCache_invalidate(uint32 address, uint32 size) override;
+#endif
 	void bufferCache_copy(uint32 srcOffset, uint32 dstOffset, uint32 size) override;
 
 	void buffer_bindVertexBuffers(std::span<BindBufferParam> bindings) override;
@@ -695,6 +704,22 @@ private:
 		VkDeviceSize offset, size;
 	};
 	std::vector<HostMemoryWrite> m_hostMemoryWrites;
+	FenceCallbacks m_guestCompletions;
+	std::unique_ptr<VKRGuestBufferCache> m_guestBuffers;
+	std::optional<uint64> m_guestReadbackFence;
+	uint32 m_guestBufferEpoch = 0;
+	uint64 m_guestBufferDraw = 0;
+	uint64 m_guestPreparedCommandBuffer = 0;
+	bool m_guestDrawRetry = false;
+	struct GuestVertexBinding { VkBuffer buffer; uint32 offset; };
+	std::array<GuestVertexBinding, LATTE_MAX_VERTEX_BUFFERS> m_guestVertexBindings{};
+	std::array<VkBuffer, LATTE_MAX_VERTEX_BUFFERS> m_guestVertexBoundBuffers{};
+	uint32 m_guestUniformOffsets[3][LATTE_NUM_MAX_UNIFORM_BUFFERS]{};
+	bool PrepareGuestBuffers(uint32 maxVertex, uint32 baseInstance, uint32 instanceCount, bool fallback);
+	bool PrepareGuestDraw(uint32 baseVertex, uint32 baseInstance, uint32 instanceCount, uint32 count,
+		MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType);
+	void NotifyGuestReadback();
+	bool RestartGuestDraw();
 #endif
 
 	// command buffer, garbage collection, synchronization
@@ -785,7 +810,6 @@ private:
 		ANY_TRANSFER		= 0x10,		// previous transfer to/from buffer or image
 		TRANSFER_READ		= 0x80,		// transfer from image/buffer
 		TRANSFER_WRITE		= 0x100,	// transfer to image/buffer
-
 
 		IMAGE_READ			= 0x20,
 		IMAGE_WRITE			= 0x40,
@@ -1003,7 +1027,6 @@ private:
 		vkTexture->SetImageLayout(subresourceRange, newLayout);
 	}
 
-
 public:
 	bool GetDisableMultithreadedCompilation() const { return m_featureControl.disableMultithreadedCompilation; }
 	bool HasSPRIVRoundingModeRTE32() const { return m_featureControl.shaderFloatControls.shaderRoundingModeRTEFloat32; }
@@ -1025,6 +1048,5 @@ private:
 		RendererShaderVk* copySurface_psDepth2Color{};
 		RendererShaderVk* copySurface_psColor2Depth{};
 	}defaultShaders;
-
 
 };

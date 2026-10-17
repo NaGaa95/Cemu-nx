@@ -45,7 +45,7 @@ public:
 	void AddFile(const FileName&& name, const uint8* fileData, sint32 fileSize);
 	void AddFileAsync(const FileName& name, const uint8* fileData, sint32 fileSize);
 	bool DeleteFile(const FileName&& name);
-	bool GetFile(const FileName&& name, std::vector<uint8>& dataOut);
+	bool GetFile(const FileName&& name, std::vector<uint8>& dataOut, uint32 maximumSize = UINT32_MAX);
 	bool GetFileByIndex(sint32 index, uint64* name1, uint64* name2, std::vector<uint8>& dataOut);
 	bool HasFile(const FileName&& name);
 
@@ -79,7 +79,7 @@ private:
 
 	void fileCache_updateFiletable(sint32 extraEntriesToAllocate);
 	void _addFileInternal(uint64 name1, uint64 name2, const uint8* fileData, sint32 fileSize, bool noCompression);
-	bool _getFileDataInternal(const FileTableEntry* entry, std::vector<uint8>& dataOut);
+	bool _getFileDataInternal(const FileTableEntry* entry, std::vector<uint8>& dataOut, uint32 maximumSize = UINT32_MAX);
 
 	class FileStream* fileStream{};
 	uint64 dataOffset{};

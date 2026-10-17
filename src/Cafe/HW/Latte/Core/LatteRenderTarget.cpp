@@ -5,9 +5,6 @@
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/Core/LatteOverlay.h"
 #include "Cafe/HW/Latte/Core/LatteBufferCache.h"
-#if defined(__SWITCH__)
-#include "platform/switch/SwitchGpuCapture.h"
-#endif
 #include "Cafe/HW/Latte/Core/LatteTexture.h"
 #include "Cafe/HW/Latte/Core/LatteCachedFBO.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
@@ -716,10 +713,6 @@ void LatteRenderTarget_itHLESwapScanBuffer()
 #endif
 	LatteQuery_CancelActiveGPU7Queries();
 	LatteBufferCache_notifySwapTVScanBuffer();
-#if defined(__SWITCH__)
-	SwitchGpuCapture_EndFrame();
-	SwitchGpuCapture_BeginFrame();
-#endif
 	LattePerformanceMonitor_frameBegin();
 }
 
@@ -1105,8 +1098,6 @@ void LatteRenderTarget_itHLECopyColorBufferToScanBuffer(MPTR colorBufferPtr, uin
 	if (((renderTarget & RENDER_TARGET_TV) && !showDRC) || ((renderTarget & RENDER_TARGET_DRC) && showDRC))
 		LatteRenderTarget_copyToBackbuffer(texView, false);
 }
-
-
 
 // returns the current size of the virtual viewport (not the same as effective size, which can be influenced by texture rules)
 void LatteRenderTarget_GetCurrentVirtualViewportSize(sint32* viewportWidth, sint32* viewportHeight)

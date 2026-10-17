@@ -150,6 +150,11 @@ GraphicAPI ActiveSettings::GetGraphicsAPI()
 {
 	const GraphicAPI api = g_current_game_profile->GetGraphicsAPI().value_or(GetConfig().graphic_api);
 	std::optional<GraphicAPI> fallbackAPI;
+#ifdef ENABLE_DEKO3D
+	if (api == kDeko3D)
+		return api;
+	fallbackAPI = kDeko3D;
+#endif
 #ifdef ENABLE_VULKAN
 	if (g_vulkan_available)
 	{

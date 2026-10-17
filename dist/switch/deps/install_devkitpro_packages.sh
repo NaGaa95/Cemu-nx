@@ -6,6 +6,7 @@ parse_check_only "$@"
 DEVKIT_PACKAGES=(
 	devkitA64
 	libnx
+	deko3d
 	switch-tools
 	switch-cmake
 	switch-pkg-config
@@ -25,8 +26,8 @@ DEVKIT_PACKAGES=(
 	switch-sdl2_ttf
 	switch-libjpeg-turbo
 )
-HOST_PACKAGES=(git cmake ninja make gcc curl tar bzip2)
-HOST_COMMANDS=(git cmake ninja make g++ curl tar sha256sum)
+HOST_PACKAGES=(git cmake ninja make gcc curl tar bzip2 bison flex python python-mako)
+HOST_COMMANDS=(git cmake ninja make g++ curl tar sha256sum bison flex python3)
 
 find_pacman() {
 	if [[ -n "${DKP_PACMAN:-}" && -x "${DKP_PACMAN}" ]]; then

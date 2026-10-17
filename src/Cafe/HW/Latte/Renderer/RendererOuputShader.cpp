@@ -530,8 +530,9 @@ void RendererOutputShader::InitializeStatic()
 		break;
     }
 #endif
-#ifdef ENABLE_VULKAN
+#if defined(ENABLE_VULKAN) || defined(ENABLE_DEKO3D)
     case RendererAPI::Vulkan:
+    case RendererAPI::Deko3D:
     {
     	std::string vertex_source, vertex_source_ud;
     	// vertex shader

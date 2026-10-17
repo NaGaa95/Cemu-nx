@@ -455,12 +455,14 @@ bool cemu_writeSettingsXml(const char *path, const std::vector<CemuKV> &s,
     }
     gpk->InsertEndChild(entry);
   }
-  const bool nativeVulkan = !strcmp(cemuKVGet(s, "Wrapper/Renderer", "vk"), "vk");
+  const char *renderer = cemuKVGet(s, "Wrapper/Renderer", "vk");
+  const bool nativeVulkan = !strcmp(renderer, "vk");
+  const bool nativeDeko = !strcmp(renderer, "deko3d");
   XMLElement *g = upsertElement(doc, content, "Graphic");
-  ei(g, "api", nativeVulkan ? 1 : 0);
+  ei(g, "api", nativeDeko ? 3 : nativeVulkan ? 1 : 0);
   ei(g, "VSync", gi("VSync", 0));
   es(g, "vkAccurateBarriers", gb("vkAccurateBarriers", true));
-  es(g, "vkHostMemoryImport", "true"); // mandatory on Cemu NX
+  es(g, "vkHostMemoryImport", nativeVulkan ? "true" : "false");
   ei(g, "UpscaleFilter", gi("UpscaleFilter", 1));
   ei(g, "DownscaleFilter", gi("DownscaleFilter", 0));
   ei(g, "FullscreenScaling", gi("FullscreenScaling", 0));
@@ -541,8 +543,10 @@ bool cemu_writeGameProfile(const char *dir, uint64_t titleId, const char *gameNa
     setIniValue(lines, "CPU", "cpuMode", cpu);
   if (*tq)
     setIniValue(lines, "CPU", "threadQuantum", tq);
-  const bool nativeVulkan = !strcmp(cemuKVGet(s, "Wrapper/Renderer", "vk"), "vk");
-  setIniValue(lines, "Graphics", "graphics_api", nativeVulkan ? "1" : "0");
+  const char *renderer = cemuKVGet(s, "Wrapper/Renderer", "vk");
+  const bool nativeVulkan = !strcmp(renderer, "vk");
+  const bool nativeDeko = !strcmp(renderer, "deko3d");
+  setIniValue(lines, "Graphics", "graphics_api", nativeDeko ? "3" : nativeVulkan ? "1" : "0");
 
   const std::string output = serializeIni(lines);
   const std::string tmp = target + ".tmp";

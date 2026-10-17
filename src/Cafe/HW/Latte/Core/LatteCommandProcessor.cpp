@@ -37,6 +37,7 @@ static void LatteCP_waitForProgress()
 #if defined(__SWITCH__)
 	if (Latte_GetStopSignal())
 		LatteThread_Exit();
+	g_renderer->NotifyLatteCommandProcessorIdle();
 	std::this_thread::sleep_for(std::chrono::microseconds(100));
 #else
 	std::this_thread::yield();
@@ -549,6 +550,9 @@ LatteCMDPtr LatteCP_itWaitRegMem(LatteCMDPtr cmd, uint32 nWords)
 			// check if any GPU events happened
 			LatteTiming_HandleTimedVsync();
 			LatteAsyncCommands_checkAndExecute();
+#if defined(__SWITCH__)
+			LatteCP_waitForProgress();
+#endif
 		}
 		performanceMonitor.gpuTime_fenceTime.endMeasuring();
 	}
@@ -613,9 +617,17 @@ LatteCMDPtr LatteCP_itEventWriteEOP(LatteCMDPtr cmd, uint32 nWords)
 
 	if (word0 == 0x504 && (word2&0x40000000)) // todo - figure out the flags
 	{
-		stdx::atomic_ref<uint64be> atomicRef(*(uint64be*)memory_getPointerFromPhysicalOffset(word1));
 		uint64 val = ((uint64)word4 << 32) | word3;
-		atomicRef.store(val);
+		auto retire = [address = word1, val] {
+			stdx::atomic_ref<uint64be> atomicRef(*(uint64be*)memory_getPointerFromPhysicalOffset(address));
+			atomicRef.store(val);
+			TCL::TCLGPUNotifyNewRetirementTimestamp();
+		};
+#if defined(__SWITCH__)
+		g_renderer->QueueGuestCompletion(std::move(retire));
+#else
+		retire();
+#endif
 	}
 	else
 	{	cemu_assert_unimplemented();
@@ -625,7 +637,6 @@ LatteCMDPtr LatteCP_itEventWriteEOP(LatteCMDPtr cmd, uint32 nWords)
 	{
 		// todo - timestamp interrupt
 	}
-	TCL::TCLGPUNotifyNewRetirementTimestamp();
 	return cmd;
 }
 
@@ -867,11 +878,16 @@ LatteCMDPtr LatteCP_itHLEBottomOfPipeCB(LatteCMDPtr cmd, uint32 nWords)
 	uint32 timestampHigh = (uint32)LatteReadCMD();
 	uint32 timestampLow = (uint32)LatteReadCMD();
 	uint64 timestamp = ((uint64)timestampHigh << 32ULL) | (uint64)timestampLow;
-	// write timestamp
-	*(uint32*)memory_getPointerFromPhysicalOffset(timestampMPTR) = _swapEndianU32((uint32)(timestamp >> 32));
-	*(uint32*)memory_getPointerFromPhysicalOffset(timestampMPTR + 4) = _swapEndianU32((uint32)timestamp);
-	// send event
-	GX2::__GX2NotifyEvent(GX2::GX2CallbackEventType::TIMESTAMP_BOTTOM);
+	auto retire = [timestampMPTR, timestamp] {
+		*(uint32*)memory_getPointerFromPhysicalOffset(timestampMPTR) = _swapEndianU32((uint32)(timestamp >> 32));
+		*(uint32*)memory_getPointerFromPhysicalOffset(timestampMPTR + 4) = _swapEndianU32((uint32)timestamp);
+		GX2::__GX2NotifyEvent(GX2::GX2CallbackEventType::TIMESTAMP_BOTTOM);
+	};
+#if defined(__SWITCH__)
+	g_renderer->QueueGuestCompletion(std::move(retire));
+#else
+	retire();
+#endif
 	return cmd;
 }
 

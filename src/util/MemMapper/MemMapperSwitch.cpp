@@ -537,7 +537,7 @@ namespace MemMapper
 		std::lock_guard<std::mutex> lock(s_mutex);
 		s_guestImportRequired = required;
 		if (!required)
-			SwitchGuestMemory::DiscardEarly("the OpenGL renderer copies guest data instead");
+			SwitchGuestMemory::DiscardEarly("the selected renderer does not require host memory import");
 	}
 
 	void Shutdown()

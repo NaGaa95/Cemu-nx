@@ -1,6 +1,7 @@
 #include "ExceptionHandler.h"
 
 #include <switch.h>
+#include <switch/nro.h>
 
 #include <algorithm>
 #include <atomic>
@@ -15,6 +16,13 @@
 namespace
 {
 	std::atomic_flag s_handlingException = ATOMIC_FLAG_INIT;
+	char s_imageId[65]{};
+	u64 s_processId = 0;
+#if defined(ENABLE_DEKO3D)
+	constexpr const char* s_coreName = "Deko3D";
+#else
+	constexpr const char* s_coreName = "Vulkan/OpenGL";
+#endif
 
 	void WriteAll(int fd, const char* data, size_t size)
 	{
@@ -66,6 +74,9 @@ extern "C"
 #if defined(EMULATOR_HASH)
 		append("build: %s\n", CEMU_STRINGIZE(EMULATOR_HASH));
 #endif
+		append("core: %s\n", s_coreName);
+		append("image_id: %s\n", s_imageId);
+		append("process_id: 0x%llx\n", static_cast<unsigned long long>(s_processId));
 		append("module_base: 0x%016llx\n", reinterpret_cast<unsigned long long>(&_start));
 		append("error_desc: 0x%08x\n", context->error_desc);
 		for (int index = 0; index < 29; ++index)
@@ -96,6 +107,11 @@ extern "C"
 
 void ExceptionHandler_Init()
 {
+	const auto* header = reinterpret_cast<const NroHeader*>(reinterpret_cast<const u8*>(&_start) + sizeof(NroStart));
+	if (header->magic == NROHEADER_MAGIC)
+		for (size_t i = 0; i < sizeof(header->build_id); ++i)
+			std::snprintf(s_imageId + i * 2, 3, "%02x", header->build_id[i]);
+	svcGetProcessId(&s_processId, CUR_PROCESS_HANDLE);
 }
 
 #undef CEMU_STRINGIZE

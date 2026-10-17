@@ -1596,6 +1596,7 @@ void LatteBufferCache_invalidate(MPTR physAddress, uint32 size)
 		return;
 	if ((physAddress+size) < physAddress)
 		return;
+	g_renderer->bufferCache_invalidate(physAddress, size);
 	g_gpuBufferCache.GetOverlappingRanges(physAddress, physAddress+size, s_gpuCacheQueryResult);
 	for (auto& range : s_gpuCacheQueryResult)
 	{
@@ -1638,9 +1639,14 @@ void LatteBufferCache_getStats(uint32& heapSize, uint32& allocationSize, uint32&
 	g_gpuBufferHeap->getStats(heapSize, allocationSize, allocNum);
 }
 
-class SparseBitset
+class DCFlushQueue
 {
 	static inline constexpr size_t TABLE_MASK = 0xFF;
+	struct Range
+	{
+		uint32 page;
+		uint16 begin, end;
+	};
 
 public:
 	bool Empty() const
@@ -1648,17 +1654,22 @@ public:
 		return m_numNonEmptyVectors == 0;
 	}
 
-	void Set(uint32 index)
+	void Set(uint32 index, uint16 begin, uint16 end)
 	{
 		auto& v = m_bits[index & TABLE_MASK];
-		if (std::find(v.cbegin(), v.cend(), index) != v.end())
+		const auto entry = std::find_if(v.begin(), v.end(), [index](const Range& range) { return range.page == index; });
+		if (entry != v.end())
+		{
+			entry->begin = std::min(entry->begin, begin);
+			entry->end = std::max(entry->end, end);
 			return;
+		}
 		if (v.empty())
 		{
 			m_nonEmptyVectors[m_numNonEmptyVectors] = &v;
 			m_numNonEmptyVectors++;
 		}
-		v.emplace_back(index);
+		v.push_back({index, begin, end});
 	}
 
 	template<typename TFunc>
@@ -1668,10 +1679,10 @@ public:
 		auto vEnd = m_nonEmptyVectors + m_numNonEmptyVectors;
 		while (vCurrent < vEnd)
 		{
-			std::vector<uint32>* vec = *vCurrent;
+			std::vector<Range>* vec = *vCurrent;
 			vCurrent++;
 			for (const auto& it : *vec)
-				callbackFunc(it);
+				callbackFunc(it.page, it.begin, it.end);
 			vec->clear();
 		}
 		m_numNonEmptyVectors = 0;
@@ -1683,7 +1694,7 @@ public:
 		auto vEnd = m_nonEmptyVectors + m_numNonEmptyVectors;
 		while (vCurrent < vEnd)
 		{
-			std::vector<uint32>* vec = *vCurrent;
+			std::vector<Range>* vec = *vCurrent;
 			vCurrent++;
 			vec->clear();
 		}
@@ -1691,14 +1702,14 @@ public:
 	}
 
 private:
-	std::vector<uint32> m_bits[TABLE_MASK + 1];
-	std::vector<uint32>* m_nonEmptyVectors[TABLE_MASK + 1];
+	std::vector<Range> m_bits[TABLE_MASK + 1];
+	std::vector<Range>* m_nonEmptyVectors[TABLE_MASK + 1];
 	size_t m_numNonEmptyVectors{ 0 };
 };
 
 FSpinlock g_spinlockDCFlushQueue;
-SparseBitset* s_DCFlushQueue = new SparseBitset();
-SparseBitset* s_DCFlushQueueAlternate = new SparseBitset();
+DCFlushQueue* s_DCFlushQueue = new DCFlushQueue();
+DCFlushQueue* s_DCFlushQueueAlternate = new DCFlushQueue();
 
 static MPTR s_hostSyncBase = 0;
 static uint32 s_hostSyncSize = 0;
@@ -1714,15 +1725,24 @@ void LatteBufferCache_notifyDCFlush(MPTR address, uint32 size)
 	if (size == 0 || address == 0 || size == 0xFFFFFFFF)
 		return; // global flushes are ignored for now
 
-	uint32 firstPage = address / CACHE_PAGE_SIZE;
-	uint32 lastPage = (uint32)(std::min<uint64>((uint64)address + size - 1, UINT32_MAX) / CACHE_PAGE_SIZE);
+	constexpr uint32 cacheLineSize = 32;
+	const uint64 rangeBegin = address & ~(cacheLineSize - 1);
+	const uint64 end = std::min<uint64>((static_cast<uint64>(address) + size + cacheLineSize - 1) &
+		~static_cast<uint64>(cacheLineSize - 1), 0x1'0000'0000ULL);
+	uint32 firstPage = static_cast<uint32>(rangeBegin / CACHE_PAGE_SIZE);
+	uint32 lastPage = static_cast<uint32>((end - 1) / CACHE_PAGE_SIZE);
 	g_spinlockDCFlushQueue.lock();
 	for (uint32 i = firstPage; i <= lastPage; i++)
-		s_DCFlushQueue->Set(i);
+	{
+		const uint64 pageAddress = static_cast<uint64>(i) * CACHE_PAGE_SIZE;
+		const uint16 begin = static_cast<uint16>(std::max(rangeBegin, pageAddress) - pageAddress);
+		const uint16 limit = static_cast<uint16>(std::min(end, pageAddress + CACHE_PAGE_SIZE) - pageAddress);
+		s_DCFlushQueue->Set(i, begin, limit);
+	}
 	g_spinlockDCFlushQueue.unlock();
 }
 
-void LatteBufferCache_processDCFlushQueue()
+void LatteBufferCache_processDCFlushQueue(const std::function<void(MPTR, uint32)>& invalidate, bool synchronizeHostMemory)
 {
 	g_spinlockDCFlushQueue.lock();
 	if (s_DCFlushQueue->Empty())
@@ -1732,18 +1752,34 @@ void LatteBufferCache_processDCFlushQueue()
 	}
 	std::swap(s_DCFlushQueue, s_DCFlushQueueAlternate);
 	g_spinlockDCFlushQueue.unlock();
-	s_DCFlushQueueAlternate->ForAllAndClear([](uint32 index) {
+	static std::vector<MPTR> hostPages;
+	hostPages.clear();
+	s_DCFlushQueueAlternate->ForAllAndClear([&](uint32 index, uint16 begin, uint16 end) {
 		const MPTR pageAddress = index * CACHE_PAGE_SIZE;
+		if (invalidate)
+			invalidate(pageAddress + begin, end - begin);
 		if (s_hostSyncSize == 0)
 		{
 			LatteBufferCache_invalidatePage(pageAddress);
 			return;
 		}
 #if defined(__SWITCH__)
-		if (pageAddress - s_hostSyncBase < s_hostSyncSize)
-			SwitchMemory_CleanForGpu(memory_getPointerFromVirtualOffset(pageAddress), CACHE_PAGE_SIZE);
+		if (synchronizeHostMemory && pageAddress - s_hostSyncBase < s_hostSyncSize)
+			hostPages.push_back(pageAddress);
 #endif
 	});
+	std::sort(hostPages.begin(), hostPages.end());
+	for (size_t first = 0; first < hostPages.size();)
+	{
+		size_t end = first + 1;
+		while (end < hostPages.size() && hostPages[end] == hostPages[end - 1] + CACHE_PAGE_SIZE)
+			++end;
+#if defined(__SWITCH__)
+		if (synchronizeHostMemory)
+			SwitchMemory_CleanForGpu(memory_getPointerFromVirtualOffset(hostPages[first]), (end - first) * CACHE_PAGE_SIZE);
+#endif
+		first = end;
+	}
 }
 
 void LatteBufferCache_notifyDrawDone()

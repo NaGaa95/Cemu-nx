@@ -57,6 +57,7 @@ endif()
 
 project(Cemu VERSION 2.0.0)
 
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 set(CMAKE_CXX_STANDARD 20)
@@ -209,6 +210,14 @@ if (ENABLE_VULKAN)
 	include_directories("dependencies/Vulkan-Headers/include")
 	add_compile_definitions(ENABLE_VULKAN)
 	add_compile_definitions(VK_NO_PROTOTYPES)
+endif()
+
+if (ENABLE_DEKO3D)
+    if(NOT PLATFORM_SWITCH)
+        message(FATAL_ERROR "Deko3D is only available on Nintendo Switch")
+    endif()
+    add_compile_definitions(ENABLE_DEKO3D)
+    include("${CMAKE_SOURCE_DIR}/cmake/switch/Deko3DDependencies.cmake")
 endif()
 
 if (ENABLE_OPENGL)

@@ -1000,7 +1000,8 @@ bool GraphicPack2::Activate()
 		return true;
 
 	// check if gp should be loaded
-	if (m_renderer_api.has_value() && m_renderer_api.value() != g_renderer->GetType())
+	const auto shaderAPI = g_renderer->GetType() == RendererAPI::Deko3D ? RendererAPI::Vulkan : g_renderer->GetType();
+	if (m_renderer_api.has_value() && m_renderer_api.value() != shaderAPI)
 		return false;
 
 	if (m_gfx_vendor.has_value())

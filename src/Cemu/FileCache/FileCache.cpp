@@ -192,6 +192,14 @@ FileCache* FileCache::_OpenExisting(const fs::path& path, bool compareExtraVersi
 		delete fs;
 		return nullptr;
 	}
+	const uint64 fileSize = fs->GetSize();
+	if (headerDataOffset > fileSize || headerFileTableOffset > fileSize - headerDataOffset ||
+		headerFileTableSize < sizeof(FileTableEntry) ||
+		headerFileTableSize > fileSize - headerDataOffset - headerFileTableOffset)
+	{
+		delete fs;
+		return nullptr;
+	}
 	uint32 fileTableEntryCount = 0;
 	bool invalidFileTableSize = false;
 	// V2 and V3
@@ -328,7 +336,7 @@ uint8* _fileCache_compressFileData(const uint8* fileData, uint32 fileSize, sint3
 	return compressedData;
 }
 
-bool _uncompressFileData(const uint8* rawData, size_t rawSize, std::vector<uint8>& dataOut)
+bool _uncompressFileData(const uint8* rawData, size_t rawSize, std::vector<uint8>& dataOut, uint32 maximumSize)
 {
 	if (rawSize < 4)
 	{
@@ -341,6 +349,11 @@ bool _uncompressFileData(const uint8* rawData, size_t rawSize, std::vector<uint8
 	fileSize |= ((uint32)rawData[1] << 16);
 	fileSize |= ((uint32)rawData[2] << 8);
 	fileSize |= ((uint32)rawData[3] << 0);
+	if (fileSize > maximumSize)
+	{
+		dataOut.clear();
+		return false;
+	}
 	// allocate buffer
 	Bytef* compressedInput = (Bytef*)rawData + 4;
 	uLongf compressedLen = (uLongf)(rawSize - 4);
@@ -540,12 +553,21 @@ void FileCache::AddFileAsync(const FileName& name, const uint8* fileData, sint32
 	FileCacheAsyncWriter.AddJob(this, name, fileData, fileSize);
 }
 
-bool FileCache::_getFileDataInternal(const FileTableEntry* entry, std::vector<uint8>& dataOut)
+bool FileCache::_getFileDataInternal(const FileTableEntry* entry, std::vector<uint8>& dataOut, uint32 maximumSize)
 {
+	if (entry->fileSize > maximumSize)
+	{
+		dataOut.clear();
+		return false;
+	}
 	std::vector<uint8> rawData(entry->fileSize);
 
 	fileStream->SetPosition(this->dataOffset + entry->fileOffset);
-	fileStream->readData(rawData.data(), entry->fileSize);
+	if (fileStream->readData(rawData.data(), entry->fileSize) != entry->fileSize)
+	{
+		dataOut.clear();
+		return false;
+	}
 
 	if ((entry->flags&FileTableEntry::FLAG_COMPRESSED) == 0)
 	{
@@ -555,7 +577,7 @@ bool FileCache::_getFileDataInternal(const FileTableEntry* entry, std::vector<ui
 	}
 	// decompress
 	sint32 uncompressedSize = 0;
-	if (!_uncompressFileData(rawData.data(), rawData.size(), dataOut))
+	if (!_uncompressFileData(rawData.data(), rawData.size(), dataOut, maximumSize))
 	{
 		dataOut.clear();
 		return false;
@@ -563,7 +585,7 @@ bool FileCache::_getFileDataInternal(const FileTableEntry* entry, std::vector<ui
 	return true;
 }
 
-bool FileCache::GetFile(const FileName&& name, std::vector<uint8>& dataOut)
+bool FileCache::GetFile(const FileName&& name, std::vector<uint8>& dataOut, uint32 maximumSize)
 {
 	std::unique_lock lock(this->mutex);
 	FileTableEntry* entry = this->fileTableEntries;
@@ -572,7 +594,7 @@ bool FileCache::GetFile(const FileName&& name, std::vector<uint8>& dataOut)
 	{
 		if( entry->name1 == name.name1 && entry->name2 == name.name2 )
 		{
-			return _getFileDataInternal(entry, dataOut);
+			return _getFileDataInternal(entry, dataOut, maximumSize);
 		}
 		entry++;
 	}

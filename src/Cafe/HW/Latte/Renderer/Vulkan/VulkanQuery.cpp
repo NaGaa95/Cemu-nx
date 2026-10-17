@@ -87,6 +87,9 @@ void LatteQueryObjectVk::endFragment()
 	vkCmdEndQuery(m_rendererVk->m_state.currentCommandBuffer, m_rendererVk->m_occlusionQueries.queryPool, queryIndex);
 
 	vkCmdCopyQueryPoolResults(m_rendererVk->m_state.currentCommandBuffer, m_rendererVk->m_occlusionQueries.queryPool, queryIndex, 1, m_rendererVk->m_occlusionQueries.bufferQueryResults, queryIndex * sizeof(uint64), 8, VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+#if defined(__SWITCH__)
+	m_rendererVk->NotifyGuestReadback();
+#endif
 	list_queryFragments.back().m_finishCommandBuffer = m_rendererVk->GetCurrentCommandBufferId();
 	list_queryFragments.back().isFinished = true;
 	m_hasActiveFragment = false;

@@ -62,6 +62,9 @@ void LatteTextureReadbackInfoVk::StartTransfer()
 	renderer->barrier_bufferRange<VulkanRenderer::TRANSFER_WRITE, VulkanRenderer::HOST_READ>(m_buffer, m_buffer_offset, m_image_size); // make sure transfer is finished before result is read
 
 	m_associatedCommandBufferId = renderer->GetCurrentCommandBufferId();
+#if defined(__SWITCH__)
+	renderer->NotifyGuestReadback();
+#endif
 	m_textureView = nullptr;
 
 	// to decrease latency of readbacks make sure that the current command buffer is submitted soon

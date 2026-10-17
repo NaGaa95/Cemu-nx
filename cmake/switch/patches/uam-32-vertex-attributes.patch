@@ -1,0 +1,83 @@
+--- a/source/glsl_frontend.cpp
++++ b/source/glsl_frontend.cpp
+@@ -244,7 +244,7 @@
+ 		pc->MaxAluInstructions = pc->MaxNativeAluInstructions = 16384;
+ 		pc->MaxTexInstructions = pc->MaxNativeTexInstructions = 16384;
+ 		pc->MaxTexIndirections = pc->MaxNativeTexIndirections = 16384;
+-		pc->MaxAttribs = pc->MaxNativeAttribs = sh == PIPE_SHADER_VERTEX ? 16 : (sh == PIPE_SHADER_FRAGMENT ? (0x1f0 / 16) : (0x200 / 16));
++		pc->MaxAttribs = pc->MaxNativeAttribs = sh == PIPE_SHADER_VERTEX ? 32 : (sh == PIPE_SHADER_FRAGMENT ? (0x1f0 / 16) : (0x200 / 16));
+ 		pc->MaxTemps = pc->MaxNativeTemps = 128;
+ 		pc->MaxAddressRegs = pc->MaxNativeAddressRegs = sh == PIPE_SHADER_VERTEX ? 1 : 0;
+ 		pc->MaxUniformComponents = 65536/4;
+--- a/source/tgsi_support.cpp
++++ b/source/tgsi_support.cpp
+@@ -54,7 +54,7 @@
+ 	ubyte output_semantic_index[VARYING_SLOT_MAX] = {0};
+ 
+ 	// maps a TGSI input index back to a Mesa VERT_ATTRIB_x
+-	ubyte index_to_input[PIPE_MAX_ATTRIBS];
++	ubyte index_to_input[PIPE_MAX_ATTRIBS + 1];
+ 	ubyte num_inputs = 0;
+ 	// Reverse mapping of the above
+ 	ubyte input_to_index[VERT_ATTRIB_MAX];
+--- a/mesa-imported/main/config.h
++++ b/mesa-imported/main/config.h
+@@ -218,7 +218,7 @@
+ 
+ /** For GL_ARB_vertex_shader */
+ /*@{*/
+-#define MAX_VERTEX_GENERIC_ATTRIBS 16
++#define MAX_VERTEX_GENERIC_ATTRIBS 32
+ /* 6 is for vertex, hull, domain, geometry, fragment, and compute shader. */
+ #define MAX_COMBINED_TEXTURE_IMAGE_UNITS (MAX_TEXTURE_IMAGE_UNITS * 6)
+ /*@}*/
+--- a/mesa-imported/compiler/shader_enums.h
++++ b/mesa-imported/compiler/shader_enums.h
+@@ -132,6 +132,22 @@
+    VERT_ATTRIB_GENERIC13,
+    VERT_ATTRIB_GENERIC14,
+    VERT_ATTRIB_GENERIC15,
++   VERT_ATTRIB_GENERIC16,
++   VERT_ATTRIB_GENERIC17,
++   VERT_ATTRIB_GENERIC18,
++   VERT_ATTRIB_GENERIC19,
++   VERT_ATTRIB_GENERIC20,
++   VERT_ATTRIB_GENERIC21,
++   VERT_ATTRIB_GENERIC22,
++   VERT_ATTRIB_GENERIC23,
++   VERT_ATTRIB_GENERIC24,
++   VERT_ATTRIB_GENERIC25,
++   VERT_ATTRIB_GENERIC26,
++   VERT_ATTRIB_GENERIC27,
++   VERT_ATTRIB_GENERIC28,
++   VERT_ATTRIB_GENERIC29,
++   VERT_ATTRIB_GENERIC30,
++   VERT_ATTRIB_GENERIC31,
+    VERT_ATTRIB_MAX
+ } gl_vert_attrib;
+ 
+--- a/mesa-imported/compiler/shader_enums.c
++++ b/mesa-imported/compiler/shader_enums.c
+@@ -125,6 +125,22 @@
+       ENUM(VERT_ATTRIB_GENERIC13),
+       ENUM(VERT_ATTRIB_GENERIC14),
+       ENUM(VERT_ATTRIB_GENERIC15),
++      ENUM(VERT_ATTRIB_GENERIC16),
++      ENUM(VERT_ATTRIB_GENERIC17),
++      ENUM(VERT_ATTRIB_GENERIC18),
++      ENUM(VERT_ATTRIB_GENERIC19),
++      ENUM(VERT_ATTRIB_GENERIC20),
++      ENUM(VERT_ATTRIB_GENERIC21),
++      ENUM(VERT_ATTRIB_GENERIC22),
++      ENUM(VERT_ATTRIB_GENERIC23),
++      ENUM(VERT_ATTRIB_GENERIC24),
++      ENUM(VERT_ATTRIB_GENERIC25),
++      ENUM(VERT_ATTRIB_GENERIC26),
++      ENUM(VERT_ATTRIB_GENERIC27),
++      ENUM(VERT_ATTRIB_GENERIC28),
++      ENUM(VERT_ATTRIB_GENERIC29),
++      ENUM(VERT_ATTRIB_GENERIC30),
++      ENUM(VERT_ATTRIB_GENERIC31),
+    };
+    STATIC_ASSERT(ARRAY_SIZE(names) == VERT_ATTRIB_MAX);
+    return NAME(attrib);

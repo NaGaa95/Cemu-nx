@@ -5,6 +5,8 @@
 #include "Cafe/HW/Latte/Core/LatteQueryObject.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 
+#include <unordered_set>
+
 #define GPU7_QUERY_TYPE_OCCLUSION	(1)
 
 uint64 queryEventCounter = 1;
@@ -205,6 +207,30 @@ void LatteQuery_EndOcclusionQuery(MPTR queryMPTR)
 void LatteQuery_CancelActiveGPU7Queries()
 {
 	cemu_assert_debug(_currentlyActiveRendererQuery == nullptr);
+}
+
+void LatteQuery_UnloadAll()
+{
+	std::unordered_set<LatteQueryObject*> queries(list_queriesInFlight.begin(), list_queriesInFlight.end());
+	if (_currentlyActiveRendererQuery)
+		queries.insert(_currentlyActiveRendererQuery);
+	for (auto* query : queries)
+	{
+		if (!query->queryEnded)
+			LatteQuery_end(query, LatteQuery_getNextEventId());
+	}
+	if (!queries.empty())
+		g_renderer->occlusionQuery_flush();
+	for (auto* query : queries)
+		g_renderer->occlusionQuery_destroy(query);
+	list_queriesInFlight.clear();
+	_currentlyActiveRendererQuery = nullptr;
+	for (auto* query : list_activeGX2Queries2)
+		free(query);
+	list_activeGX2Queries2.clear();
+	queryEventCounter = 1;
+	latestQueryFinishedEventId = 0;
+	checkQueriesCounter = 0;
 }
 
 void LatteQuery_Init()

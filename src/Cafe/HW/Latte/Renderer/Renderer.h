@@ -34,6 +34,7 @@ enum class RendererAPI
 	OpenGL,
 	Vulkan,
 	Metal,
+	Deko3D,
 
 	MAX
 };
@@ -82,6 +83,7 @@ public:
 	// flush control
 	virtual void Flush(bool waitIdle = false) = 0; // called when explicit flush is required (e.g. by imgui)
 	virtual void NotifyLatteCommandProcessorIdle() = 0; // called when command processor has no more commands available or when stalled
+	virtual void QueueGuestCompletion(std::function<void()> completion) { completion(); }
 	virtual void SurfaceSync(Latte::E_COHER_CNTL coher, MPTR address, uint32 size) {} // triggered by game via GX2Invalidate, can be utilized by the render backend as an optimization hint
 
 	// imgui
@@ -126,6 +128,7 @@ public:
 
 	// buffer cache
 	virtual void bufferCache_init(const sint32 bufferSize) = 0;
+	virtual void bufferCache_invalidate(uint32, uint32) {}
 	virtual void bufferCache_upload(uint8* buffer, sint32 size, uint32 bufferOffset) = 0;
 	virtual void bufferCache_copy(uint32 srcOffset, uint32 dstOffset, uint32 size) = 0;
 	virtual void bufferCache_copyStreamoutToMainBuffer(uint32 srcOffset, uint32 dstOffset, uint32 size) = 0;
@@ -191,7 +194,6 @@ protected:
 	ScreenshotSaveFunction m_on_save_screenshot;
 
 	void SaveScreenshot(const std::vector<uint8>& rgb_data, int width, int height, bool mainWindow);
-
 
 	ImFontAtlas* imguiFontAtlas{};
 	ImGuiContext* imguiTVContext{};

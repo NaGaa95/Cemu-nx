@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 
 void LatteBufferCache_init(size_t bufferSize);
 void LatteBufferCache_UnloadAll();
@@ -8,7 +9,7 @@ void LatteBufferCache_copyStreamoutDataToCache(MPTR physAddress, uint32 size, ui
 void LatteBufferCache_invalidate(MPTR physAddress, uint32 size);
 
 void LatteBufferCache_notifyDCFlush(MPTR address, uint32 size);
-void LatteBufferCache_processDCFlushQueue();
+void LatteBufferCache_processDCFlushQueue(const std::function<void(MPTR, uint32)>& invalidate = {}, bool synchronizeHostMemory = true);
 
 void LatteBufferCache_setHostMemorySync(MPTR base, uint32 size);
 
