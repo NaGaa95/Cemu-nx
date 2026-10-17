@@ -1,6 +1,8 @@
 #include "H264DecInternal.h"
 #include "util/highresolutiontimer/HighResolutionTimer.h"
 
+#include <memory>
+
 extern "C"
 {
 #include "../dependencies/ih264d/common/ih264_typedefs.h"
@@ -153,21 +155,26 @@ namespace H264
 			uint8* decodeData = decodedSlice.dataToDecode.m_data;
 			uint32 decodeLength = decodedSlice.dataToDecode.m_length;
 
-			if (!m_hasBufferSizeInfo)
-			{
-				uint32 numByteConsumed = 0;
-				if (!DetermineBufferSizes(decodeData, decodeLength, numByteConsumed) || numByteConsumed > decodeLength)
-				{
-					cemuLog_log(LogType::Force, "H264AVC: Unable to determine picture size. Ignoring decode input");
-					QueueFailure(decodedSlice);
-					return;
-				}
-				m_hasBufferSizeInfo = true;
-			}
-
 			bool producedOutput = false;
 			for (uint32 iteration = 0; decodeLength > 0 && iteration < 64; ++iteration)
 			{
+				if (!m_hasBufferSizeInfo)
+				{
+					uint32 numByteConsumed = 0;
+					if (!DetermineBufferSizes(decodeData, decodeLength, numByteConsumed) || numByteConsumed > decodeLength)
+					{
+						cemuLog_log(LogType::Force, "H264AVC: Unable to determine picture size. Ignoring decode input");
+						if (!producedOutput)
+							QueueFailure(decodedSlice);
+						return;
+					}
+					m_hasBufferSizeInfo = true;
+					decodeData += numByteConsumed;
+					decodeLength -= numByteConsumed;
+					if (decodeLength == 0)
+						break;
+				}
+
 				ivd_video_decode_ip_t s_dec_ip{ 0 };
 				ivd_video_decode_op_t s_dec_op{ 0 };
 				s_dec_ip.u4_size = sizeof(ivd_video_decode_ip_t);
@@ -184,16 +191,25 @@ namespace H264
 				BenchmarkTimer bt;
 				bt.Start();
 				WORD32 status = ih264d_api_function(m_codecCtx, &s_dec_ip, &s_dec_op);
+				const uint32 consumed = s_dec_op.u4_num_bytes_consumed;
+				if (consumed > decodeLength)
+				{
+					if (!producedOutput)
+						QueueFailure(decodedSlice);
+					return;
+				}
 				if (status != 0 && (s_dec_op.u4_error_code & 0xFF) == IVD_RES_CHANGED)
 				{
+					decodeData += consumed;
+					decodeLength -= consumed;
 					ResetDecoder();
 					m_hasBufferSizeInfo = false;
-					Decode(decodedSlice);
-					return;
+					continue;
 				}
 				if (status != 0)
 				{
-					cemuLog_log(LogType::Force, "H264: Failed to decode frame (error 0x{:08x})", status);
+					cemuLog_log(LogType::Force, "H264: Failed to decode frame (error 0x{:08x}, consumed {}/{} bytes)",
+						s_dec_op.u4_error_code, consumed, decodeLength);
 					if (!producedOutput)
 						QueueFailure(decodedSlice);
 					return;
@@ -244,8 +260,7 @@ namespace H264
 				if (s_dec_op.u4_frame_decoded_flag)
 					++m_numDecodedFrames;
 
-				const uint32 consumed = s_dec_op.u4_num_bytes_consumed;
-				if (consumed == 0 || consumed > decodeLength)
+				if (consumed == 0)
 				{
 					if (!producedOutput)
 						QueueFailure(decodedSlice);
@@ -373,7 +388,8 @@ namespace H264
 			WORD32 status = ih264d_api_function(m_codecCtx, &s_dec_ip, &s_dec_op);
 			if (status != 0)
 			{
-				cemuLog_log(LogType::Force, "H264: Unable to determine buffer sizes for stream");
+				cemuLog_log(LogType::Force, "H264: Unable to determine buffer sizes for stream (error 0x{:08x}, consumed {}/{} bytes)",
+					s_dec_op.u4_error_code, s_dec_op.u4_num_bytes_consumed, length);
 				UpdateParameters(false);
 				return false;
 			}
@@ -408,28 +424,28 @@ namespace H264
 				m_displayBuf.emplace_back().resize(s_ctl_op.u4_min_out_buf_size[0] + s_ctl_op.u4_min_out_buf_size[1]);
 			}
 			// set
-			ivd_set_display_frame_ip_t s_set_display_frame_ip{ 0 }; // make sure to zero-initialize this. The codec seems to check the first 3 pointers/sizes per frame, regardless of the value of u4_num_bufs
+			auto s_set_display_frame_ip = std::make_unique<ivd_set_display_frame_ip_t>();
 			ivd_set_display_frame_op_t s_set_display_frame_op{ 0 };
 
-			s_set_display_frame_ip.e_cmd = IVD_CMD_SET_DISPLAY_FRAME;
-			s_set_display_frame_ip.u4_size = sizeof(ivd_set_display_frame_ip_t);
+			s_set_display_frame_ip->e_cmd = IVD_CMD_SET_DISPLAY_FRAME;
+			s_set_display_frame_ip->u4_size = sizeof(ivd_set_display_frame_ip_t);
 			s_set_display_frame_op.u4_size = sizeof(ivd_set_display_frame_op_t);
 
 			cemu_assert_debug(s_ctl_op.u4_min_num_out_bufs == 2);
 			cemu_assert_debug(s_ctl_op.u4_min_out_buf_size[0] != 0 && s_ctl_op.u4_min_out_buf_size[1] != 0);
 
-			s_set_display_frame_ip.num_disp_bufs = s_ctl_op.u4_num_disp_bufs;
+			s_set_display_frame_ip->num_disp_bufs = s_ctl_op.u4_num_disp_bufs;
 
 			for (uint32 i = 0; i < s_ctl_op.u4_num_disp_bufs; i++)
 			{
-				s_set_display_frame_ip.s_disp_buffer[i].u4_num_bufs = 2;
-				s_set_display_frame_ip.s_disp_buffer[i].u4_min_out_buf_size[0] = s_ctl_op.u4_min_out_buf_size[0];
-				s_set_display_frame_ip.s_disp_buffer[i].u4_min_out_buf_size[1] = s_ctl_op.u4_min_out_buf_size[1];
-				s_set_display_frame_ip.s_disp_buffer[i].pu1_bufs[0] = m_displayBuf[i].data() + 0;
-				s_set_display_frame_ip.s_disp_buffer[i].pu1_bufs[1] = m_displayBuf[i].data() + s_ctl_op.u4_min_out_buf_size[0];
+				s_set_display_frame_ip->s_disp_buffer[i].u4_num_bufs = 2;
+				s_set_display_frame_ip->s_disp_buffer[i].u4_min_out_buf_size[0] = s_ctl_op.u4_min_out_buf_size[0];
+				s_set_display_frame_ip->s_disp_buffer[i].u4_min_out_buf_size[1] = s_ctl_op.u4_min_out_buf_size[1];
+				s_set_display_frame_ip->s_disp_buffer[i].pu1_bufs[0] = m_displayBuf[i].data() + 0;
+				s_set_display_frame_ip->s_disp_buffer[i].pu1_bufs[1] = m_displayBuf[i].data() + s_ctl_op.u4_min_out_buf_size[0];
 			}
 
-			status = ih264d_api_function(m_codecCtx, &s_set_display_frame_ip, &s_set_display_frame_op);
+			status = ih264d_api_function(m_codecCtx, s_set_display_frame_ip.get(), &s_set_display_frame_op);
 			cemu_assert(!status);
 
 
