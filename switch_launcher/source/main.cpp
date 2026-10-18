@@ -37,6 +37,7 @@
 #include "cemu_titles.h"
 #include "cemu_settings.h"
 #include "gfxpacks.h"
+#include "shader_packs.h"
 #include "install.h"
 #include "forwarder.h"
 #include "launcher_update.h"
@@ -1145,6 +1146,7 @@ static void downloadAllCovers();
 static void toast(const char *msg);
 static void modalMessage(const char *title, const std::vector<std::string> &lines);
 static void gfxPackScreen(uint64_t filterTitleId);
+static void shaderPacksScreen();
 static bool confirmBox(const char *title, const std::vector<std::string> &lines);
 static void runUpdateScreen();
 static std::string installedReleaseTag();
@@ -5331,7 +5333,7 @@ static bool installedContentScreen(uint64_t baseTitleFilter = 0) {
 static void downloadAllCovers();
 static void libraryStorageScreen() {
   static int savedSelection=0;
-  constexpr int rowCount=6;
+  constexpr int rowCount=7;
   const int rowHeight=std::max(settingsRowH(),52);
   const int startY=settingsListY()+40;
   int sel=std::max(0,std::min(savedSelection,rowCount-1));
@@ -5344,7 +5346,8 @@ static void libraryStorageScreen() {
     else if(sel==2) networkSharesScreen();
     else if(sel==3) downloadAllCovers();
     else if(sel==4) installedContentScreen();
-    else gfxPackScreen(0);
+    else if(sel==5) gfxPackScreen(0);
+    else shaderPacksScreen();
     installedCount = cemu_scanInstalledComponents(std::string(DATA_DIR) + "/mlc01").size();
     folderCount=loadSavedGameSourceRecords().size();
     shares=loadSmbSharesFromStore();
@@ -5375,6 +5378,12 @@ static void libraryStorageScreen() {
                      nullptr,"Launcher action");
         beginScreenFx();
       }
+      else if(event.cbutton.button==BTN_X&&sel==6){
+        showHelpCard(tr("Library & storage"),tr("Shader packs"),tr("Shader cache download"),
+                     tr("Downloads and installs transferable shaders and Vulkan pipelines. Shaders are compiled for your renderer when the game first loads."),
+                     nullptr,tr("Shader pack"));
+        beginScreenFx();
+      }
       else if(event.cbutton.button==BTN_CANCEL){ savedSelection=sel; return; }
     }
 
@@ -5393,8 +5402,8 @@ static void libraryStorageScreen() {
     std::string smbValue=std::to_string(mounted)+" / "+std::to_string(shares.size())+" connected";
     std::string installedValue = std::to_string(installedCount) +
                                  (installedCount == 1 ? " component" : " components");
-    const char *labels[rowCount]={"Game folders","File manager","SMB network shares","Download covers","Installed content","Graphics packs"};
-    const char *values[rowCount]={folderValue.c_str(),"SD / USB / SMB",smbValue.c_str(),"SteamGridDB",installedValue.c_str(),"browse / download"};
+    const char *labels[rowCount]={"Game folders","File manager","SMB network shares","Download covers","Installed content","Graphics packs","Shader packs"};
+    const char *values[rowCount]={folderValue.c_str(),"SD / USB / SMB",smbValue.c_str(),"SteamGridDB",installedValue.c_str(),"browse / download","browse / download"};
     for(int row=0;row<rowCount;row++){
       const int slot=startY+row*rowHeight;
       const bool current=row==sel;
@@ -5403,7 +5412,7 @@ static void libraryStorageScreen() {
                           slot,colW,labelX,valX,current,
                           current?COL_VAL:COL_TXT,current?COL_VAL:COL_DIM,false,rowHeight);
     }
-    if(sel==3) drawLocalizedFooter("A  Select       X  Info       B  Back");
+    if(sel==3||sel==6) drawLocalizedFooter("A  Select       X  Info       B  Back");
     else drawLocalizedFooter("A  Open       B  Back");
     drawFadeIn(); SDL_RenderPresent(g_ren); waitForNextUiFrame();
   }
@@ -6636,6 +6645,148 @@ static int downloadLatestGraphicPacks() {
   toast(result==GFX_OK?"Packs updated":result==GFX_UPTODATE?"Already up to date":
         result==GFX_NET_FAIL?"Download failed (network)":"Extract failed");
   return result;
+}
+
+static void shaderPacksScreen() {
+  if(!griddb_global_init()){
+    modalMessageStatic("Shader packs",{"Could not initialize the network."});
+    return;
+  }
+  const std::string cacheDir=std::string(DATA_DIR)+"/cache";
+  std::vector<ShaderPacks::Pack> packs;
+  std::vector<bool> installed;
+  auto refreshInstalled=[&](){
+    installed.clear();
+    for(const auto &pack:packs) installed.push_back(ShaderPacks::IsInstalled(cacheDir,pack));
+  };
+  auto loadCatalog=[&](){
+    std::string error;
+    bool loaded=false;
+    const bool finished=runCancellableNetworkTask(tr("Shader packs"),tr("Loading available shader packs..."),
+      [&](const std::atomic_bool &cancel){
+        try { loaded=ShaderPacks::LoadCatalog(packs,error,cancel); if(loaded) refreshInstalled(); }
+        catch(const std::exception &){ error="Could not load the shader-pack catalog."; }
+      });
+    if(finished&&!loaded) modalMessageStatic("Shader packs",{error});
+  };
+  auto download=[&](const ShaderPacks::Pack *pack){
+    ShaderPacks::Progress progress;
+    std::atomic_bool cancel{false},complete{false};
+    bool success=false;
+    std::string error;
+    std::thread worker([&]{
+      try { success=ShaderPacks::Install(cacheDir,pack,progress,cancel,error); refreshInstalled(); }
+      catch(const std::exception &){ error="Could not install the shader pack."; }
+      complete.store(true,std::memory_order_release);
+      wakeUiFromWorker(0x53484452);
+    });
+    while(!complete.load(std::memory_order_acquire)){
+      if(!beginUiFrame()){ cancel=true; break; }
+      SDL_Event event;
+      while(pollUiEvent(event)){
+        pumpStick(event);
+        int tx=0,ty=0;
+        if((event.type==SDL_CONTROLLERBUTTONDOWN&&event.cbutton.button==BTN_CANCEL)||
+           (touchFeed(event,&tx,&ty)==TOUCH_TAP&&ty>=SH-90)) cancel=true;
+      }
+      clearUiBackground();
+      drawHeaderStatic("Shader packs",pack?pack->name.c_str():tr("Full shader pack"));
+      const int panelWidth=std::min(940,SW-64),x=(SW-panelWidth)/2,y=SH/2-110;
+      glassPanel(x,y,panelWidth,220);
+      const auto phase=progress.phase.load();
+      const char *status=phase==ShaderPacks::Phase::Extracting?"Extracting shader caches...":
+                         phase==ShaderPacks::Phase::Installing?"Installing shader caches...":"Downloading shader caches...";
+      drawTextC(g_font,SW/2,y+28,tr(cancel.load()?"Cancelling...":status),COL_TXT);
+      const uint64_t current=progress.current.load(),total=progress.total.load();
+      drawProgressBar(x+40,y+88,panelWidth-80,14,total?double(current)/double(total):0.0);
+      char detail[96];
+      const int percent=total?(int)(std::min(current,total)*100/total):0;
+      if(phase==ShaderPacks::Phase::Downloading)
+        snprintf(detail,sizeof(detail),"%d%%    %.1f / %.1f MiB",percent,current/(1024.0*1024.0),total/(1024.0*1024.0));
+      else snprintf(detail,sizeof(detail),"%d%%    %llu / %llu",percent,(unsigned long long)current,(unsigned long long)total);
+      drawTextC(g_font_sm,SW/2,y+125,detail,COL_DIM);
+      drawLocalizedFooter("B  Cancel");
+      SDL_RenderPresent(g_ren); waitForNextUiFrame();
+    }
+    if(!complete.load(std::memory_order_acquire)) cancel=true;
+    worker.join();
+    if(success) toastStatic("Shader pack installed");
+    else if(!cancel.load()) modalMessageStatic("Shader download failed",{error});
+  };
+  loadCatalog();
+  int sel=0,top=0;
+  beginScreenFx();
+  for(;;){
+    if(!beginUiFrame()) return;
+    int nrows=1+(int)packs.size();
+    const int visible=listVis();
+    auto rowGap=[&](int index){ return top==0&&index>0?16:0; };
+    SDL_Event event; navRepeat();
+    while(pollUiEvent(event)){
+      pumpStick(event);
+      int tx=0,ty=0;const auto touch=touchFeed(event,&tx,&ty);
+      if(touchScrollList(touch,sel,top,nrows,visible)) continue;
+      if(touch==TOUCH_TAP){
+        if(ty<topBarH()||ty>=SH-40) return;
+        for(int row=0;row<visible&&top+row<nrows;row++){
+          int y=LIST_Y0+row*ROW_H+rowGap(top+row);
+          if(ty>=y&&ty<y+ROW_H){
+            sel=top+row;
+            SDL_Event press{};press.type=SDL_CONTROLLERBUTTONDOWN;press.cbutton.button=BTN_CONFIRM;SDL_PushEvent(&press);
+            break;
+          }
+        }
+        continue;
+      }
+      if(event.type!=SDL_CONTROLLERBUTTONDOWN) continue;
+      const int button=event.cbutton.button;
+      if(button==BTN_CANCEL) return;
+      if(button==SDL_CONTROLLER_BUTTON_DPAD_UP) sel=(sel+nrows-1)%nrows;
+      else if(button==SDL_CONTROLLER_BUTTON_DPAD_DOWN) sel=(sel+1)%nrows;
+      else if(button==BTN_CONFIRM){
+        download(sel?&packs[sel-1]:nullptr);
+        if(packs.empty()) loadCatalog();
+        beginScreenFx();
+        break;
+      } else if(button==BTN_Y){
+        loadCatalog();sel=top=0;beginScreenFx();break;
+      } else if(button==BTN_X){
+        const std::string label=sel?packs[sel-1].name+" ("+packs[sel-1].region+")":tr("Full shader pack");
+        showHelpCard(tr("Shader packs"),label.c_str(),tr("Shader cache download"),
+                     tr("Downloads and installs transferable shaders and Vulkan pipelines. Shaders are compiled for your renderer when the game first loads."),
+                     sel?packs[sel-1].titleId.c_str():nullptr,tr("Shader pack"));
+        beginScreenFx();
+      }
+      if(sel<top) top=sel;
+      if(sel>=top+visible) top=sel-visible+1;
+    }
+    nrows=1+(int)packs.size();
+    clearUiBackground();
+    drawHeaderStatic("Shader packs",nullptr);
+    int colX,colW,labelX,valX;listCol(&colX,&colW,&labelX,&valX);
+    const int shown=std::min(visible,nrows-top);
+    glassPanel(colX-12,LIST_Y0-10,colW+24,shown*ROW_H+rowGap(top+shown-1)+18);
+    const float target=(float)(LIST_Y0+(sel-top)*ROW_H+rowGap(sel)+1);
+    g_hy=(!g_uiAnimations||g_hy<0)?target:g_hy+(target-g_hy)*0.30f;
+    drawRowHighlight(colX,(int)g_hy,colW,ROW_H-2);
+    const bool allInstalled=!installed.empty()&&std::all_of(installed.begin(),installed.end(),[](bool value){return value;});
+    for(int row=0;row<visible&&top+row<nrows;row++){
+      const int index=top+row;
+      const bool done=index?(index-1<(int)installed.size()&&installed[index-1]):allInstalled;
+      const std::string label=index?packs[index-1].name+" ("+packs[index-1].region+")":"Download full shader pack";
+      drawSettingsRowText(index?label.c_str():tr(label.c_str()),done?tr("Installed"):">",
+                          LIST_Y0+row*ROW_H+rowGap(index),colW,labelX,valX,index==sel,
+                          index==sel?COL_VAL:COL_TXT,done?SDL_Color{120,220,120,255}:COL_DIM);
+    }
+    if(nrows>visible){
+      const int height=visible*ROW_H,thumb=std::max(12,height*visible/nrows);
+      const int x=colX+colW+16,y=LIST_Y0;
+      fillRect(x,y,4,height,SDL_Color{40,44,54,255});
+      fillRect(x,y+(height-thumb)*top/(nrows-visible),4,thumb,COL_SEL);
+    }
+    drawLocalizedFooter("A  Download       Y  Refresh       X  Info       B  Back");
+    drawFadeIn();SDL_RenderPresent(g_ren);waitForNextUiFrame();
+  }
 }
 
 static void openPackPanel(const GfxPack &p, PackSel &s) {

@@ -22,6 +22,21 @@ constexpr std::array<std::string_view,8> s_languages={"en","fr","de","es","it","
 
 struct Entry { const char* en; const char* fr; const char* de; const char* es; const char* it; const char* pt; };
 constexpr Entry ENTRIES[]={
+ {"Download shader packs", "Télécharger des packs de shaders", "Shader-Pakete herunterladen", "Descargar paquetes de shaders", "Scarica pacchetti shader", "Transferir pacotes de shaders"},
+ {"Shader packs", "Packs de shaders", "Shader-Pakete", "Paquetes de shaders", "Pacchetti shader", "Pacotes de shaders"},
+ {"Full shader pack", "Pack complet de shaders", "Vollständiges Shader-Paket", "Paquete completo de shaders", "Pacchetto shader completo", "Pacote completo de shaders"},
+ {"Download full shader pack", "Télécharger tous les shaders", "Alle Shader herunterladen", "Descargar todos los shaders", "Scarica tutti gli shader", "Transferir todos os shaders"},
+ {"Loading available shader packs...", "Chargement des packs de shaders...", "Verfügbare Shader-Pakete werden geladen...", "Cargando paquetes de shaders...", "Caricamento dei pacchetti shader...", "A carregar pacotes de shaders..."},
+ {"Downloading shader caches...", "Téléchargement des caches de shaders...", "Shader-Caches werden heruntergeladen...", "Descargando cachés de shaders...", "Download delle cache shader...", "A transferir caches de shaders..."},
+ {"Extracting shader caches...", "Extraction des caches de shaders...", "Shader-Caches werden entpackt...", "Extrayendo cachés de shaders...", "Estrazione delle cache shader...", "A extrair caches de shaders..."},
+ {"Installing shader caches...", "Installation des caches de shaders...", "Shader-Caches werden installiert...", "Instalando cachés de shaders...", "Installazione delle cache shader...", "A instalar caches de shaders..."},
+ {"Shader pack installed", "Pack de shaders installé", "Shader-Paket installiert", "Paquete de shaders instalado", "Pacchetto shader installato", "Pacote de shaders instalado"},
+ {"Shader download failed", "Échec du téléchargement des shaders", "Shader-Download fehlgeschlagen", "Error al descargar shaders", "Download shader non riuscito", "Falha ao transferir shaders"},
+ {"Installed", "Installé", "Installiert", "Instalado", "Installato", "Instalado"},
+ {"Cancelling...", "Annulation...", "Wird abgebrochen...", "Cancelando...", "Annullamento...", "A cancelar..."},
+ {"Shader cache download", "Téléchargement de caches de shaders", "Shader-Cache-Download", "Descarga de cachés de shaders", "Download cache shader", "Transferência de caches de shaders"},
+ {"Shader pack", "Pack de shaders", "Shader-Paket", "Paquete de shaders", "Pacchetto shader", "Pacote de shaders"},
+ {"Downloads and installs transferable shaders and Vulkan pipelines. Shaders are compiled for your renderer when the game first loads.", "Télécharge et installe les shaders transférables et les pipelines Vulkan. Les shaders sont compilés pour votre moteur graphique au premier chargement du jeu.", "Lädt übertragbare Shader und Vulkan-Pipelines herunter und installiert sie. Shader werden beim ersten Laden des Spiels für deinen Renderer kompiliert.", "Descarga e instala shaders transferibles y pipelines Vulkan. Los shaders se compilan para tu renderizador al cargar el juego por primera vez.", "Scarica e installa shader trasferibili e pipeline Vulkan. Gli shader vengono compilati per il tuo renderer al primo caricamento del gioco.", "Transfere e instala shaders transferíveis e pipelines Vulkan. Os shaders são compilados para o seu renderizador no primeiro carregamento do jogo."},
  {"Loading artwork preview", "Chargement de l'aperçu", "Bildvorschau wird geladen", "Cargando vista previa", "Caricamento anteprima", "A carregar pré-visualização"},
  {"No matching artwork was found.", "Aucune illustration correspondante trouvée.", "Keine passenden Bilder gefunden.", "No se encontraron imágenes coincidentes.", "Nessuna immagine corrispondente trovata.", "Não foram encontradas imagens correspondentes."},
  {"games queued", "jeux en attente", "Spiele in der Warteschlange", "juegos en cola", "giochi in coda", "jogos em fila"},

@@ -6,6 +6,20 @@ namespace
 {
 struct ChineseEntry { const char* en; const char* zhHans; const char* zhHant; };
 constexpr ChineseEntry CHINESE_ENTRIES[]={
+ {"Download shader packs", "下载着色器包", "下載著色器套件"},
+ {"Shader packs", "着色器包", "著色器套件"},
+ {"Full shader pack", "完整着色器包", "完整著色器套件"},
+ {"Download full shader pack", "下载全部着色器", "下載全部著色器"},
+ {"Loading available shader packs...", "正在加载可用的着色器包...", "正在載入可用的著色器套件..."},
+ {"Downloading shader caches...", "正在下载着色器缓存...", "正在下載著色器快取..."},
+ {"Extracting shader caches...", "正在解压着色器缓存...", "正在解壓縮著色器快取..."},
+ {"Installing shader caches...", "正在安装着色器缓存...", "正在安裝著色器快取..."},
+ {"Shader pack installed", "着色器包已安装", "著色器套件已安裝"},
+ {"Shader download failed", "着色器下载失败", "著色器下載失敗"},
+ {"Installed", "已安装", "已安裝"},
+ {"Shader cache download", "下载着色器缓存", "下載著色器快取"},
+ {"Shader pack", "着色器包", "著色器套件"},
+ {"Downloads and installs transferable shaders and Vulkan pipelines. Shaders are compiled for your renderer when the game first loads.", "下载并安装可共享的着色器和 Vulkan 管线。首次加载游戏时会为所选渲染器编译着色器。", "下載並安裝可共用的著色器和 Vulkan 管線。首次載入遊戲時會為所選渲染器編譯著色器。"},
  {"Loading artwork preview", "正在加载图片预览", "正在載入圖片預覽"},
  {"No matching artwork was found.", "未找到匹配的图片。", "找不到相符的圖片。"},
  {"games queued", "个游戏排队中", "個遊戲排隊中"},

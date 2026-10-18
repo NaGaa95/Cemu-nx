@@ -20,6 +20,7 @@ SOURCES		:=	source ../src/platform/switch/common
 DATA		:=	data
 INCLUDES	:=	../src/platform/switch/common \
 			../dependencies/ZArchive/include \
+			../build_switch/_deps/rapidjson-src/include \
 			../build_switch/_deps/libsmb2-src/include \
 			../build_switch/_deps/libusbhsfs-src/include
 ROMFS		:=	romfs		# emulator and forwarder payloads
