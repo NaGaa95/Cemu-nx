@@ -1,0 +1,645 @@
+{
+  "0005000010138b00": {
+    "name": "Assassin's Creed® IV Black Flag",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 422,
+    "pipelineCount": 786
+  },
+  "000500001010ab00": {
+    "name": "Batman Arkham City: Armored Edition",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 1211,
+    "pipelineCount": 1922
+  },
+  "0005000010172700": {
+    "name": "Bayonetta 2",
+    "region": "EUR",
+    "comment": "Just started a new game, haven't spent much time with it yet",
+    "author": "chriztr",
+    "shaderCount": 838,
+    "pipelineCount": 1516
+  },
+  "0005000010172600": {
+    "name": "Bayonetta 2",
+    "region": "USA",
+    "comment": "Story mode beaten / Game completed",
+    "author": [
+      "u/DeepUnknown",
+      "Niko"
+    ],
+    "shaderCount": 1183,
+    "pipelineCount": 3042
+  },
+  "000500001010cf00": {
+    "name": "Call of Duty: Black Ops II",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 3402,
+    "pipelineCount": 4158
+  },
+  "0005000010146800": {
+    "name": "Call of Duty: Ghosts",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 2985,
+    "pipelineCount": 4202
+  },
+  "0005000010180700": {
+    "name": "Captain Toad: Treasure Tracker",
+    "region": "EUR",
+    "comment": "Played through the first three chapthers and some of the bonus levels.",
+    "author": "chriztr",
+    "shaderCount": 1975,
+    "pipelineCount": 2356
+  },
+  "0005000010180600": {
+    "name": "Captain Toad: Treasure Tracker",
+    "region": "USA",
+    "comment": "At the end of the first chapter",
+    "author": [
+      "chriztr",
+      "Niko"
+    ],
+    "shaderCount": 1130,
+    "pipelineCount": 1790
+  },
+  "00050000101a4f01": {
+    "name": "Cube Life: Pixel Action Heroes Demo",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 49,
+    "pipelineCount": 42
+  },
+  "000500001010ad00": {
+    "name": "Darksiders II",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 418,
+    "pipelineCount": 431
+  },
+  "00050000101fa600": {
+    "name": "Darksiders Warmastered Edition",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 979,
+    "pipelineCount": 759
+  },
+  "000500001012ba00": {
+    "name": "Deus EX: Human Rev. Director's Cut",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 718,
+    "pipelineCount": 1073
+  },
+  "0005000010138300": {
+    "name": "Donkey Kong Country Tropical Freeze",
+    "region": "EUR",
+    "comment": "Played a bit in the four first islands, entered all levels after island four",
+    "author": "chriztr",
+    "shaderCount": 1667,
+    "pipelineCount": 1247
+  },
+  "0005000010137f00": {
+    "name": "Donkey Kong Country Tropical Freeze",
+    "region": "USA",
+    "comment": "Played my way to the forth island",
+    "author": [
+      "chriztr",
+      "Niko"
+    ],
+    "shaderCount": 1226,
+    "pipelineCount": 1162
+  },
+  "00050000101d6000": {
+    "name": "FAST Racing NEO",
+    "region": "EUR",
+    "comment": "Played through all the cups.",
+    "author": "chriztr",
+    "shaderCount": 1695,
+    "pipelineCount": 2378
+  },
+  "000500001012f000": {
+    "name": "FAST Racing NEO",
+    "region": "USA",
+    "comment": "Played all cups",
+    "author": "Haruki1707",
+    "shaderCount": 1765,
+    "pipelineCount": 1989
+  },
+  "00050000101d0300": {
+    "name": "Fatal Frame / Project Zero Maiden of Black Waters",
+    "region": "EUR",
+    "comment": "Played through the four first drops in the game.",
+    "author": "chriztr",
+    "shaderCount": 770,
+    "pipelineCount": 1224
+  },
+  "000500001014d200": {
+    "name": "Fatal Frame / Project Zero Maiden of Black Waters (零 ～濡鴉ノ巫女～)",
+    "region": "JPN",
+    "comment": "Played a bit between prolouge and the 4th drop",
+    "author": "chriztr",
+    "shaderCount": 836,
+    "pipelineCount": 1471
+  },
+  "00050000101abc00": {
+    "name": "Kirby and the Rainbow Curse",
+    "region": "USA",
+    "comment": "Not 100%, but I played each level for more than a minute, including bosses and all UI menu staff.",
+    "author": [
+      "BiZkViT",
+      "Niko"
+    ],
+    "shaderCount": 2824,
+    "pipelineCount": 433
+  },
+  "00050000101a6500": {
+    "name": "Kung Fu Panda Showdown of Legendary Legends",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 94,
+    "pipelineCount": 107
+  },
+  "0005000010135e00": {
+    "name": "LEGO® Batman™ 2",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 741,
+    "pipelineCount": 1001
+  },
+  "000500001016ad00": {
+    "name": "LEGO® Batman™ 3 Beyond Gotham",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 1586,
+    "pipelineCount": 2335
+  },
+  "0005000010101a00": {
+    "name": "LEGO® CITY UNDERCOVER",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 1586,
+    "pipelineCount": 2335
+  },
+  "00050000101a6200": {
+    "name": "LEGO® Jurassic World™",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 858,
+    "pipelineCount": 932
+  },
+  "00050000101bef00": {
+    "name": "LEGO® MARVEL's Avengers",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 668,
+    "pipelineCount": 698
+  },
+  "0005000010132b00": {
+    "name": "LEGO® MARVEL Super Heroes",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 1017,
+    "pipelineCount": 1104
+  },
+  "00050000101dab00": {
+    "name": "LEGO® STAR WARS™ The Force Awakens",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 1248,
+    "pipelineCount": 1523
+  },
+  "000500001016a700": {
+    "name": "LEGO® The Hobbit™",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 858,
+    "pipelineCount": 915
+  },
+  "00050000101a4800": {
+    "name": "Lost Reavers",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 111,
+    "pipelineCount": 69
+  },
+  "00050000101e5300": {
+    "name": "Mario & Sonic at the Rio 2016 Olympic Games",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 347,
+    "pipelineCount": 697
+  },
+  "000500001010ed00": {
+    "name": "Mario Kart 8",
+    "region": "EUR",
+    "comment": "Played through every map including DLC and a few trails",
+    "author": [
+      "RMED24",
+      "chriztr"
+    ],
+    "shaderCount": 11391,
+    "pipelineCount": 10953
+  },
+  "000500001010ec00": {
+    "name": "Mario Kart 8",
+    "region": "USA",
+    "comment": "Complete game",
+    "author": [
+      "chriztr",
+      "BiZkViT",
+      "Niko"
+    ],
+    "shaderCount": 11884,
+    "pipelineCount": 15814
+  },
+  "000500001010eb00": {
+    "name": "Mario Kart 8",
+    "region": "JPN",
+    "comment": "Played all cups including DLC + looping title screen",
+    "author": "chriztr",
+    "shaderCount": 11127,
+    "pipelineCount": 10750
+  },
+  "00050000101a3500": {
+    "name": "Mario Tennis Ultra Smash",
+    "region": "USA",
+    "comment": "Full / close to full cache?",
+    "author": [
+      "BiZkViT",
+      "Niko"
+    ],
+    "shaderCount": 1183,
+    "pipelineCount": 2041
+  },
+  "0005000010101e00": {
+    "name": "New Super Mario Bros U",
+    "region": "EUR",
+    "comment": "Scrolled through the map and some",
+    "author": "chriztr",
+    "shaderCount": 601,
+    "pipelineCount": 939
+  },
+  "0005000010101d00": {
+    "name": "New Super Mario Bros U",
+    "region": "USA",
+    "comment": "Completed the whole game.",
+    "author": "Luka Doncic",
+    "shaderCount": 1100,
+    "pipelineCount": 2000
+  },
+  "0005000010110a00": {
+    "name": "Ninja Gaiden 3: Razor's Edge",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 237,
+    "pipelineCount": 274
+  },
+  "0005000010102000": {
+    "name": "Nintendo Land",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 1092,
+    "pipelineCount": 2120
+  },
+  "000500001f600b00": {
+    "name": "Paper Mario Color Splash",
+    "region": "EUR",
+    "comment": "Played a little bit.",
+    "author": "chriztr",
+    "shaderCount": 676,
+    "pipelineCount": 4275
+  },
+  "000500001f600a00": {
+    "name": "Paper Mario Color Splash",
+    "region": "USA",
+    "comment": "Some gameplay",
+    "author": "Niko",
+    "shaderCount": 200,
+    "pipelineCount": 727
+  },
+  "000500001012be00": {
+    "name": "Pikmin 3",
+    "region": "EUR",
+    "comment": "Started a new game, three days of exploring ingame.",
+    "author": "chriztr",
+    "shaderCount": 1153,
+    "pipelineCount": 1647
+  },
+  "0005000010176a00": {
+    "name": "Splatoon",
+    "region": "EUR",
+    "comment": "All of the multiplayer stages' shaders have been cached and a majority of the hero mode's stages have also been cached",
+    "author": [
+      "chriztr",
+      "Octo#4533"
+    ],
+    "shaderCount": 6642,
+    "pipelineCount": 12233
+  },
+  "0005000010176900": {
+    "name": "Splatoon",
+    "region": "USA",
+    "comment": "Played a few turfs myself and merged with BiZkViT's playthrough",
+    "author": [
+      "chriztr",
+      "BiZkViT",
+      "Niko"
+    ],
+    "shaderCount": 6096,
+    "pipelineCount": 10341
+  },
+  "00050000101bec00": {
+    "name": "Star Fox Guard",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 107,
+    "pipelineCount": 120
+  },
+  "00050000101b0400": {
+    "name": "Star Fox Zero",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 29,
+    "pipelineCount": 24
+  },
+  "00050000101b9600": {
+    "name": "Super Destronaut",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 8,
+    "pipelineCount": 6
+  },
+  "0005000010145d00": {
+    "name": "Super Mario 3D World",
+    "region": "EUR",
+    "comment": "Played through all level except bonus stages.",
+    "author": "chriztr",
+    "shaderCount": 4058,
+    "pipelineCount": 7320
+  },
+  "0005000010145c00": {
+    "name": "Super Mario 3D World",
+    "region": "USA",
+    "comment": "Played all levels including bonus stages.",
+    "author": [
+      "Haruki1707",
+      "Niko"
+    ],
+    "shaderCount": 3929,
+    "pipelineCount": 8040
+  },
+  "0005000010106100": {
+    "name": "Super Mario 3D World (スーパーマリオ ３Ｄワールド)",
+    "region": "JPN",
+    "comment": "Played all levels except bonus stages",
+    "author": "chriztr",
+    "shaderCount": 3760,
+    "pipelineCount": 5106
+  },
+  "0005000010145000": {
+    "name": "Super Smash Bros. U",
+    "region": "EUR",
+    "comment": "I let the CPU play against each other on ever map available.",
+    "author": "chriztr",
+    "shaderCount": 2914,
+    "pipelineCount": 7181
+  },
+  "0005000010144f00": {
+    "name": "Super Smash Bros. U",
+    "region": "USA",
+    "comment": "I let the CPU play against each other on some maps / Game has been played a bit",
+    "author": [
+      "fhAifN",
+      "chriztr",
+      "Niko"
+    ],
+    "shaderCount": 4160,
+    "pipelineCount": 11811
+  },
+  "0005000010110e00": {
+    "name": "Super Smash Bros. U (大乱闘スマッシュブラザーズ for Wii U)",
+    "region": "JPN",
+    "comment": "I let the CPU play against each other on all maps",
+    "author": "chriztr",
+    "shaderCount": 3252,
+    "pipelineCount": 6280
+  },
+  "000500001010f800": {
+    "name": "Tekken Tag Tournament 2",
+    "region": "EUR",
+    "comment": "Let the game loop through some matches.",
+    "author": "chriztr",
+    "shaderCount": 910,
+    "pipelineCount": 1246
+  },
+  "0005000010110000": {
+    "name": "Tekken Tag Tournament 2",
+    "region": "USA",
+    "comment": "Let the game loop through some matches.",
+    "author": "chriztr",
+    "shaderCount": 1029,
+    "pipelineCount": 1367
+  },
+  "0005000010100600": {
+    "name": "Tekken Tag Tournament 2 (鉄拳タッグ2)",
+    "region": "JPN",
+    "comment": "Played through some stages for now and let the game loop through some matches",
+    "author": "chriztr",
+    "shaderCount": 1074,
+    "pipelineCount": 1440
+  },
+  "000500001011c300": {
+    "name": "The Amazing Spider-Man",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 728,
+    "pipelineCount": 743
+  },
+  "0005000010146a00": {
+    "name": "The Amazing Spider-Man 2™",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 2094,
+    "pipelineCount": 3740
+  },
+  "000500001014de00": {
+    "name": "The LEGO® Movie Videogame",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 656,
+    "pipelineCount": 710
+  },
+  "00050000101ed800": {
+    "name": "Tokyo Mirage Sessions #FE",
+    "region": "USA",
+    "comment": "Just started a new game. Played through the prolouge, etc.",
+    "author": "chriztr",
+    "shaderCount": 1475,
+    "pipelineCount": 4995
+  },
+  "000500001014c100": {
+    "name": "Transformers: Rise of the Dark Spark",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 645,
+    "pipelineCount": 256
+  },
+  "00050000101c4c00": {
+    "name": "Xenoblade Chronicles X",
+    "region": "EUR",
+    "comment": "I completed the game yesterday after about 65+ hours of playtime. I definitely didn't do everything, but I think this cache should cover a lot if not most of what CEMU will outpu",
+    "author": "romatthe",
+    "shaderCount": 7860,
+    "pipelineCount": 34695
+  },
+  "00050000101c4d00": {
+    "name": "Xenoblade Chronicles X",
+    "region": "USA",
+    "comment": "",
+    "author": "Niko",
+    "shaderCount": 3315,
+    "pipelineCount": 7231
+  },
+  "0005000010184e00": {
+    "name": "Yoshi's Woolly World",
+    "region": "EUR",
+    "comment": "Normal playthrough.",
+    "author": [
+      "chriztr",
+      "Tomk007",
+      "bell07"
+    ],
+    "shaderCount": 4129,
+    "pipelineCount": 11142
+  },
+  "0005000010184d00": {
+    "name": "Yoshi's Woolly World",
+    "region": "USA",
+    "comment": "100% playthrough by 1santiaguito",
+    "author": [
+      "1santiaguito",
+      "Niko"
+    ],
+    "shaderCount": 4324,
+    "pipelineCount": 13768
+  },
+  "0005000010131f00": {
+    "name": "Yoshi's Woolly World (ヨッシーウールワールド)",
+    "region": "JPN",
+    "comment": "Made my way to World 2-3",
+    "author": "chriztr",
+    "shaderCount": 1857,
+    "pipelineCount": 2274
+  },
+  "00050000101c9500": {
+    "name": "Zelda Breath of The Wild",
+    "region": "EUR",
+    "comment": "Casual playthrough with all divine beast and beaten Ganon and complete playthrough with all shrines and DLC.",
+    "author": [
+      "chriztr",
+      "Fruscho#8918"
+    ],
+    "shaderCount": 9276,
+    "pipelineCount": 54120
+  },
+  "00050000101c9300": {
+    "name": "Zelda Breath of The Wild (ゼルダの伝説 ブレス オブ ザ ワイルド)",
+    "region": "JPN",
+    "author": "百万战神#2946",
+    "shaderCount": 9627,
+    "pipelineCount": 32609
+  },
+  "00050000101c9400": {
+    "name": "Zelda Breath of The Wild",
+    "region": "USA",
+    "comment": "Casual playthrough through all devine beast and beaten Ganon. Done over 110 shrines, 1st trail of the sword, etc.",
+    "author": [
+      "chriztr",
+      "Makonede",
+      "Niko",
+      "JPGMAFIA"
+    ],
+    "shaderCount": 8671,
+    "pipelineCount": 37356
+  },
+  "000500001019e600": {
+    "name": "Zelda Twilight Princess HD",
+    "region": "EUR",
+    "comment": "Completed the game with a causal playthough, watched the end credits as well.",
+    "author": [
+      "chriztr",
+      "bell07"
+    ],
+    "shaderCount": 2628,
+    "pipelineCount": 2027
+  },
+  "000500001019e500": {
+    "name": "Zelda Twilight Princess HD",
+    "region": "USA",
+    "comment": "Completed the game with a causal playthough, watched the end credits as well.",
+    "author": "chriztr",
+    "shaderCount": 2537,
+    "pipelineCount": 1876
+  },
+  "0005000010143600": {
+    "name": "Zelda Wind Waker HD",
+    "region": "EUR",
+    "comment": "Game played through",
+    "author": [
+      "chriztr",
+      "bell07"
+    ],
+    "shaderCount": 11702,
+    "pipelineCount": 17555
+  },
+  "0005000010143500": {
+    "name": "Zelda Wind Waker HD",
+    "region": "USA",
+    "comment": "From a completionist almost 100% full run (only a few ocean treasures were missing that were just rupees)",
+    "author": [
+      "chriztr",
+      "darkcube"
+    ],
+    "shaderCount": 14106,
+    "pipelineCount": 23872
+  },
+  "0005000010143400": {
+    "name": "Zelda Wind Waker HD (ゼルダの伝説 風のタクト)",
+    "region": "JPN",
+    "comment": "I have a mirror shield now!",
+    "author": "chriztr",
+    "shaderCount": 8446,
+    "pipelineCount": 8033
+  }
+}

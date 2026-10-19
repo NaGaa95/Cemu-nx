@@ -27,6 +27,7 @@ bin/Cemu_*.exe
 /build_switch*/
 /build-switch*/
 /work/
+/dist/switch/__pycache__/
 /bin/Cemu.nro
 /bin/*.ini
 /switch_launcher/build/

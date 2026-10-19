@@ -1,0 +1,1690 @@
+{
+  "version": 1,
+  "source": {
+    "repository": "https://github.com/chriztr/cemu_shader_and_pipeline_caches",
+    "release": "tag-2026-02-16-2210",
+    "sha256": "2009d775f5963b37b722d81f87aa1feff8c8ba748af5a59955bc41c9addcc171"
+  },
+  "default_settings": {
+    "accurate_shader_mul": true,
+    "graphics_pack_shader_overrides": false
+  },
+  "deko": {
+    "name": "UAM Deko Shaders Pack",
+    "cache_version": 1,
+    "uam_commit": "c0d76aa9107d67edcd35a1b717ace87ee7939c68",
+    "spirv_cross_commit": "ebe2aa0cd80f5eb5cd8a605da604cacf72205f3b",
+    "compiler_patches": {
+      "spirv-cross-shadow1d.patch": "9e49fb64f3dbca851b0a01454b2e1a90fb7a2b478205fec1e23d12b121a0152f",
+      "uam-32-vertex-attributes.patch": "8a6cfb4aa7b350018438c8b038db8a55d897bf07a34a1ef09348e490eb9a5e71"
+    },
+    "indexed_cache": true
+  },
+  "games": {
+    "0005000010100600": {
+      "name": "Tekken Tag Tournament 2 (鉄拳タッグ2)",
+      "region": "JPN",
+      "comment": "Played through some stages for now and let the game loop through some matches",
+      "author": "chriztr",
+      "shaderCount": 1074,
+      "pipelineCount": 1440,
+      "deko": {
+        "size": 2993820,
+        "sha256": "76d9705a65868067334d5b64bcd1b39e3ff7108b2374ae017d9cbe3cce563e32",
+        "files": [
+          {
+            "path": "deko/0005000010100600.zip",
+            "size": 2993820,
+            "sha256": "76d9705a65868067334d5b64bcd1b39e3ff7108b2374ae017d9cbe3cce563e32"
+          }
+        ],
+        "transferable_shaders": 1074,
+        "native_shaders": 1074,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010101a00": {
+      "name": "LEGO® CITY UNDERCOVER",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 1586,
+      "pipelineCount": 2335,
+      "deko": {
+        "size": 4318669,
+        "sha256": "7bc105e936f32a8122a367e8296757d4ca8ecbc84d8b817cdefc00cb7b6688c6",
+        "files": [
+          {
+            "path": "deko/0005000010101a00.zip",
+            "size": 4318669,
+            "sha256": "7bc105e936f32a8122a367e8296757d4ca8ecbc84d8b817cdefc00cb7b6688c6"
+          }
+        ],
+        "transferable_shaders": 1586,
+        "native_shaders": 1586,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010101d00": {
+      "name": "New Super Mario Bros U",
+      "region": "USA",
+      "comment": "Completed the whole game.",
+      "author": "Luka Doncic",
+      "shaderCount": 1100,
+      "pipelineCount": 2000,
+      "deko": {
+        "size": 4178990,
+        "sha256": "a401a09c90658b589cd7c68125bb5dac443aad1d816a20e272796dbb382e7a54",
+        "files": [
+          {
+            "path": "deko/0005000010101d00.zip",
+            "size": 4178990,
+            "sha256": "a401a09c90658b589cd7c68125bb5dac443aad1d816a20e272796dbb382e7a54"
+          }
+        ],
+        "transferable_shaders": 1163,
+        "native_shaders": 1163,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010101e00": {
+      "name": "New Super Mario Bros U",
+      "region": "EUR",
+      "comment": "Scrolled through the map and some",
+      "author": "chriztr",
+      "shaderCount": 601,
+      "pipelineCount": 939,
+      "deko": {
+        "size": 1910601,
+        "sha256": "b0f1ab8224f485dbc373bf9de9a93a0d1779d1e71ea71f8f4b9322d0d79fa727",
+        "files": [
+          {
+            "path": "deko/0005000010101e00.zip",
+            "size": 1910601,
+            "sha256": "b0f1ab8224f485dbc373bf9de9a93a0d1779d1e71ea71f8f4b9322d0d79fa727"
+          }
+        ],
+        "transferable_shaders": 601,
+        "native_shaders": 601,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010102000": {
+      "name": "Nintendo Land",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 1092,
+      "pipelineCount": 2120,
+      "deko": {
+        "size": 2489881,
+        "sha256": "0e7bb5f8cb6f506cdedd1f2ef876e105b186d04e3c174fd1a3dcb76c6817a205",
+        "files": [
+          {
+            "path": "deko/0005000010102000.zip",
+            "size": 2489881,
+            "sha256": "0e7bb5f8cb6f506cdedd1f2ef876e105b186d04e3c174fd1a3dcb76c6817a205"
+          }
+        ],
+        "transferable_shaders": 1092,
+        "native_shaders": 1092,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010106100": {
+      "name": "Super Mario 3D World (スーパーマリオ ３Ｄワールド)",
+      "region": "JPN",
+      "comment": "Played all levels except bonus stages",
+      "author": "chriztr",
+      "shaderCount": 3760,
+      "pipelineCount": 5106,
+      "deko": {
+        "size": 14434352,
+        "sha256": "5a906cb72ae2fbcfde475b192ccb59645fccdc2eb60d4acd1ec6a42df1e57e68",
+        "files": [
+          {
+            "path": "deko/0005000010106100.zip",
+            "size": 14434352,
+            "sha256": "5a906cb72ae2fbcfde475b192ccb59645fccdc2eb60d4acd1ec6a42df1e57e68"
+          }
+        ],
+        "transferable_shaders": 3760,
+        "native_shaders": 3760,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001010ab00": {
+      "name": "Batman Arkham City: Armored Edition",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 1211,
+      "pipelineCount": 1922,
+      "deko": {
+        "size": 2619281,
+        "sha256": "492209bb55aef4692e91368382c17816375569b8779a3f5a2058788729ccc9e7",
+        "files": [
+          {
+            "path": "deko/000500001010ab00.zip",
+            "size": 2619281,
+            "sha256": "492209bb55aef4692e91368382c17816375569b8779a3f5a2058788729ccc9e7"
+          }
+        ],
+        "transferable_shaders": 1211,
+        "native_shaders": 1211,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001010ad00": {
+      "name": "Darksiders II",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 418,
+      "pipelineCount": 431,
+      "deko": {
+        "size": 676336,
+        "sha256": "8ec7e86b089cbe7aabdac19083e90cd3b2fe0e3573f3793c301669a4854a0daf",
+        "files": [
+          {
+            "path": "deko/000500001010ad00.zip",
+            "size": 676336,
+            "sha256": "8ec7e86b089cbe7aabdac19083e90cd3b2fe0e3573f3793c301669a4854a0daf"
+          }
+        ],
+        "transferable_shaders": 418,
+        "native_shaders": 418,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001010cf00": {
+      "name": "Call of Duty: Black Ops II",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 3402,
+      "pipelineCount": 4158,
+      "deko": {
+        "size": 16700023,
+        "sha256": "219375e2d8a3fbb0aa5a497a176698288258476645f102098faef59c33bf3e52",
+        "files": [
+          {
+            "path": "deko/000500001010cf00.zip",
+            "size": 16700023,
+            "sha256": "219375e2d8a3fbb0aa5a497a176698288258476645f102098faef59c33bf3e52"
+          }
+        ],
+        "transferable_shaders": 3402,
+        "native_shaders": 3402,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001010eb00": {
+      "name": "Mario Kart 8",
+      "region": "JPN",
+      "comment": "Played all cups including DLC + looping title screen",
+      "author": "chriztr",
+      "shaderCount": 11127,
+      "pipelineCount": 10750,
+      "deko": {
+        "size": 23063130,
+        "sha256": "1626320a97e6a6bee653d4be7020394e7dfbc62ab2c94a2f7de0026de50141f0",
+        "files": [
+          {
+            "path": "deko/000500001010eb00.zip",
+            "size": 23063130,
+            "sha256": "1626320a97e6a6bee653d4be7020394e7dfbc62ab2c94a2f7de0026de50141f0"
+          }
+        ],
+        "transferable_shaders": 11127,
+        "native_shaders": 11127,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001010ec00": {
+      "name": "Mario Kart 8",
+      "region": "USA",
+      "comment": "Complete game",
+      "author": [
+        "chriztr",
+        "BiZkViT",
+        "Niko"
+      ],
+      "shaderCount": 11884,
+      "pipelineCount": 15814,
+      "deko": {
+        "size": 24915341,
+        "sha256": "e79705bfd5ca104411f89880e119676463db3cf9c8a0fdbb04ec27da7083124a",
+        "files": [
+          {
+            "path": "deko/000500001010ec00.zip",
+            "size": 24915341,
+            "sha256": "e79705bfd5ca104411f89880e119676463db3cf9c8a0fdbb04ec27da7083124a"
+          }
+        ],
+        "transferable_shaders": 11884,
+        "native_shaders": 11884,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001010ed00": {
+      "name": "Mario Kart 8",
+      "region": "EUR",
+      "comment": "Played through every map including DLC and a few trails",
+      "author": [
+        "RMED24",
+        "chriztr"
+      ],
+      "shaderCount": 11391,
+      "pipelineCount": 10953,
+      "deko": {
+        "size": 23672563,
+        "sha256": "54b7acdc29951f7aaec6ac8516a60b33d7e66bf31f73ba922c187b8a759a146a",
+        "files": [
+          {
+            "path": "deko/000500001010ed00.zip",
+            "size": 23672563,
+            "sha256": "54b7acdc29951f7aaec6ac8516a60b33d7e66bf31f73ba922c187b8a759a146a"
+          }
+        ],
+        "transferable_shaders": 11391,
+        "native_shaders": 11391,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001010f800": {
+      "name": "Tekken Tag Tournament 2",
+      "region": "EUR",
+      "comment": "Let the game loop through some matches.",
+      "author": "chriztr",
+      "shaderCount": 910,
+      "pipelineCount": 1246,
+      "deko": {
+        "size": 2459757,
+        "sha256": "8859c63ad8a4d5b6de5fbccb18333586680fa2fc8921bd0c4aed9b1f23148af0",
+        "files": [
+          {
+            "path": "deko/000500001010f800.zip",
+            "size": 2459757,
+            "sha256": "8859c63ad8a4d5b6de5fbccb18333586680fa2fc8921bd0c4aed9b1f23148af0"
+          }
+        ],
+        "transferable_shaders": 910,
+        "native_shaders": 910,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010110000": {
+      "name": "Tekken Tag Tournament 2",
+      "region": "USA",
+      "comment": "Let the game loop through some matches.",
+      "author": "chriztr",
+      "shaderCount": 1029,
+      "pipelineCount": 1367,
+      "deko": {
+        "size": 2771843,
+        "sha256": "278a15d92068005bd4cb17053563085eb881548bfe5b896336944cf599b769a8",
+        "files": [
+          {
+            "path": "deko/0005000010110000.zip",
+            "size": 2771843,
+            "sha256": "278a15d92068005bd4cb17053563085eb881548bfe5b896336944cf599b769a8"
+          }
+        ],
+        "transferable_shaders": 1029,
+        "native_shaders": 1029,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010110a00": {
+      "name": "Ninja Gaiden 3: Razor's Edge",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 237,
+      "pipelineCount": 274,
+      "deko": {
+        "size": 1111138,
+        "sha256": "1e8833c343d50f6f7e5bd5045916d1dae4e309f1460bf7787d4aa2ccc651d9b9",
+        "files": [
+          {
+            "path": "deko/0005000010110a00.zip",
+            "size": 1111138,
+            "sha256": "1e8833c343d50f6f7e5bd5045916d1dae4e309f1460bf7787d4aa2ccc651d9b9"
+          }
+        ],
+        "transferable_shaders": 237,
+        "native_shaders": 237,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010110e00": {
+      "name": "Super Smash Bros. U (大乱闘スマッシュブラザーズ for Wii U)",
+      "region": "JPN",
+      "comment": "I let the CPU play against each other on all maps",
+      "author": "chriztr",
+      "shaderCount": 3252,
+      "pipelineCount": 6280,
+      "deko": {
+        "size": 13346752,
+        "sha256": "0f15a65678803bb1ef6980e23ef89642eeffaac83b16efcaa859a07b02fb10dc",
+        "files": [
+          {
+            "path": "deko/0005000010110e00.zip",
+            "size": 13346752,
+            "sha256": "0f15a65678803bb1ef6980e23ef89642eeffaac83b16efcaa859a07b02fb10dc"
+          }
+        ],
+        "transferable_shaders": 3252,
+        "native_shaders": 3252,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001011c300": {
+      "name": "The Amazing Spider-Man",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 728,
+      "pipelineCount": 743,
+      "deko": {
+        "size": 1030767,
+        "sha256": "fb48fd76c32922d7f903ab271d82bd2876d350f77f896360016bd72f5714d76e",
+        "files": [
+          {
+            "path": "deko/000500001011c300.zip",
+            "size": 1030767,
+            "sha256": "fb48fd76c32922d7f903ab271d82bd2876d350f77f896360016bd72f5714d76e"
+          }
+        ],
+        "transferable_shaders": 728,
+        "native_shaders": 728,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001012ba00": {
+      "name": "Deus EX: Human Rev. Director's Cut",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 718,
+      "pipelineCount": 1073,
+      "deko": {
+        "size": 5007657,
+        "sha256": "71bf41801fb76d3c92da7378520b81c684eff060b93652f09f221f43f2eab1f6",
+        "files": [
+          {
+            "path": "deko/000500001012ba00.zip",
+            "size": 5007657,
+            "sha256": "71bf41801fb76d3c92da7378520b81c684eff060b93652f09f221f43f2eab1f6"
+          }
+        ],
+        "transferable_shaders": 718,
+        "native_shaders": 718,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001012be00": {
+      "name": "Pikmin 3",
+      "region": "EUR",
+      "comment": "Started a new game, three days of exploring ingame.",
+      "author": "chriztr",
+      "shaderCount": 1153,
+      "pipelineCount": 1647,
+      "deko": {
+        "size": 3030147,
+        "sha256": "26ef9c3b0ec134892bb5fd7b0f90c5d58b1bbc59bdfb750b1e5b32de1c618a00",
+        "files": [
+          {
+            "path": "deko/000500001012be00.zip",
+            "size": 3030147,
+            "sha256": "26ef9c3b0ec134892bb5fd7b0f90c5d58b1bbc59bdfb750b1e5b32de1c618a00"
+          }
+        ],
+        "transferable_shaders": 1153,
+        "native_shaders": 1153,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001012f000": {
+      "name": "FAST Racing NEO",
+      "region": "USA",
+      "comment": "Played all cups",
+      "author": "Haruki1707",
+      "shaderCount": 1765,
+      "pipelineCount": 1989,
+      "deko": {
+        "size": 3062285,
+        "sha256": "72197b5e5c5225e914746fde28caa05bf3b30af166783b21ae1a16966772acde",
+        "files": [
+          {
+            "path": "deko/000500001012f000.zip",
+            "size": 3062285,
+            "sha256": "72197b5e5c5225e914746fde28caa05bf3b30af166783b21ae1a16966772acde"
+          }
+        ],
+        "transferable_shaders": 1765,
+        "native_shaders": 1765,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010131f00": {
+      "name": "Yoshi's Woolly World (ヨッシーウールワールド)",
+      "region": "JPN",
+      "comment": "Made my way to World 2-3",
+      "author": "chriztr",
+      "shaderCount": 1857,
+      "pipelineCount": 2274,
+      "deko": {
+        "size": 14055258,
+        "sha256": "0959af8206de9e961d36dc0ccf5abcfa1f85198b9faad8da7f6dab55781c0be3",
+        "files": [
+          {
+            "path": "deko/0005000010131f00.zip",
+            "size": 14055258,
+            "sha256": "0959af8206de9e961d36dc0ccf5abcfa1f85198b9faad8da7f6dab55781c0be3"
+          }
+        ],
+        "transferable_shaders": 1856,
+        "native_shaders": 1856,
+        "excluded_shaders": 1
+      }
+    },
+    "0005000010132b00": {
+      "name": "LEGO® MARVEL Super Heroes",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 1017,
+      "pipelineCount": 1104,
+      "deko": {
+        "size": 2902712,
+        "sha256": "38b114b1927565697344f2dd8e5d1c794886ae89086dc7d0a6947a308d898c2e",
+        "files": [
+          {
+            "path": "deko/0005000010132b00.zip",
+            "size": 2902712,
+            "sha256": "38b114b1927565697344f2dd8e5d1c794886ae89086dc7d0a6947a308d898c2e"
+          }
+        ],
+        "transferable_shaders": 1017,
+        "native_shaders": 1017,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010135e00": {
+      "name": "LEGO® Batman™ 2",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 741,
+      "pipelineCount": 1001,
+      "deko": {
+        "size": 1815627,
+        "sha256": "2aff6512ae9f8ff3ae7115d1fc6ac5e5ee2b2fa4deb7d623ffc53e507be995cf",
+        "files": [
+          {
+            "path": "deko/0005000010135e00.zip",
+            "size": 1815627,
+            "sha256": "2aff6512ae9f8ff3ae7115d1fc6ac5e5ee2b2fa4deb7d623ffc53e507be995cf"
+          }
+        ],
+        "transferable_shaders": 741,
+        "native_shaders": 741,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010137f00": {
+      "name": "Donkey Kong Country Tropical Freeze",
+      "region": "USA",
+      "comment": "Played my way to the forth island",
+      "author": [
+        "chriztr",
+        "Niko"
+      ],
+      "shaderCount": 1226,
+      "pipelineCount": 1162,
+      "deko": {
+        "size": 3791128,
+        "sha256": "6fd1d80c1d303e67f1e30646e9efbca3177fa02698d084ff3cf80fc9c8ff5799",
+        "files": [
+          {
+            "path": "deko/0005000010137f00.zip",
+            "size": 3791128,
+            "sha256": "6fd1d80c1d303e67f1e30646e9efbca3177fa02698d084ff3cf80fc9c8ff5799"
+          }
+        ],
+        "transferable_shaders": 1224,
+        "native_shaders": 1224,
+        "excluded_shaders": 2
+      }
+    },
+    "0005000010138300": {
+      "name": "Donkey Kong Country Tropical Freeze",
+      "region": "EUR",
+      "comment": "Played a bit in the four first islands, entered all levels after island four",
+      "author": "chriztr",
+      "shaderCount": 1667,
+      "pipelineCount": 1247,
+      "deko": {
+        "size": 5260370,
+        "sha256": "fc0dd2c3b498ed8ace1e07795da7748074bbd00000bdcc30b74115521b1e6e7e",
+        "files": [
+          {
+            "path": "deko/0005000010138300.zip",
+            "size": 5260370,
+            "sha256": "fc0dd2c3b498ed8ace1e07795da7748074bbd00000bdcc30b74115521b1e6e7e"
+          }
+        ],
+        "transferable_shaders": 1665,
+        "native_shaders": 1665,
+        "excluded_shaders": 2
+      }
+    },
+    "0005000010138b00": {
+      "name": "Assassin's Creed® IV Black Flag",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 422,
+      "pipelineCount": 786,
+      "deko": {
+        "size": 976294,
+        "sha256": "62ab891e28d4cfcc4b3ffad92f72bef0c1e11e6d1eb6e045792a2dbe90f2d3a5",
+        "files": [
+          {
+            "path": "deko/0005000010138b00.zip",
+            "size": 976294,
+            "sha256": "62ab891e28d4cfcc4b3ffad92f72bef0c1e11e6d1eb6e045792a2dbe90f2d3a5"
+          }
+        ],
+        "transferable_shaders": 422,
+        "native_shaders": 422,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010143400": {
+      "name": "Zelda Wind Waker HD (ゼルダの伝説 風のタクト)",
+      "region": "JPN",
+      "comment": "I have a mirror shield now!",
+      "author": "chriztr",
+      "shaderCount": 8446,
+      "pipelineCount": 8033,
+      "deko": {
+        "size": 6035771,
+        "sha256": "4e59beccb542212833dedc9fad931d1a2f7cc095e9dec4105ada22c044fda83d",
+        "files": [
+          {
+            "path": "deko/0005000010143400.zip",
+            "size": 6035771,
+            "sha256": "4e59beccb542212833dedc9fad931d1a2f7cc095e9dec4105ada22c044fda83d"
+          }
+        ],
+        "transferable_shaders": 8446,
+        "native_shaders": 8446,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010143500": {
+      "name": "Zelda Wind Waker HD",
+      "region": "USA",
+      "comment": "From a completionist almost 100% full run (only a few ocean treasures were missing that were just rupees)",
+      "author": [
+        "chriztr",
+        "darkcube"
+      ],
+      "shaderCount": 14106,
+      "pipelineCount": 23872,
+      "deko": {
+        "size": 9360174,
+        "sha256": "8ef128af3b5a1029a36c628a16cb05d006e45ed8cbf6e50ab72f272c9e6fd0c9",
+        "files": [
+          {
+            "path": "deko/0005000010143500.zip",
+            "size": 9360174,
+            "sha256": "8ef128af3b5a1029a36c628a16cb05d006e45ed8cbf6e50ab72f272c9e6fd0c9"
+          }
+        ],
+        "transferable_shaders": 14106,
+        "native_shaders": 14106,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010143600": {
+      "name": "Zelda Wind Waker HD",
+      "region": "EUR",
+      "comment": "Game played through",
+      "author": [
+        "chriztr",
+        "bell07"
+      ],
+      "shaderCount": 11702,
+      "pipelineCount": 17555,
+      "deko": {
+        "size": 7924882,
+        "sha256": "da2a54c3310ce11b74e0b3c246ffa6ca0848e19e9d9b056cc601441d70a66cb9",
+        "files": [
+          {
+            "path": "deko/0005000010143600.zip",
+            "size": 7924882,
+            "sha256": "da2a54c3310ce11b74e0b3c246ffa6ca0848e19e9d9b056cc601441d70a66cb9"
+          }
+        ],
+        "transferable_shaders": 11702,
+        "native_shaders": 11702,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010144f00": {
+      "name": "Super Smash Bros. U",
+      "region": "USA",
+      "comment": "I let the CPU play against each other on some maps / Game has been played a bit",
+      "author": [
+        "fhAifN",
+        "chriztr",
+        "Niko"
+      ],
+      "shaderCount": 4160,
+      "pipelineCount": 11811,
+      "deko": {
+        "size": 17420735,
+        "sha256": "0e59e0cc89cdbe0c89e963bb2828787b1c6eef5c4b30e03077101ebf84d15e37",
+        "files": [
+          {
+            "path": "deko/0005000010144f00.zip",
+            "size": 17420735,
+            "sha256": "0e59e0cc89cdbe0c89e963bb2828787b1c6eef5c4b30e03077101ebf84d15e37"
+          }
+        ],
+        "transferable_shaders": 4160,
+        "native_shaders": 4160,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010145000": {
+      "name": "Super Smash Bros. U",
+      "region": "EUR",
+      "comment": "I let the CPU play against each other on ever map available.",
+      "author": "chriztr",
+      "shaderCount": 2914,
+      "pipelineCount": 7181,
+      "deko": {
+        "size": 12215428,
+        "sha256": "ebd526f95c152439fa10095c473291f2a88a6066f96321f9dc9158b89525bad7",
+        "files": [
+          {
+            "path": "deko/0005000010145000.zip",
+            "size": 12215428,
+            "sha256": "ebd526f95c152439fa10095c473291f2a88a6066f96321f9dc9158b89525bad7"
+          }
+        ],
+        "transferable_shaders": 2914,
+        "native_shaders": 2914,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010145c00": {
+      "name": "Super Mario 3D World",
+      "region": "USA",
+      "comment": "Played all levels including bonus stages.",
+      "author": [
+        "Haruki1707",
+        "Niko"
+      ],
+      "shaderCount": 3929,
+      "pipelineCount": 8040,
+      "deko": {
+        "size": 14876199,
+        "sha256": "920cbb2a81435e52efe78a76055ffe6ed17a57535753fdc243e10d54d9906c11",
+        "files": [
+          {
+            "path": "deko/0005000010145c00.zip",
+            "size": 14876199,
+            "sha256": "920cbb2a81435e52efe78a76055ffe6ed17a57535753fdc243e10d54d9906c11"
+          }
+        ],
+        "transferable_shaders": 3929,
+        "native_shaders": 3929,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010145d00": {
+      "name": "Super Mario 3D World",
+      "region": "EUR",
+      "comment": "Played through all level except bonus stages.",
+      "author": "chriztr",
+      "shaderCount": 4058,
+      "pipelineCount": 7320,
+      "deko": {
+        "size": 15731630,
+        "sha256": "93d7c8c9ae6fdcc987241e74bee944aeb30c296f4f3657b08402e10db38fb694",
+        "files": [
+          {
+            "path": "deko/0005000010145d00.zip",
+            "size": 15731630,
+            "sha256": "93d7c8c9ae6fdcc987241e74bee944aeb30c296f4f3657b08402e10db38fb694"
+          }
+        ],
+        "transferable_shaders": 4058,
+        "native_shaders": 4058,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010146800": {
+      "name": "Call of Duty: Ghosts",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 2985,
+      "pipelineCount": 4202,
+      "deko": {
+        "size": 10216806,
+        "sha256": "cb751fee3981f612d4ef97d6a51c35fc23ff927df04c17b643c978eee1b15fcc",
+        "files": [
+          {
+            "path": "deko/0005000010146800.zip",
+            "size": 10216806,
+            "sha256": "cb751fee3981f612d4ef97d6a51c35fc23ff927df04c17b643c978eee1b15fcc"
+          }
+        ],
+        "transferable_shaders": 2985,
+        "native_shaders": 2985,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010146a00": {
+      "name": "The Amazing Spider-Man 2™",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 2094,
+      "pipelineCount": 3740,
+      "deko": {
+        "size": 3465550,
+        "sha256": "36bda374632448e6a81dc0061ebb0201d19b774557b0b75dddb965da9c2f3947",
+        "files": [
+          {
+            "path": "deko/0005000010146a00.zip",
+            "size": 3465550,
+            "sha256": "36bda374632448e6a81dc0061ebb0201d19b774557b0b75dddb965da9c2f3947"
+          }
+        ],
+        "transferable_shaders": 2094,
+        "native_shaders": 2094,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001014c100": {
+      "name": "Transformers: Rise of the Dark Spark",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 645,
+      "pipelineCount": 256,
+      "deko": {
+        "size": 2069041,
+        "sha256": "6da6c96e6a1bec1ebf978230bf9504ab64fc2a1d9c8cce16ad749205309d983a",
+        "files": [
+          {
+            "path": "deko/000500001014c100.zip",
+            "size": 2069041,
+            "sha256": "6da6c96e6a1bec1ebf978230bf9504ab64fc2a1d9c8cce16ad749205309d983a"
+          }
+        ],
+        "transferable_shaders": 645,
+        "native_shaders": 645,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001014d200": {
+      "name": "Fatal Frame / Project Zero Maiden of Black Waters (零 ～濡鴉ノ巫女～)",
+      "region": "JPN",
+      "comment": "Played a bit between prolouge and the 4th drop",
+      "author": "chriztr",
+      "shaderCount": 836,
+      "pipelineCount": 1471,
+      "deko": {
+        "size": 3268730,
+        "sha256": "92a1d8d9982e26adc7dd43779156b1d9b6469ca7c55cd48b8da90a7ba61f612a",
+        "files": [
+          {
+            "path": "deko/000500001014d200.zip",
+            "size": 3268730,
+            "sha256": "92a1d8d9982e26adc7dd43779156b1d9b6469ca7c55cd48b8da90a7ba61f612a"
+          }
+        ],
+        "transferable_shaders": 836,
+        "native_shaders": 836,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001014de00": {
+      "name": "The LEGO® Movie Videogame",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 656,
+      "pipelineCount": 710,
+      "deko": {
+        "size": 1550804,
+        "sha256": "8dd0df92e7834d1ce69171102650df2030cdb6c7e2dba1e3178ada5035b0226e",
+        "files": [
+          {
+            "path": "deko/000500001014de00.zip",
+            "size": 1550804,
+            "sha256": "8dd0df92e7834d1ce69171102650df2030cdb6c7e2dba1e3178ada5035b0226e"
+          }
+        ],
+        "transferable_shaders": 656,
+        "native_shaders": 656,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001016a700": {
+      "name": "LEGO® The Hobbit™",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 858,
+      "pipelineCount": 915,
+      "deko": {
+        "size": 2346377,
+        "sha256": "21d29d8a4b177c010a237b2e6a8545da7c27c4efa57203584a255a067819edc6",
+        "files": [
+          {
+            "path": "deko/000500001016a700.zip",
+            "size": 2346377,
+            "sha256": "21d29d8a4b177c010a237b2e6a8545da7c27c4efa57203584a255a067819edc6"
+          }
+        ],
+        "transferable_shaders": 858,
+        "native_shaders": 858,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001016ad00": {
+      "name": "LEGO® Batman™ 3 Beyond Gotham",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 1586,
+      "pipelineCount": 2335,
+      "deko": {
+        "size": 2264607,
+        "sha256": "086adb88ec707f37e74b28553e11acbd739f999dfffea6b4489c43c5e7fdc09b",
+        "files": [
+          {
+            "path": "deko/000500001016ad00.zip",
+            "size": 2264607,
+            "sha256": "086adb88ec707f37e74b28553e11acbd739f999dfffea6b4489c43c5e7fdc09b"
+          }
+        ],
+        "transferable_shaders": 906,
+        "native_shaders": 906,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010172600": {
+      "name": "Bayonetta 2",
+      "region": "USA",
+      "comment": "Story mode beaten / Game completed",
+      "author": [
+        "u/DeepUnknown",
+        "Niko"
+      ],
+      "shaderCount": 1183,
+      "pipelineCount": 3042,
+      "deko": {
+        "size": 4512629,
+        "sha256": "77ed0d15034c967c72fb314f41304dfef2e33092b6e088b1e16b4ffb1f03ef1a",
+        "files": [
+          {
+            "path": "deko/0005000010172600.zip",
+            "size": 4512629,
+            "sha256": "77ed0d15034c967c72fb314f41304dfef2e33092b6e088b1e16b4ffb1f03ef1a"
+          }
+        ],
+        "transferable_shaders": 1183,
+        "native_shaders": 1183,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010172700": {
+      "name": "Bayonetta 2",
+      "region": "EUR",
+      "comment": "Just started a new game, haven't spent much time with it yet",
+      "author": "chriztr",
+      "shaderCount": 838,
+      "pipelineCount": 1516,
+      "deko": {
+        "size": 3224074,
+        "sha256": "dff6fcfb0421860ce5c8d5992c0fae297d82255a726997e24bfcbf29721dcdf7",
+        "files": [
+          {
+            "path": "deko/0005000010172700.zip",
+            "size": 3224074,
+            "sha256": "dff6fcfb0421860ce5c8d5992c0fae297d82255a726997e24bfcbf29721dcdf7"
+          }
+        ],
+        "transferable_shaders": 838,
+        "native_shaders": 838,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010176900": {
+      "name": "Splatoon",
+      "region": "USA",
+      "comment": "Played a few turfs myself and merged with BiZkViT's playthrough",
+      "author": [
+        "chriztr",
+        "BiZkViT",
+        "Niko"
+      ],
+      "shaderCount": 6096,
+      "pipelineCount": 10341,
+      "deko": {
+        "size": 24084314,
+        "sha256": "ceb5fc3fa24ec3096e9ac34861222355723d00931f919474564cc0cff851219a",
+        "files": [
+          {
+            "path": "deko/0005000010176900.zip",
+            "size": 24084314,
+            "sha256": "ceb5fc3fa24ec3096e9ac34861222355723d00931f919474564cc0cff851219a"
+          }
+        ],
+        "transferable_shaders": 6096,
+        "native_shaders": 6096,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010176a00": {
+      "name": "Splatoon",
+      "region": "EUR",
+      "comment": "All of the multiplayer stages' shaders have been cached and a majority of the hero mode's stages have also been cached",
+      "author": [
+        "chriztr",
+        "Octo#4533"
+      ],
+      "shaderCount": 6642,
+      "pipelineCount": 12233,
+      "deko": {
+        "size": 26394288,
+        "sha256": "83fe49be11f096d3dc2e115e8475e792c8ce612298605990b0c5d8bc4d475366",
+        "files": [
+          {
+            "path": "deko/0005000010176a00.zip",
+            "size": 26394288,
+            "sha256": "83fe49be11f096d3dc2e115e8475e792c8ce612298605990b0c5d8bc4d475366"
+          }
+        ],
+        "transferable_shaders": 6642,
+        "native_shaders": 6642,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010180600": {
+      "name": "Captain Toad: Treasure Tracker",
+      "region": "USA",
+      "comment": "At the end of the first chapter",
+      "author": [
+        "chriztr",
+        "Niko"
+      ],
+      "shaderCount": 1130,
+      "pipelineCount": 1790,
+      "deko": {
+        "size": 4548996,
+        "sha256": "bf682cc113c7e52160b5cb8a57b61d349056d34b274b9445f1514e57c4bcc68c",
+        "files": [
+          {
+            "path": "deko/0005000010180600.zip",
+            "size": 4548996,
+            "sha256": "bf682cc113c7e52160b5cb8a57b61d349056d34b274b9445f1514e57c4bcc68c"
+          }
+        ],
+        "transferable_shaders": 1130,
+        "native_shaders": 1130,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010180700": {
+      "name": "Captain Toad: Treasure Tracker",
+      "region": "EUR",
+      "comment": "Played through the first three chapthers and some of the bonus levels.",
+      "author": "chriztr",
+      "shaderCount": 1975,
+      "pipelineCount": 2356,
+      "deko": {
+        "size": 8665398,
+        "sha256": "9d841ce0118529901d2c114cd5cc512424ccc24e3cc525eff90cb435ce30d2f3",
+        "files": [
+          {
+            "path": "deko/0005000010180700.zip",
+            "size": 8665398,
+            "sha256": "9d841ce0118529901d2c114cd5cc512424ccc24e3cc525eff90cb435ce30d2f3"
+          }
+        ],
+        "transferable_shaders": 1975,
+        "native_shaders": 1975,
+        "excluded_shaders": 0
+      }
+    },
+    "0005000010184d00": {
+      "name": "Yoshi's Woolly World",
+      "region": "USA",
+      "comment": "100% playthrough by 1santiaguito",
+      "author": [
+        "1santiaguito",
+        "Niko"
+      ],
+      "shaderCount": 4324,
+      "pipelineCount": 13768,
+      "deko": {
+        "size": 34949193,
+        "sha256": "3300980b9ae48c98132d3038f782ddfcfdaec505a165760f46d7ff39ca0e5b50",
+        "files": [
+          {
+            "path": "deko/0005000010184d00.zip",
+            "size": 34949193,
+            "sha256": "3300980b9ae48c98132d3038f782ddfcfdaec505a165760f46d7ff39ca0e5b50"
+          }
+        ],
+        "transferable_shaders": 4323,
+        "native_shaders": 4323,
+        "excluded_shaders": 1
+      }
+    },
+    "0005000010184e00": {
+      "name": "Yoshi's Woolly World",
+      "region": "EUR",
+      "comment": "Normal playthrough.",
+      "author": [
+        "chriztr",
+        "Tomk007",
+        "bell07"
+      ],
+      "shaderCount": 4129,
+      "pipelineCount": 11142,
+      "deko": {
+        "size": 33565210,
+        "sha256": "dc0571a942067830c6de641da8299b8f5ebecdcb758c375f3b82ec1f808c475b",
+        "files": [
+          {
+            "path": "deko/0005000010184e00.zip",
+            "size": 33565210,
+            "sha256": "dc0571a942067830c6de641da8299b8f5ebecdcb758c375f3b82ec1f808c475b"
+          }
+        ],
+        "transferable_shaders": 4128,
+        "native_shaders": 4128,
+        "excluded_shaders": 1
+      }
+    },
+    "000500001019e500": {
+      "name": "Zelda Twilight Princess HD",
+      "region": "USA",
+      "comment": "Completed the game with a causal playthough, watched the end credits as well.",
+      "author": "chriztr",
+      "shaderCount": 2537,
+      "pipelineCount": 1876,
+      "deko": {
+        "size": 4588771,
+        "sha256": "0761ed4ae01741c49268dbbddc68a883284358ba34204ffe2567d053d5e2cdc6",
+        "files": [
+          {
+            "path": "deko/000500001019e500.zip",
+            "size": 4588771,
+            "sha256": "0761ed4ae01741c49268dbbddc68a883284358ba34204ffe2567d053d5e2cdc6"
+          }
+        ],
+        "transferable_shaders": 2537,
+        "native_shaders": 2537,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001019e600": {
+      "name": "Zelda Twilight Princess HD",
+      "region": "EUR",
+      "comment": "Completed the game with a causal playthough, watched the end credits as well.",
+      "author": [
+        "chriztr",
+        "bell07"
+      ],
+      "shaderCount": 2628,
+      "pipelineCount": 2027,
+      "deko": {
+        "size": 4816087,
+        "sha256": "14c17a949869d6a072f5390b0ef20718d599a4db3857a264e2741ef507c75f7d",
+        "files": [
+          {
+            "path": "deko/000500001019e600.zip",
+            "size": 4816087,
+            "sha256": "14c17a949869d6a072f5390b0ef20718d599a4db3857a264e2741ef507c75f7d"
+          }
+        ],
+        "transferable_shaders": 2628,
+        "native_shaders": 2628,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101a3500": {
+      "name": "Mario Tennis Ultra Smash",
+      "region": "USA",
+      "comment": "Full / close to full cache?",
+      "author": [
+        "BiZkViT",
+        "Niko"
+      ],
+      "shaderCount": 1183,
+      "pipelineCount": 2041,
+      "deko": {
+        "size": 3304091,
+        "sha256": "bb6c02bb68e0c585b0c854a1d813e3035f3dad52a92c5e9f40e320d5480aaf97",
+        "files": [
+          {
+            "path": "deko/00050000101a3500.zip",
+            "size": 3304091,
+            "sha256": "bb6c02bb68e0c585b0c854a1d813e3035f3dad52a92c5e9f40e320d5480aaf97"
+          }
+        ],
+        "transferable_shaders": 1183,
+        "native_shaders": 1183,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101a4800": {
+      "name": "Lost Reavers",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 111,
+      "pipelineCount": 69,
+      "deko": {
+        "size": 197599,
+        "sha256": "f0101a5dbb1fb8cf57a8ce16203cd2181e3cea5b64e7d933645e088696832064",
+        "files": [
+          {
+            "path": "deko/00050000101a4800.zip",
+            "size": 197599,
+            "sha256": "f0101a5dbb1fb8cf57a8ce16203cd2181e3cea5b64e7d933645e088696832064"
+          }
+        ],
+        "transferable_shaders": 111,
+        "native_shaders": 111,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101a4f01": {
+      "name": "Cube Life: Pixel Action Heroes Demo",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 49,
+      "pipelineCount": 42,
+      "deko": {
+        "size": 41853,
+        "sha256": "9b97ddb5d828556df6e7e07a049ee0b5a69a4a5676904fc5e7d14e82609f0055",
+        "files": [
+          {
+            "path": "deko/00050000101a4f01.zip",
+            "size": 41853,
+            "sha256": "9b97ddb5d828556df6e7e07a049ee0b5a69a4a5676904fc5e7d14e82609f0055"
+          }
+        ],
+        "transferable_shaders": 49,
+        "native_shaders": 49,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101a6200": {
+      "name": "LEGO® Jurassic World™",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 858,
+      "pipelineCount": 932,
+      "deko": {
+        "size": 2000009,
+        "sha256": "63efc0abdaba8a9a3f87850c8986d2c00680e6ecfb70f977c058209bd14c841d",
+        "files": [
+          {
+            "path": "deko/00050000101a6200.zip",
+            "size": 2000009,
+            "sha256": "63efc0abdaba8a9a3f87850c8986d2c00680e6ecfb70f977c058209bd14c841d"
+          }
+        ],
+        "transferable_shaders": 858,
+        "native_shaders": 858,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101a6500": {
+      "name": "Kung Fu Panda Showdown of Legendary Legends",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 94,
+      "pipelineCount": 107,
+      "deko": {
+        "size": 301078,
+        "sha256": "5dd943f2dd37d65766e24f635169aaf33e04e43c1a2a300f9d435bb891735479",
+        "files": [
+          {
+            "path": "deko/00050000101a6500.zip",
+            "size": 301078,
+            "sha256": "5dd943f2dd37d65766e24f635169aaf33e04e43c1a2a300f9d435bb891735479"
+          }
+        ],
+        "transferable_shaders": 94,
+        "native_shaders": 94,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101abc00": {
+      "name": "Kirby and the Rainbow Curse",
+      "region": "USA",
+      "comment": "Not 100%, but I played each level for more than a minute, including bosses and all UI menu staff.",
+      "author": [
+        "BiZkViT",
+        "Niko"
+      ],
+      "shaderCount": 2824,
+      "pipelineCount": 433,
+      "deko": {
+        "size": 4775730,
+        "sha256": "9dbfbe8589ebff5e3c6e94cdf1e69b52c8044b8fd758e5edd402b8ac62e6f279",
+        "files": [
+          {
+            "path": "deko/00050000101abc00.zip",
+            "size": 4775730,
+            "sha256": "9dbfbe8589ebff5e3c6e94cdf1e69b52c8044b8fd758e5edd402b8ac62e6f279"
+          }
+        ],
+        "transferable_shaders": 2824,
+        "native_shaders": 2824,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101b0400": {
+      "name": "Star Fox Zero",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 29,
+      "pipelineCount": 24,
+      "deko": {
+        "size": 23926,
+        "sha256": "880d76cf29c80debef68384eb8556fde1164470bcd57cb05cf8c3ba1f3857c5f",
+        "files": [
+          {
+            "path": "deko/00050000101b0400.zip",
+            "size": 23926,
+            "sha256": "880d76cf29c80debef68384eb8556fde1164470bcd57cb05cf8c3ba1f3857c5f"
+          }
+        ],
+        "transferable_shaders": 29,
+        "native_shaders": 29,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101b9600": {
+      "name": "Super Destronaut",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 8,
+      "pipelineCount": 6,
+      "deko": {
+        "size": 4285,
+        "sha256": "5e329b1bcdc6a492610a0b224d6f053266c7845b63534fd8287103599675f566",
+        "files": [
+          {
+            "path": "deko/00050000101b9600.zip",
+            "size": 4285,
+            "sha256": "5e329b1bcdc6a492610a0b224d6f053266c7845b63534fd8287103599675f566"
+          }
+        ],
+        "transferable_shaders": 8,
+        "native_shaders": 8,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101bec00": {
+      "name": "Star Fox Guard",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 107,
+      "pipelineCount": 120,
+      "deko": {
+        "size": 212161,
+        "sha256": "da07926dfb2476ceb207dcf1a9117fc46c12f6ba5468e62bbaef7661699e4382",
+        "files": [
+          {
+            "path": "deko/00050000101bec00.zip",
+            "size": 212161,
+            "sha256": "da07926dfb2476ceb207dcf1a9117fc46c12f6ba5468e62bbaef7661699e4382"
+          }
+        ],
+        "transferable_shaders": 107,
+        "native_shaders": 107,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101bef00": {
+      "name": "LEGO® MARVEL's Avengers",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 668,
+      "pipelineCount": 698,
+      "deko": {
+        "size": 1707589,
+        "sha256": "9b935a7abac86c6100e3619b90ed21491d1fde9bf3a7faccd2b8efd044fec2a1",
+        "files": [
+          {
+            "path": "deko/00050000101bef00.zip",
+            "size": 1707589,
+            "sha256": "9b935a7abac86c6100e3619b90ed21491d1fde9bf3a7faccd2b8efd044fec2a1"
+          }
+        ],
+        "transferable_shaders": 668,
+        "native_shaders": 668,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101c4c00": {
+      "name": "Xenoblade Chronicles X",
+      "region": "EUR",
+      "comment": "I completed the game yesterday after about 65+ hours of playtime. I definitely didn't do everything, but I think this cache should cover a lot if not most of what CEMU will outpu",
+      "author": "romatthe",
+      "shaderCount": 7860,
+      "pipelineCount": 34695,
+      "deko": {
+        "size": 17625300,
+        "sha256": "f80d91d3cb93a5eb26a65fd61d8399377957c6db6ad83d4874a4897b19b387ae",
+        "files": [
+          {
+            "path": "deko/00050000101c4c00.zip",
+            "size": 17625300,
+            "sha256": "f80d91d3cb93a5eb26a65fd61d8399377957c6db6ad83d4874a4897b19b387ae"
+          }
+        ],
+        "transferable_shaders": 7860,
+        "native_shaders": 7860,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101c4d00": {
+      "name": "Xenoblade Chronicles X",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 3315,
+      "pipelineCount": 7231,
+      "deko": {
+        "size": 6402360,
+        "sha256": "007ce47b35d39b03641dfda5a019671da357cf57345925a6305508ea6ff75ddb",
+        "files": [
+          {
+            "path": "deko/00050000101c4d00.zip",
+            "size": 6402360,
+            "sha256": "007ce47b35d39b03641dfda5a019671da357cf57345925a6305508ea6ff75ddb"
+          }
+        ],
+        "transferable_shaders": 3315,
+        "native_shaders": 3315,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101c9300": {
+      "name": "Zelda Breath of The Wild (ゼルダの伝説 ブレス オブ ザ ワイルド)",
+      "region": "JPN",
+      "author": "百万战神#2946",
+      "shaderCount": 9627,
+      "pipelineCount": 32609,
+      "deko": {
+        "size": 54503122,
+        "sha256": "c2e7b836060c23b87875781ba36a2a25cc126be6e108484b88d0b84b26147433",
+        "files": [
+          {
+            "path": "deko/00050000101c9300.zip",
+            "size": 54503122,
+            "sha256": "c2e7b836060c23b87875781ba36a2a25cc126be6e108484b88d0b84b26147433"
+          }
+        ],
+        "transferable_shaders": 9625,
+        "native_shaders": 9625,
+        "excluded_shaders": 2
+      }
+    },
+    "00050000101c9400": {
+      "name": "Zelda Breath of The Wild",
+      "region": "USA",
+      "comment": "Casual playthrough through all devine beast and beaten Ganon. Done over 110 shrines, 1st trail of the sword, etc.",
+      "author": [
+        "chriztr",
+        "Makonede",
+        "Niko",
+        "JPGMAFIA"
+      ],
+      "shaderCount": 8671,
+      "pipelineCount": 37356,
+      "deko": {
+        "size": 48038957,
+        "sha256": "553a2ac4df1697809cb73418ee6e5cf60cb4c7ec162ffab9bbb26264bdc148a4",
+        "files": [
+          {
+            "path": "deko/00050000101c9400.zip",
+            "size": 48038957,
+            "sha256": "553a2ac4df1697809cb73418ee6e5cf60cb4c7ec162ffab9bbb26264bdc148a4"
+          }
+        ],
+        "transferable_shaders": 8670,
+        "native_shaders": 8670,
+        "excluded_shaders": 1
+      }
+    },
+    "00050000101c9500": {
+      "name": "Zelda Breath of The Wild",
+      "region": "EUR",
+      "comment": "Casual playthrough with all divine beast and beaten Ganon and complete playthrough with all shrines and DLC.",
+      "author": [
+        "chriztr",
+        "Fruscho#8918"
+      ],
+      "shaderCount": 9276,
+      "pipelineCount": 54120,
+      "deko": {
+        "size": 52377493,
+        "sha256": "d1b6fc7bad8346bc845cc1ecbf8d7019d585e518cc580c72d54318f7473a253f",
+        "files": [
+          {
+            "path": "deko/00050000101c9500.zip",
+            "size": 52377493,
+            "sha256": "d1b6fc7bad8346bc845cc1ecbf8d7019d585e518cc580c72d54318f7473a253f"
+          }
+        ],
+        "transferable_shaders": 9276,
+        "native_shaders": 9276,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101d0300": {
+      "name": "Fatal Frame / Project Zero Maiden of Black Waters",
+      "region": "EUR",
+      "comment": "Played through the four first drops in the game.",
+      "author": "chriztr",
+      "shaderCount": 770,
+      "pipelineCount": 1224,
+      "deko": {
+        "size": 2840728,
+        "sha256": "9b3a9c15615ea5d6036ca1fe2617fa3e386ffc35a5e44c84558f2c61023b6a16",
+        "files": [
+          {
+            "path": "deko/00050000101d0300.zip",
+            "size": 2840728,
+            "sha256": "9b3a9c15615ea5d6036ca1fe2617fa3e386ffc35a5e44c84558f2c61023b6a16"
+          }
+        ],
+        "transferable_shaders": 770,
+        "native_shaders": 770,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101d6000": {
+      "name": "FAST Racing NEO",
+      "region": "EUR",
+      "comment": "Played through all the cups.",
+      "author": "chriztr",
+      "shaderCount": 1695,
+      "pipelineCount": 2378,
+      "deko": {
+        "size": 2942631,
+        "sha256": "1c4e48b6a1d54988c534b403d3ab946151a419a2a73f325208de8f303ab4099e",
+        "files": [
+          {
+            "path": "deko/00050000101d6000.zip",
+            "size": 2942631,
+            "sha256": "1c4e48b6a1d54988c534b403d3ab946151a419a2a73f325208de8f303ab4099e"
+          }
+        ],
+        "transferable_shaders": 1695,
+        "native_shaders": 1695,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101dab00": {
+      "name": "LEGO® STAR WARS™ The Force Awakens",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 1248,
+      "pipelineCount": 1523,
+      "deko": {
+        "size": 3462399,
+        "sha256": "184c5c2208bcf1a6109414039c3447e9ae27687d11957b2adf3274d1e816e891",
+        "files": [
+          {
+            "path": "deko/00050000101dab00.zip",
+            "size": 3462399,
+            "sha256": "184c5c2208bcf1a6109414039c3447e9ae27687d11957b2adf3274d1e816e891"
+          }
+        ],
+        "transferable_shaders": 1248,
+        "native_shaders": 1248,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101e5300": {
+      "name": "Mario & Sonic at the Rio 2016 Olympic Games",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 347,
+      "pipelineCount": 697,
+      "deko": {
+        "size": 1008619,
+        "sha256": "b9e9800def947db6e4d8f582e5e358992f3361e058c6c17859d8b4917407f6b9",
+        "files": [
+          {
+            "path": "deko/00050000101e5300.zip",
+            "size": 1008619,
+            "sha256": "b9e9800def947db6e4d8f582e5e358992f3361e058c6c17859d8b4917407f6b9"
+          }
+        ],
+        "transferable_shaders": 343,
+        "native_shaders": 343,
+        "excluded_shaders": 4
+      }
+    },
+    "00050000101ed800": {
+      "name": "Tokyo Mirage Sessions #FE",
+      "region": "USA",
+      "comment": "Just started a new game. Played through the prolouge, etc.",
+      "author": "chriztr",
+      "shaderCount": 1475,
+      "pipelineCount": 4995,
+      "deko": {
+        "size": 4310766,
+        "sha256": "01dd832405e1bffa0b6c8839aefec184509ca396d0f59cca05c408d7565458a1",
+        "files": [
+          {
+            "path": "deko/00050000101ed800.zip",
+            "size": 4310766,
+            "sha256": "01dd832405e1bffa0b6c8839aefec184509ca396d0f59cca05c408d7565458a1"
+          }
+        ],
+        "transferable_shaders": 1475,
+        "native_shaders": 1475,
+        "excluded_shaders": 0
+      }
+    },
+    "00050000101fa600": {
+      "name": "Darksiders Warmastered Edition",
+      "region": "USA",
+      "comment": "",
+      "author": "Niko",
+      "shaderCount": 979,
+      "pipelineCount": 759,
+      "deko": {
+        "size": 2063649,
+        "sha256": "10f4ffb06a3ea182262baee7e23898b601242e4bd56e235bd1dd9550e82a9a9c",
+        "files": [
+          {
+            "path": "deko/00050000101fa600.zip",
+            "size": 2063649,
+            "sha256": "10f4ffb06a3ea182262baee7e23898b601242e4bd56e235bd1dd9550e82a9a9c"
+          }
+        ],
+        "transferable_shaders": 979,
+        "native_shaders": 979,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001f600a00": {
+      "name": "Paper Mario Color Splash",
+      "region": "USA",
+      "comment": "Some gameplay",
+      "author": "Niko",
+      "shaderCount": 200,
+      "pipelineCount": 727,
+      "deko": {
+        "size": 516489,
+        "sha256": "8d1ed468dedbe51d808d2a3b1361e44e920c755944f20687d159d8ec17d4f966",
+        "files": [
+          {
+            "path": "deko/000500001f600a00.zip",
+            "size": 516489,
+            "sha256": "8d1ed468dedbe51d808d2a3b1361e44e920c755944f20687d159d8ec17d4f966"
+          }
+        ],
+        "transferable_shaders": 200,
+        "native_shaders": 200,
+        "excluded_shaders": 0
+      }
+    },
+    "000500001f600b00": {
+      "name": "Paper Mario Color Splash",
+      "region": "EUR",
+      "comment": "Played a little bit.",
+      "author": "chriztr",
+      "shaderCount": 676,
+      "pipelineCount": 4275,
+      "deko": {
+        "size": 1879967,
+        "sha256": "faf4e38bb19fbbb49ccca9a7fad5aab87d4790b0b76f6beec3ede0e82d098667",
+        "files": [
+          {
+            "path": "deko/000500001f600b00.zip",
+            "size": 1879967,
+            "sha256": "faf4e38bb19fbbb49ccca9a7fad5aab87d4790b0b76f6beec3ede0e82d098667"
+          }
+        ],
+        "transferable_shaders": 676,
+        "native_shaders": 676,
+        "excluded_shaders": 0
+      }
+    }
+  }
+}

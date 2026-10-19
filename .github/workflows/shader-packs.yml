@@ -1,0 +1,37 @@
+name: Publish Switch shader packs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - shader_packs/**
+      - dist/switch/package_shader_packs.py
+      - .github/workflows/shader-packs.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: switch-shader-packs
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python dist/switch/package_shader_packs.py --output shader-release
+      - name: Publish archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view shader-packs --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create shader-packs --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Switch shader packs" --notes "Precompiled Deko3D shader caches." --latest=false
+          fi
+          gh release upload shader-packs shader-release/*.zip shader-release/SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
