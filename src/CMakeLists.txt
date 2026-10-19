@@ -108,6 +108,7 @@ if(PLATFORM_SWITCH)
 		platform/switch/common/SwitchStorage.cpp
 		platform/switch/switch_stubs.cpp
 	)
+	cemu_switch_configure_pgo(CemuBin)
 else()
 	add_executable(CemuBin
 		main.cpp

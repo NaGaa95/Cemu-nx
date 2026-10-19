@@ -152,6 +152,7 @@ option(ENABLE_WXWIDGETS "Build with wxWidgets UI (Currently required)" ON)
 
 if (PLATFORM_SWITCH)
 	# Switch uses devkitPro dependencies and bundled NVK.
+	include(${CMAKE_SOURCE_DIR}/cmake/switch/SwitchPGO.cmake)
 	include(${CMAKE_SOURCE_DIR}/cmake/switch/SwitchDependencies.cmake)
 else()
 

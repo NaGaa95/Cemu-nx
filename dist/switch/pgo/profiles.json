@@ -1,0 +1,14 @@
+{
+  "gcc_version": "16.1.0",
+  "source_revision": "5e1fc19164859d97e67f7b2c3a8c1e9491e2ca78",
+  "nvk": {
+    "runs": 4,
+    "objects": 477,
+    "sha256": "c7282019783dea6acbb71a6f60b6288e9647c9630f54d38bc2e7cfca3034335b"
+  },
+  "deko3d": {
+    "runs": 5,
+    "objects": 456,
+    "sha256": "c5b7b9c39218dfd284521382c7d9d7cec49456f6253558d05e5cff8ffbcff6b7"
+  }
+}
