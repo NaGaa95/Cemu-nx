@@ -6,6 +6,9 @@
 #include <vulkan/vulkan_core.h>
 #include "util/helpers/Semaphore.h"
 #include "util/helpers/fspinlock.h"
+#if defined(__SWITCH__)
+#include <list>
+#endif
 
 class RendererShaderVk : public RendererShader
 {
@@ -32,6 +35,11 @@ public:
 	static void Shutdown();
 
 	VkShaderModule& GetShaderModule() { return m_shader_module; }
+#if defined(__SWITCH__)
+	bool AcquireShaderModule();
+	void ReleaseShaderModule();
+	static size_t ReleaseCachedShaderModules();
+#endif
 
 	static inline FSpinlock s_dependencyLock;
 
@@ -59,12 +67,20 @@ private:
 	void FinishCompilation();
 
 	VkShaderModule m_shader_module = nullptr;
+#if defined(__SWITCH__)
+	bool m_spirvCached{};
+	size_t m_shaderModuleSize{};
+	uint32 m_shaderModuleRefs{};
+	std::list<RendererShaderVk*>::iterator m_shaderModuleEntry;
+	static void TrimModuleCache(size_t limit);
+#endif
 
 	StateSemaphore<COMPILATION_STATE> m_compilationState{ COMPILATION_STATE::NONE };
 
 	std::string m_glslCode;
 
 	void CreateVkShaderModule(std::span<uint32> spirvBuffer);
+	void SetShaderModule(std::span<uint32> spirvBuffer, bool cacheBacked);
 
 	// pipeline infos
 	std::vector<class PipelineInfo*> list_pipelineInfo;

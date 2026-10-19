@@ -15,6 +15,7 @@
 #ifdef ENABLE_VULKAN
 #include "Cafe/HW/Latte/Renderer/Vulkan/RendererShaderVk.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanPipelineStableCache.h"
+#include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
 #endif
 #ifdef ENABLE_METAL
 #include "Cafe/HW/Latte/Renderer/Metal/RendererShaderMtl.h"
@@ -35,6 +36,7 @@
 #include <audio/IAudioAPI.h>
 #include <util/bootSound/BootSoundReader.h>
 #include <thread>
+#include <exception>
 
 #if BOOST_OS_WINDOWS
 #include <psapi.h>
@@ -352,6 +354,12 @@ void LatteShaderCache_drawBackgroundImage(ImTextureID texture, int width, int he
 
 void LatteShaderCache_Load()
 {
+#ifdef ENABLE_VULKAN
+	stdx::scope_exit finishPipelineCacheLoading([] {
+		if (g_renderer->GetType() == RendererAPI::Vulkan)
+			VulkanRenderer::GetInstance()->PipelineCacheLoadingFinished(!Latte_GetStopSignal() && std::uncaught_exceptions() == 0);
+	});
+#endif
 	shaderCacheScreenStats.compiledShaderCount = 0;
 	shaderCacheScreenStats.vertexShaderCount = 0;
 	shaderCacheScreenStats.geometryShaderCount = 0;

@@ -325,11 +325,13 @@ void VulkanPipelineStableCache::LoadPipelineFromCache(std::span<uint8> fileData)
 		pipelineCompiler.Compile(true, true, false);
 	}
 	// on success, calculate pipeline hash and flag as present in cache
-	uint64 pipelineBaseHash = vertexShader->baseHash;
-	uint64 pipelineStateHash = VulkanRenderer::draw_calculateGraphicsPipelineHash(vertexShader->compatibleFetchShader, vertexShader, geometryShader, pixelShader, renderPass, *lcr);
-	m_pipelineIsCachedLock.lock();
-	m_pipelineIsCached.emplace(pipelineBaseHash, pipelineStateHash);
-	m_pipelineIsCachedLock.unlock();
+	if (pipelineInfo->m_vkrObjPipeline->GetPipeline() != VK_NULL_HANDLE)
+	{
+		uint64 pipelineBaseHash = vertexShader->baseHash;
+		uint64 pipelineStateHash = VulkanRenderer::draw_calculateGraphicsPipelineHash(vertexShader->compatibleFetchShader, vertexShader, geometryShader, pixelShader, renderPass, *lcr);
+		std::scoped_lock lock(m_pipelineIsCachedLock);
+		m_pipelineIsCached.emplace(pipelineBaseHash, pipelineStateHash);
+	}
 	// clean up
 	s_spinlockSharedInternal.lock();
 	delete pipelineInfo;

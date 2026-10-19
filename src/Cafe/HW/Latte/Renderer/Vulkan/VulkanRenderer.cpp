@@ -2,6 +2,7 @@
 #if defined(__SWITCH__)
 #include "platform/switch/SwitchThread.h"
 #include "platform/switch/SwitchMemory.h"
+#include "platform/switch/SwitchMemoryBudget.h"
 #include "platform/switch/common/SwitchLaunchPolicy.h"
 #include "util/MemMapper/MemMapper.h"
 #endif
@@ -103,7 +104,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(VkDebugUtilsMessageSeverityFla
 
 #endif
 
-	cemuLog_log(LogType::Force, (char*)pCallbackData->pMessage);
+	cemuLog_log(LogType::Force, "Vulkan: {} ({})", pCallbackData->pMessage,
+		pCallbackData->pMessageIdName ? pCallbackData->pMessageIdName : "driver");
 
 	return VK_FALSE;
 }
@@ -792,7 +794,11 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 
 	vkDestroySurfaceKHR(m_instance, surface, nullptr);
 
-	if (useValidationLayer && m_featureControl.instanceExtensions.debug_utils)
+	bool useDebugMessenger = useValidationLayer;
+#if defined(__SWITCH__)
+	useDebugMessenger = true;
+#endif
+	if (useDebugMessenger && m_featureControl.instanceExtensions.debug_utils)
 	{
 		PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT"));
 
@@ -800,12 +806,14 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 		debugCallback.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		debugCallback.pNext = nullptr;
 		debugCallback.flags = 0;
-		debugCallback.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+		debugCallback.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+		if (useValidationLayer)
+			debugCallback.messageSeverity |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
 		debugCallback.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		debugCallback.pfnUserCallback = &DebugUtilsCallback;
 
 		if (vkCreateDebugUtilsMessengerEXT && vkCreateDebugUtilsMessengerEXT(m_instance, &debugCallback, nullptr, &m_debugCallback) == VK_SUCCESS)
-			cemuLog_log(LogType::Force, "Debug: Vulkan debug messenger active; validation layer {}", m_layerNames.empty() ? "unavailable" : "enabled");
+			cemuLog_log(LogType::Force, "Vulkan: driver error logging active; validation layer {}", m_layerNames.empty() ? "unavailable" : "enabled");
 		else
 			cemuLog_log(LogType::Force, "Debug: Vulkan debug messenger unavailable");
 	}
@@ -2408,28 +2416,143 @@ void VulkanRenderer::WaitCommandBufferFinished(uint64 commandBufferId)
 		WaitForNextFinishedCommandBuffer();
 }
 
-void VulkanRenderer::PipelineCacheSaveThread(size_t cache_size)
+void VulkanRenderer::PipelineCacheLoadingFinished(bool saveCache)
+{
+#if defined(__SWITCH__)
+	if (saveCache)
+	{
+		try
+		{
+			RendererShaderVk::ReleaseCachedShaderModules();
+			SavePipelineCache(true);
+		}
+		catch (const std::exception& ex)
+		{
+			cemuLog_log(LogType::Force, "Vulkan: startup driver cache save failed: {}", ex.what());
+		}
+	}
+#endif
+	m_pipeline_cache_loading = false;
+	m_pipeline_cache_semaphore.notify();
+}
+
+bool VulkanRenderer::SavePipelineCache(bool startup)
+{
+	std::scoped_lock writeLock(m_pipeline_cache_write_mutex);
+	std::unique_lock lock(m_pipeline_cache_save_mutex, std::defer_lock);
+	while (!lock.try_lock())
+	{
+		if (m_destructionRequested)
+			return false;
+		std::this_thread::sleep_for(std::chrono::milliseconds(250));
+	}
+
+	m_pipeline_cache_semaphore.reset();
+	size_t size = 0;
+	VkResult res = vkGetPipelineCacheData(m_logicalDevice, m_pipeline_cache, &size, nullptr);
+	if (res != VK_SUCCESS)
+	{
+		cemuLog_log(LogType::Force, "can't query pipeline cache size: 0x{:x}", res);
+		return false;
+	}
+	if (size == 0 || size == m_pipeline_cache_size)
+		return false;
+
+#if defined(__SWITCH__)
+	const auto budget = SwitchMemoryBudget_GetPipelineCacheBudget(startup);
+	if (size > budget.allocationLimit)
+	{
+		if (startup || m_pipeline_cache_last_deferred_size != size)
+			cemuLog_log(LogType::Force, "Vulkan: driver cache save deferred ({} MiB, {} MiB temporary budget)", size / 1024 / 1024, budget.allocationLimit / 1024 / 1024);
+		m_pipeline_cache_last_deferred_size = size;
+		return false;
+	}
+#endif
+	std::vector<uint8_t> cacheData;
+	try
+	{
+		cacheData.resize(size);
+	}
+	catch (const std::bad_alloc&)
+	{
+		cemuLog_log(LogType::Force, "Vulkan: insufficient memory to save {} MiB driver cache", size / 1024 / 1024);
+		return false;
+	}
+	res = vkGetPipelineCacheData(m_logicalDevice, m_pipeline_cache, &size, cacheData.data());
+	lock.unlock();
+	if (res != VK_SUCCESS || size == 0 || size > cacheData.size())
+	{
+		cemuLog_log(LogType::Force, "can't retrieve pipeline cache data: 0x{:x}", res);
+		return false;
+	}
+
+	const auto dir = ActiveSettings::GetCachePath("shaderCache/driver/vk");
+	std::error_code ec;
+	fs::create_directories(dir, ec);
+	if (ec)
+	{
+		cemuLog_log(LogType::Force, "can't create vulkan pipeline cache directory \"{}\": {}", _pathToUtf8(dir), ec.message());
+		return false;
+	}
+
+	const auto filename = dir / fmt::format(L"{:016x}.bin", CafeSystem::GetForegroundTitleId());
+	const auto temporaryFilename = dir / fmt::format(L"{:016x}.bin.tmp", CafeSystem::GetForegroundTitleId());
+	auto backupFilename = filename;
+	backupFilename += ".bak";
+	auto file = std::ofstream(temporaryFilename, std::ios::out | std::ios::binary | std::ios::trunc);
+	file.write(reinterpret_cast<const char*>(cacheData.data()), size);
+	file.close();
+	if (!file)
+	{
+		cemuLog_log(LogType::Force, "Vulkan: cannot write driver cache \"{}\" ({} MiB)", _pathToUtf8(temporaryFilename), size / 1024 / 1024);
+		fs::remove(temporaryFilename, ec);
+		return false;
+	}
+
+	fs::rename(temporaryFilename, filename, ec);
+	if (ec == std::errc::file_exists)
+	{
+		fs::remove(backupFilename, ec);
+		if (!ec)
+			fs::rename(filename, backupFilename, ec);
+		if (!ec)
+		{
+			fs::rename(temporaryFilename, filename, ec);
+			if (ec)
+			{
+				std::error_code restoreError;
+				fs::rename(backupFilename, filename, restoreError);
+				if (restoreError)
+					cemuLog_log(LogType::Force, "Vulkan: driver cache retained in \"{}\"; restore failed: {}", _pathToUtf8(backupFilename), restoreError.message());
+			}
+		}
+	}
+	if (ec)
+	{
+		cemuLog_log(LogType::Force, "Vulkan: cannot replace driver cache \"{}\": {} ({})", _pathToUtf8(filename), ec.message(), ec.value());
+		fs::remove(temporaryFilename, ec);
+		return false;
+	}
+	fs::remove(backupFilename, ec);
+	if (ec)
+		cemuLog_log(LogType::Force, "Vulkan: cannot remove driver cache backup \"{}\": {}", _pathToUtf8(backupFilename), ec.message());
+
+	m_pipeline_cache_size = size;
+	m_pipeline_cache_last_deferred_size = 0;
+	std::vector<uint8_t>().swap(cacheData);
+#if defined(__SWITCH__)
+	cemuLog_log(LogType::Force, "Vulkan: driver cache saved {} MiB", size / 1024 / 1024);
+#endif
+	cemuLog_logDebug(LogType::Force, "pipeline cache saved");
+	return true;
+}
+
+void VulkanRenderer::PipelineCacheSaveThread()
 {
 	SetThreadName("vkDriverPlCache");
 #if defined(__SWITCH__)
 	SwitchThread_AllowHelperCore("driver pipeline cache");
 #endif
-	const auto dir = ActiveSettings::GetCachePath("shaderCache/driver/vk");
-	if (!fs::exists(dir))
-	{
-		try
-		{
-			fs::create_directories(dir);
-		}
-		catch (const std::exception& ex)
-		{
-			cemuLog_log(LogType::Force, "can't create vulkan pipeline cache directory \"{}\": {}", _pathToUtf8(dir), ex.what());
-			return;
-		}
-	}
-
-	const auto filename = dir / fmt::format(L"{:016x}.bin", CafeSystem::GetForegroundTitleId());
-
 	while (true)
 	{
 		if (m_destructionRequested)
@@ -2443,47 +2566,16 @@ void VulkanRenderer::PipelineCacheSaveThread(size_t cache_size)
 				return;
 			std::this_thread::sleep_for(std::chrono::milliseconds(250));
 		}
+		if (m_pipeline_cache_loading)
+			continue;
 
-		// always prioritize the compiler threads over this thread
-		// avoid calling stalling lock() since it will block other threads from entering even when the lock is currently held in shared mode
-		while (!m_pipeline_cache_save_mutex.try_lock())
-			std::this_thread::sleep_for(std::chrono::milliseconds(250));
-
-		size_t size = 0;
-		VkResult res = vkGetPipelineCacheData(m_logicalDevice, m_pipeline_cache, &size, nullptr);
-		if (res == VK_SUCCESS && size > 0 && size != cache_size)
+		try
 		{
-			std::vector<uint8_t> cacheData(size);
-			res = vkGetPipelineCacheData(m_logicalDevice, m_pipeline_cache, &size, cacheData.data());
-			m_pipeline_cache_semaphore.reset();
-			m_pipeline_cache_save_mutex.unlock();
-
-			if (res == VK_SUCCESS)
-			{
-
-				auto file = std::ofstream(filename, std::ios::out | std::ios::binary);
-				if (file.is_open())
-				{
-					file.write((char*)cacheData.data(), cacheData.size());
-					file.close();
-
-					cache_size = size;
-					cemuLog_logDebug(LogType::Force, "pipeline cache saved");
-				}
-				else
-				{
-					cemuLog_log(LogType::Force, "can't write pipeline cache to disk");
-				}
-			}
-			else
-			{
-				cemuLog_log(LogType::Force, "can't retrieve pipeline cache data: 0x{:x}", res);
-			}
+			SavePipelineCache(false);
 		}
-		else
+		catch (const std::exception& ex)
 		{
-			m_pipeline_cache_semaphore.reset();
-			m_pipeline_cache_save_mutex.unlock();
+			cemuLog_log(LogType::Force, "Vulkan: driver cache save failed: {}", ex.what());
 		}
 	}
 }
@@ -2494,15 +2586,43 @@ void VulkanRenderer::CreatePipelineCache()
 	const auto dir = ActiveSettings::GetCachePath("shaderCache/driver/vk");
 	if (fs::exists(dir))
 	{
-		const auto filename = dir / fmt::format("{:016x}.bin", CafeSystem::GetForegroundTitleId());
+		auto filename = dir / fmt::format("{:016x}.bin", CafeSystem::GetForegroundTitleId());
+		auto backupFilename = filename;
+		backupFilename += ".bak";
+		std::error_code ec;
+		if (!fs::exists(filename, ec) && !ec && fs::exists(backupFilename, ec) && !ec)
+		{
+			filename = backupFilename;
+			cemuLog_log(LogType::Force, "Vulkan: loading driver cache backup after an interrupted save");
+		}
 		auto file = std::ifstream(filename, std::ios::in | std::ios::binary | std::ios::ate);
 		if (file.is_open())
 		{
-			const size_t fileSize = file.tellg();
-			file.seekg(0, std::ifstream::beg);
-			cacheData.resize(fileSize);
-			file.read((char*)cacheData.data(), cacheData.size());
-			file.close();
+			const auto fileSize = file.tellg();
+			bool canLoad = fileSize > 0 && static_cast<uint64_t>(fileSize) <= cacheData.max_size();
+#if defined(__SWITCH__)
+			const size_t allocationLimit = SwitchMemoryBudget_GetPipelineCacheAllocationLimit();
+			if (canLoad && static_cast<uint64_t>(fileSize) > allocationLimit / 2)
+			{
+				cemuLog_log(LogType::Force, "Vulkan: driver cache load skipped ({} MB, {} MB temporary budget)", static_cast<uint64_t>(fileSize) / 1024 / 1024, allocationLimit / 1024 / 1024);
+				canLoad = false;
+			}
+#endif
+			if (canLoad)
+			{
+				try
+				{
+					cacheData.resize(static_cast<size_t>(fileSize));
+					file.seekg(0, std::ifstream::beg);
+					file.read(reinterpret_cast<char*>(cacheData.data()), cacheData.size());
+					if (!file)
+						cacheData.clear();
+				}
+				catch (const std::bad_alloc&)
+				{
+					cemuLog_log(LogType::Force, "Vulkan: insufficient memory to load driver cache");
+				}
+			}
 		}
 	}
 
@@ -2514,6 +2634,7 @@ void VulkanRenderer::CreatePipelineCache()
 	if (result != VK_SUCCESS)
 	{
 		cemuLog_log(LogType::Force, "Failed to open Vulkan pipeline cache: {}", result);
+		std::vector<uint8_t>().swap(cacheData);
 		// unable to load the existing cache, start with an empty cache instead
 		createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 		createInfo.initialDataSize = 0;
@@ -2522,11 +2643,14 @@ void VulkanRenderer::CreatePipelineCache()
 		if (result != VK_SUCCESS)
 			UnrecoverableError(fmt::format("Failed to create new Vulkan pipeline cache: {}", result).c_str());
 	}
+#if defined(__SWITCH__)
+	if (createInfo.initialDataSize != 0)
+		cemuLog_log(LogType::Force, "Vulkan: loaded {} MiB driver cache from disk", createInfo.initialDataSize / 1024 / 1024);
+#endif
 
-	size_t cache_size = 0;
-	vkGetPipelineCacheData(m_logicalDevice, m_pipeline_cache, &cache_size, nullptr);
+	vkGetPipelineCacheData(m_logicalDevice, m_pipeline_cache, &m_pipeline_cache_size, nullptr);
 
-	m_pipeline_cache_save_thread = std::thread(&VulkanRenderer::PipelineCacheSaveThread, this, cache_size);
+	m_pipeline_cache_save_thread = std::thread(&VulkanRenderer::PipelineCacheSaveThread, this);
 }
 
 void VulkanRenderer::swapchain_createDescriptorSetLayout()

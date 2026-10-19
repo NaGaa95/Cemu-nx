@@ -15,6 +15,16 @@
 bool s_isLoadingShadersVk{ false };
 class FileCache* s_spirvCache{nullptr};
 
+#if defined(__SWITCH__)
+namespace
+{
+	std::mutex s_shaderModuleMutex;
+	std::list<RendererShaderVk*> s_shaderModules;
+	size_t s_shaderModuleBytes{};
+	constexpr size_t kShaderModuleCacheLimit = 64 * 1024 * 1024;
+}
+#endif
+
 extern std::atomic_int g_compiled_shaders_total;
 extern std::atomic_int g_compiled_shaders_async;
 
@@ -222,6 +232,15 @@ RendererShaderVk::~RendererShaderVk()
 		delete list_pipelineInfo[0];
 
 	VkDevice vkDev = VulkanRenderer::GetInstance()->GetLogicalDevice();
+#if defined(__SWITCH__)
+	std::scoped_lock lock(s_shaderModuleMutex);
+	cemu_assert_debug(m_shaderModuleRefs == 0);
+	if (m_spirvCached && m_shader_module)
+	{
+		s_shaderModules.erase(m_shaderModuleEntry);
+		s_shaderModuleBytes -= m_shaderModuleSize;
+	}
+#endif
 	vkDestroyShaderModule(vkDev, m_shader_module, nullptr);
 }
 
@@ -233,6 +252,87 @@ void RendererShaderVk::Init()
 void RendererShaderVk::Shutdown()
 {
 	ShaderVkThreadPool.StopThreads();
+}
+
+#if defined(__SWITCH__)
+void RendererShaderVk::TrimModuleCache(size_t limit)
+{
+	for (auto it = s_shaderModules.begin(); s_shaderModuleBytes > limit && it != s_shaderModules.end();)
+	{
+		auto* shader = *it;
+		if (shader->m_shaderModuleRefs != 0)
+		{
+			++it;
+			continue;
+		}
+		vkDestroyShaderModule(VulkanRenderer::GetInstance()->GetLogicalDevice(), shader->m_shader_module, nullptr);
+		shader->m_shader_module = VK_NULL_HANDLE;
+		s_shaderModuleBytes -= shader->m_shaderModuleSize;
+		it = s_shaderModules.erase(it);
+	}
+}
+
+bool RendererShaderVk::AcquireShaderModule()
+{
+	std::scoped_lock lock(s_shaderModuleMutex);
+	if (!m_shader_module && m_spirvCached && s_spirvCache)
+	{
+		uint64 h1, h2;
+		GenerateShaderPrecompiledCacheFilename(m_type, m_baseHash, m_auxHash, h1, h2);
+		std::vector<uint8> data;
+		if (!s_spirvCache->GetFile({h1, h2}, data) || data.size() != m_shaderModuleSize)
+		{
+			cemuLog_log(LogType::Force, "Vulkan: failed to reload shader {:016x}_{:016x}", m_baseHash, m_auxHash);
+			return false;
+		}
+		CreateVkShaderModule(std::span<uint32>(reinterpret_cast<uint32*>(data.data()), data.size() / sizeof(uint32)));
+		s_shaderModules.push_back(this);
+		m_shaderModuleEntry = std::prev(s_shaderModules.end());
+		s_shaderModuleBytes += m_shaderModuleSize;
+	}
+	if (!m_shader_module)
+		return false;
+	++m_shaderModuleRefs;
+	if (m_spirvCached)
+		s_shaderModules.splice(s_shaderModules.end(), s_shaderModules, m_shaderModuleEntry);
+	TrimModuleCache(kShaderModuleCacheLimit);
+	return true;
+}
+
+void RendererShaderVk::ReleaseShaderModule()
+{
+	std::scoped_lock lock(s_shaderModuleMutex);
+	cemu_assert_debug(m_shaderModuleRefs != 0);
+	--m_shaderModuleRefs;
+	TrimModuleCache(kShaderModuleCacheLimit);
+}
+
+size_t RendererShaderVk::ReleaseCachedShaderModules()
+{
+	std::scoped_lock lock(s_shaderModuleMutex);
+	const size_t previousSize = s_shaderModuleBytes;
+	TrimModuleCache(0);
+	return previousSize - s_shaderModuleBytes;
+}
+#endif
+
+void RendererShaderVk::SetShaderModule(std::span<uint32> spirvBuffer, bool cacheBacked)
+{
+#if defined(__SWITCH__)
+	std::scoped_lock lock(s_shaderModuleMutex);
+	m_spirvCached = cacheBacked;
+	m_shaderModuleSize = spirvBuffer.size_bytes();
+#endif
+	CreateVkShaderModule(spirvBuffer);
+#if defined(__SWITCH__)
+	if (m_spirvCached)
+	{
+		s_shaderModules.push_back(this);
+		m_shaderModuleEntry = std::prev(s_shaderModules.end());
+		s_shaderModuleBytes += m_shaderModuleSize;
+		TrimModuleCache(kShaderModuleCacheLimit);
+	}
+#endif
 }
 
 void RendererShaderVk::CreateVkShaderModule(std::span<uint32> spirvBuffer)
@@ -287,7 +387,7 @@ void RendererShaderVk::CompileInternal(bool isRenderThread)
 		if (s_spirvCache->GetFile({ h1, h2 }, cacheFileData))
 		{
 			// generate shader from cached SPIR-V buffer
-			CreateVkShaderModule(std::span<uint32>((uint32*)cacheFileData.data(), cacheFileData.size() / sizeof(uint32)));
+			SetShaderModule(std::span<uint32>((uint32*)cacheFileData.data(), cacheFileData.size() / sizeof(uint32)), true);
 			FinishCompilation();
 			return;
 		}
@@ -383,14 +483,16 @@ void RendererShaderVk::CompileInternal(bool isRenderThread)
 	//forceLogRemoveMe_printf("Shader GLSL-to-SPIRV compilation took %lfms Size %08x", timeDur, spirvBuffer.size()*4);
 
 	// store in cache, unless it got compiled with debug info or is a modified shader from a gfx pack
+	bool cacheBacked = false;
 	if (s_spirvCache && m_isGameShader && m_isGfxPackShader == false && !compileWithDebugInfo)
 	{
 		uint64 h1, h2;
 		GenerateShaderPrecompiledCacheFilename(m_type, m_baseHash, m_auxHash, h1, h2);
 		s_spirvCache->AddFile({ h1, h2 }, (const uint8*)spirvBuffer.data(), spirvBuffer.size() * sizeof(uint32));
+		cacheBacked = s_spirvCache->HasFile({h1, h2});
 	}
 
-	CreateVkShaderModule(spirvBuffer);
+	SetShaderModule(spirvBuffer, cacheBacked);
 
 	// count compiled shader
 	if (!s_isLoadingShadersVk)

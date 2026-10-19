@@ -927,6 +927,22 @@ bool PipelineCompiler::Compile(bool forceCompile, bool isRenderThread, bool show
 			m_vkGeometryShader->PreponeCompilation(isRenderThread);
 	}
 
+#if defined(__SWITCH__)
+	std::array<RendererShaderVk*, 4> moduleShaders{m_vkVertexShader, m_vkPixelShader, m_vkGeometryShader, m_rectEmulationGS};
+	size_t acquiredModules = 0;
+	stdx::scope_exit releaseModules([&] {
+		for (size_t i = 0; i < acquiredModules; ++i)
+			if (moduleShaders[i])
+				moduleShaders[i]->ReleaseShaderModule();
+	});
+	for (auto* shader : moduleShaders)
+	{
+		if (shader && !shader->AcquireShaderModule())
+			return true;
+		++acquiredModules;
+	}
+	shaderStages.clear();
+#endif
 	if (shaderStages.empty())
 	{
 		if (!InitShaderStages(vkRenderer, m_vkVertexShader, m_vkPixelShader, m_vkGeometryShader))

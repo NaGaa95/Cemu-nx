@@ -99,6 +99,18 @@ size_t SwitchMemoryBudget_GetJumpTableChunkSize()
 	return kJumpTableChunkSize;
 }
 
+size_t SwitchMemoryBudget_GetPipelineCacheAllocationLimit()
+{
+	return SwitchMemoryBudget_GetPipelineCacheBudget(false).allocationLimit;
+}
+
+SwitchPipelineCacheBudget SwitchMemoryBudget_GetPipelineCacheBudget(bool startup)
+{
+	const size_t headroom = QueryContiguousHeadroom();
+	const size_t reserve = startup ? 32 * MiB : GetSafetyReserve();
+	return {headroom, reserve, headroom > reserve ? headroom - reserve : 0};
+}
+
 bool SwitchMemoryBudget_ShouldRecycleStaging(size_t currentSize, size_t growthSize)
 {
 	if (growthSize == 0)

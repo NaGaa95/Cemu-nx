@@ -274,7 +274,8 @@ public:
 	FSpinlock m_spinlockDestructionQueue;
 	std::vector<VKRDestructibleObject*> m_destructionQueue;
 
-	void PipelineCacheSaveThread(size_t cache_size);
+	void PipelineCacheSaveThread();
+	void PipelineCacheLoadingFinished(bool saveCache);
 
 	void ClearColorbuffer(bool padView) override;
 	void ClearColorImageRaw(VkImage image, uint32 sliceIndex, uint32 mipIndex, const VkClearColorValue& color, VkImageLayout inputLayout, VkImageLayout outputLayout);
@@ -585,6 +586,7 @@ private:
 
 	// misc
 	void CreatePipelineCache();
+	bool SavePipelineCache(bool startup);
 	VkPipelineShaderStageCreateInfo CreatePipelineShaderStageCreateInfo(VkShaderStageFlagBits stage, VkShaderModule& module, const char* entryName) const;
 	VkPipeline backbufferBlit_createGraphicsPipeline(VkDescriptorSetLayout descriptorLayout, bool padView, bool mainWindow, RendererOutputShader* shader);
 	bool AcquireNextSwapchainImage(bool mainWindow);
@@ -616,7 +618,11 @@ private:
 
 	Semaphore m_pipeline_cache_semaphore;
 	std::shared_mutex m_pipeline_cache_save_mutex;
+	std::mutex m_pipeline_cache_write_mutex;
 	std::thread m_pipeline_cache_save_thread;
+	std::atomic_bool m_pipeline_cache_loading{true};
+	size_t m_pipeline_cache_size{};
+	size_t m_pipeline_cache_last_deferred_size{};
 	VkPipelineCache m_pipeline_cache{ nullptr };
 	std::unordered_map<uint64, VkPipeline> m_backbufferBlitPipelineCache;
 	std::unordered_map<uint64, VkDescriptorSet> m_backbufferBlitDescriptorSetCache;
