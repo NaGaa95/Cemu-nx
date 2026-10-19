@@ -22,11 +22,13 @@
 namespace ShaderPacks {
 namespace {
 
-constexpr char repository[] = "https://raw.githubusercontent.com/chriztr/cemu_shader_and_pipeline_caches/main/";
+constexpr char repository[] = "https://raw.githubusercontent.com/NaGaa95/Cemu-nx/main/shader_packs/";
+constexpr char transferableRepository[] = "https://raw.githubusercontent.com/chriztr/cemu_shader_and_pipeline_caches/main/";
 constexpr char fullArchive[] = "https://github.com/chriztr/cemu_shader_and_pipeline_caches/releases/latest/download/shaders.zip";
-constexpr uint64_t maxArchive = 1024ULL * 1024 * 1024;
-constexpr uint64_t maxCache = 256ULL * 1024 * 1024;
-constexpr uint64_t maxExtracted = 2ULL * 1024 * 1024 * 1024;
+constexpr char nativeArchives[] = "https://github.com/NaGaa95/Cemu-nx/releases/download/shader-packs/";
+constexpr uint64_t maxArchive = 4ULL * 1024 * 1024 * 1024 - 1;
+constexpr uint64_t maxCache = 1024ULL * 1024 * 1024;
+constexpr uint64_t maxExtracted = 8ULL * 1024 * 1024 * 1024;
 using File = std::unique_ptr<FILE, decltype(&std::fclose)>;
 
 uint16_t Read16(const uint8_t *p) { return p[0] | (uint16_t(p[1]) << 8); }
@@ -57,7 +59,7 @@ bool ReadAt(FILE *file, uint64_t offset, void *buffer, size_t size) {
          fread(buffer, 1, size, file) == size;
 }
 
-bool ValidCache(const std::string &path, uint64_t title, bool pipeline) {
+bool ValidFileCache(const std::string &path, uint32_t expected, uint32_t alternate) {
   struct stat st{};
   if (lstat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 128) return false;
   File file(fopen(path.c_str(), "rb"), &std::fclose);
@@ -65,16 +67,20 @@ bool ValidCache(const std::string &path, uint64_t title, bool pipeline) {
   if (!file || !ReadAt(file.get(), 0, header.data(), header.size())) return false;
   const uint32_t magic = Read32(header.data());
   const uint32_t version = Read32(header.data() + 4);
-  const uint32_t expected = uint32_t(title >> 32) + uint32_t(title) * 3 + 1 +
-                            (pipeline ? 0 : 0xe97af1adu);
   const uint64_t data = Read64(header.data() + 8);
   const uint64_t table = Read64(header.data() + 16);
   const uint32_t tableSize = Read32(header.data() + 24);
   const uint64_t size = uint64_t(st.st_size);
   return (magic == 0x8371b695 || magic == 0x8371b696) &&
-         (version == expected || (!pipeline && version == 2)) &&
+         (version == expected || version == alternate) &&
          data >= header.size() && data <= size && table <= size - data &&
          tableSize >= 32 && tableSize % 32 == 0 && tableSize <= size - data - table;
+}
+
+bool ValidCache(const std::string &path, uint64_t title, bool pipeline) {
+  const uint32_t expected = uint32_t(title >> 32) + uint32_t(title) * 3 + 1 +
+                            (pipeline ? 0 : 0xe97af1adu);
+  return ValidFileCache(path, expected, pipeline ? expected : 2);
 }
 
 bool MakeDirectories(const std::string &path) {
@@ -204,7 +210,8 @@ bool DownloadFile(const std::string &url, const std::string &path, uint64_t limi
   File file(fopen(path.c_str(), "wb"), &std::fclose);
   if (!file) { error = "Could not create the download file."; return false; }
   progress.phase = Phase::Downloading;
-  progress.current = progress.total = 0;
+  progress.current = 0;
+  progress.total = 0;
   Transfer transfer{file.get(), nullptr, 0, limit, &cancel, &progress};
   bool ok = Download(url, transfer, error);
   if (ok) ok = fflush(file.get()) == 0 && fsync(fileno(file.get())) == 0;
@@ -220,10 +227,35 @@ struct Entry {
   std::string target;
   uint64_t title = 0;
   bool pipeline = false;
+  enum class Kind { Transferable, Deko } kind = Kind::Transferable;
   bool hadOld = false;
   bool backedUp = false;
   bool installed = false;
 };
+
+bool CachePath(std::string name, Type type, Entry &entry) {
+  constexpr std::string_view root = "switch/cemu/cache/";
+  if (name.compare(0, root.size(), root) == 0) name.erase(0, root.size());
+  constexpr std::string_view transferable = "shaderCache/transferable/";
+  constexpr std::string_view deko = "shaderCache/driver/deko3d/";
+  if (name.compare(0, transferable.size(), transferable) == 0) {
+    if (!CacheName(std::string_view(name).substr(transferable.size()), entry.title, entry.pipeline) ||
+        (type == Type::Deko && entry.pipeline)) return false;
+  } else if (type == Type::Deko && name.compare(0, deko.size(), deko) == 0) {
+    const auto rest = std::string_view(name).substr(deko.size());
+    if (rest.size() != 31 || !TitleId(rest.substr(0, 16), entry.title) || rest.substr(16) != "/v1/shaders.bin") return false;
+    entry.kind = Entry::Kind::Deko;
+  } else return false;
+  entry.name = std::move(name);
+  return true;
+}
+
+bool ValidEntry(const Entry &entry) {
+  switch (entry.kind) {
+  case Entry::Kind::Deko: return ValidFileCache(entry.staged, 1, 1);
+  default: return ValidCache(entry.staged, entry.title, entry.pipeline);
+  }
+}
 
 bool ExtractEntry(FILE *archive, uint64_t offset, uint32_t compressed, uint32_t size,
                   uint32_t expectedCrc, uint16_t method, const std::string &path,
@@ -273,7 +305,8 @@ bool ExtractEntry(FILE *archive, uint64_t offset, uint32_t compressed, uint32_t 
 }
 
 bool ExtractArchive(const std::string &path, Staging &staging, std::vector<Entry> &entries,
-                    Progress &progress, const std::atomic_bool &cancel, std::string &error) {
+                    Progress &progress, const std::atomic_bool &cancel, std::string &error,
+                    Type type = Type::Transferable, uint64_t requestedTitle = 0) {
   File file(fopen(path.c_str(), "rb"), &std::fclose);
   struct stat st{};
   if (!file || fstat(fileno(file.get()), &st) != 0 || st.st_size < 22) return false;
@@ -312,11 +345,9 @@ bool ExtractArchive(const std::string &path, Staging &staging, std::vector<Entry
     cursor += recordSize;
     progress.current = i + 1;
     if (name == "shaderCache/" || name == "shaderCache/transferable/") continue;
-    constexpr std::string_view prefix = "shaderCache/transferable/";
-    if (name.compare(0, prefix.size(), prefix) != 0) return false;
     Entry entry;
-    entry.name = name.substr(prefix.size());
-    if (!CacheName(entry.name, entry.title, entry.pipeline) || !names.insert(entry.name).second ||
+    if (!CachePath(std::move(name), type, entry) || !names.insert(entry.name).second ||
+        (requestedTitle && entry.title != requestedTitle) ||
         size > maxCache || size > maxExtracted - extracted) return false;
     const uint64_t local = Read32(header.data() + 42);
     std::array<uint8_t, 30> localHeader{};
@@ -325,9 +356,9 @@ bool ExtractArchive(const std::string &path, Staging &staging, std::vector<Entry
         (Read16(localHeader.data() + 6) & 1) || Read16(localHeader.data() + 8) != method) return false;
     const uint64_t offset = local + 30 + Read16(localHeader.data() + 26) + Read16(localHeader.data() + 28);
     if (offset > central || compressed > central - offset) return false;
-    entry.staged = staging.Path(entry.name);
+    entry.staged = staging.Path(std::to_string(entries.size()));
     if (!ExtractEntry(file.get(), offset, compressed, size, Read32(header.data() + 16), method, entry.staged, cancel) ||
-        !ValidCache(entry.staged, entry.title, entry.pipeline)) {
+        !ValidEntry(entry)) {
       error = "The shader archive contains a damaged cache.";
       return false;
     }
@@ -335,22 +366,29 @@ bool ExtractArchive(const std::string &path, Staging &staging, std::vector<Entry
     entries.push_back(std::move(entry));
   }
   for (const auto &entry : entries) {
-    const auto counterpart = entry.name.substr(0, 16) + (entry.pipeline ? "_shaders.bin" : "_vkpipeline.bin");
-    if (!names.count(counterpart)) { error = "The shader archive contains an incomplete game pack."; return false; }
+    char title[17];
+    snprintf(title, sizeof(title), "%016llx", static_cast<unsigned long long>(entry.title));
+    const std::string transferable = "shaderCache/transferable/" + std::string(title);
+    bool complete = names.count(transferable + "_shaders.bin");
+    if (type == Type::Deko)
+      complete = complete && names.count("shaderCache/driver/deko3d/" + std::string(title) + "/v1/shaders.bin");
+    else
+      complete = complete && names.count(transferable + "_vkpipeline.bin");
+    if (!complete) { error = "The shader archive contains an incomplete game pack."; return false; }
   }
   return !cancel.load() && cursor == central + centralSize && !entries.empty();
 }
 
 bool InstallEntries(const std::string &cacheDir, Staging &staging, std::vector<Entry> &entries,
                     Progress &progress, const std::atomic_bool &cancel, std::string &error) {
-  const std::string destination = cacheDir + "/shaderCache/transferable";
-  if (!MakeDirectories(destination)) {
-    error = "Could not create the shader-cache folder: " + destination + " (" + std::strerror(errno) + ")";
-    return false;
-  }
   for (auto &entry : entries) {
-    entry.target = destination + "/" + entry.name;
-    entry.backup = staging.Path(entry.name + ".old");
+    entry.target = cacheDir + "/" + entry.name;
+    const auto destination = entry.target.substr(0, entry.target.rfind('/'));
+    if (!MakeDirectories(destination)) {
+      error = "Could not create the shader-cache folder: " + destination + " (" + std::strerror(errno) + ")";
+      return false;
+    }
+    entry.backup = staging.Path(std::to_string(&entry - entries.data()) + ".old");
     struct stat st{};
     entry.hadOld = lstat(entry.target.c_str(), &st) == 0;
     if ((!entry.hadOld && errno != ENOENT) || (entry.hadOld && !S_ISREG(st.st_mode))) {
@@ -442,7 +480,7 @@ struct CatalogReader : rapidjson::BaseReaderHandler<rapidjson::UTF8<>, CatalogRe
 bool LoadCatalog(std::vector<Pack> &packs, std::string &error, const std::atomic_bool &cancel) {
   std::string body;
   Transfer transfer{nullptr, &body, 0, 4 * 1024 * 1024, &cancel, nullptr};
-  if (!Download(std::string(repository) + "shaders.json", transfer, error)) return false;
+  if (!Download(std::string(repository) + "catalog.json", transfer, error)) return false;
   rapidjson::MemoryStream input(body.data(), body.size());
   rapidjson::Reader reader;
   CatalogReader catalog;
@@ -460,39 +498,48 @@ bool LoadCatalog(std::vector<Pack> &packs, std::string &error, const std::atomic
   return true;
 }
 
-bool IsInstalled(const std::string &cacheDir, const Pack &pack) {
+bool IsInstalled(const std::string &cacheDir, const Pack &pack, Type type) {
   uint64_t title = 0;
   if (!TitleId(pack.titleId, title)) return false;
   const auto path = cacheDir + "/shaderCache/transferable/" + pack.titleId;
-  return ValidCache(path + "_shaders.bin", title, false) && ValidCache(path + "_vkpipeline.bin", title, true);
+  if (!ValidCache(path + "_shaders.bin", title, false)) return false;
+  if (type == Type::Deko)
+    return ValidFileCache(cacheDir + "/shaderCache/driver/deko3d/" + pack.titleId + "/v1/shaders.bin", 1, 1);
+  return ValidCache(path + "_vkpipeline.bin", title, true);
 }
 
 bool Install(const std::string &cacheDir, const Pack *pack, Progress &progress,
-             const std::atomic_bool &cancel, std::string &error) {
+             const std::atomic_bool &cancel, std::string &error, Type type) {
   Staging staging;
   if (!staging.Create(cacheDir)) {
     error = "Could not create the shader download folder: " + cacheDir + " (" + std::strerror(errno) + ")";
     return false;
   }
   std::vector<Entry> entries;
-  if (pack) {
+  if (pack && type == Type::Transferable) {
     uint64_t title = 0;
     if (!TitleId(pack->titleId, title)) { error = "Invalid shader-pack title."; return false; }
     for (bool pipeline : {false, true}) {
       Entry entry;
-      entry.name = pack->titleId + (pipeline ? "_vkpipeline.bin" : "_shaders.bin");
+      const auto filename = pack->titleId + (pipeline ? "_vkpipeline.bin" : "_shaders.bin");
+      entry.name = "shaderCache/transferable/" + filename;
       entry.title = title;
       entry.pipeline = pipeline;
-      entry.staged = staging.Path(entry.name);
-      const auto url = std::string(repository) + (pipeline ? "pipelines/" : "shaders/") + entry.name;
+      entry.staged = staging.Path(filename);
+      const auto url = std::string(transferableRepository) + (pipeline ? "pipelines/" : "shaders/") + filename;
       if (!DownloadFile(url, entry.staged, maxCache, progress, cancel, error)) return false;
       if (!ValidCache(entry.staged, title, pipeline)) { error = "The downloaded shader cache is invalid."; return false; }
       entries.push_back(std::move(entry));
     }
   } else {
     const auto path = staging.Path("shaders.zip");
-    if (!DownloadFile(fullArchive, path, maxArchive, progress, cancel, error)) return false;
-    if (!ExtractArchive(path, staging, entries, progress, cancel, error)) {
+    uint64_t title = 0;
+    if (pack && !TitleId(pack->titleId, title)) { error = "Invalid shader-pack title."; return false; }
+    const auto url = type == Type::Transferable ? std::string(fullArchive) :
+      pack ? std::string(repository) + "deko/" + pack->titleId + ".zip" :
+      std::string(nativeArchives) + "UAM-Deko-Shaders-Pack.zip";
+    if (!DownloadFile(url, path, maxArchive, progress, cancel, error)) return false;
+    if (!ExtractArchive(path, staging, entries, progress, cancel, error, type, title)) {
       if (error.empty() && !cancel.load()) error = "Could not extract the shader pack.";
       return false;
     }

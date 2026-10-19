@@ -6647,6 +6647,49 @@ static int downloadLatestGraphicPacks() {
   return result;
 }
 
+static int chooseShaderPackType(const char *name,const std::array<bool,2> &installed) {
+  static int selected=0;
+  const char *labels[]={"Deko Shaders","CEMU Transferable shaders"};
+  const char *descriptions[]={"Precompiled for Deko3D, reducing first-time compilation.",
+                              "For all renderers; needs compilation on your Switch."};
+  const int width=std::min(SW-80,760),height=376;
+  const int x=(SW-width)/2,y=(SH-height)/2,first=y+92,rowHeight=112;
+  for(;;){
+    if(!beginUiFrame()) return -1;
+    SDL_Event event;navRepeat();
+    while(pollUiEvent(event)){
+      pumpStick(event);
+      int tx=0,ty=0;
+      if(touchFeed(event,&tx,&ty)==TOUCH_TAP){
+        if(tx<x||tx>=x+width||ty<y||ty>=y+height) return -1;
+        for(int row=0;row<2;row++)
+          if(ty>=first+row*rowHeight&&ty<first+row*rowHeight+rowHeight-8){selected=row;return selected;}
+      }
+      if(event.type==SDL_QUIT) return -1;
+      if(event.type!=SDL_CONTROLLERBUTTONDOWN) continue;
+      const int button=event.cbutton.button;
+      if(button==BTN_CANCEL) return -1;
+      if(button==BTN_CONFIRM) return selected;
+      if(button==SDL_CONTROLLER_BUTTON_DPAD_UP) selected=(selected+1)%2;
+      else if(button==SDL_CONTROLLER_BUTTON_DPAD_DOWN) selected=(selected+1)%2;
+    }
+    clearUiBackground();
+    glassPanel(x,y,width,height);
+    drawText(g_font_big,x+28,y+20,tr("Shader packs"),COL_TXT);
+    drawText(g_font_sm,x+28,y+62,fittedText(g_font_sm,name,width-56).c_str(),COL_DIM);
+    for(int row=0;row<2;row++){
+      const int slot=first+row*rowHeight;
+      if(row==selected) drawRowHighlight(x+20,slot,width-40,rowHeight-8);
+      drawText(g_font,x+36,slot+14,tr(labels[row]),row==selected?COL_VAL:COL_TXT);
+      if(installed[row]) drawTextR(g_font_sm,x+width-36,slot+18,tr("Installed"),SDL_Color{120,220,120,255});
+      drawWrapped(g_font_sm,x+36,slot+48,width-72,fontHeight(g_font_sm)+3,2,tr(descriptions[row]),COL_DIM);
+    }
+    FootItem footer[]={{"A",tr("Download")},{"B",tr("Back")}};
+    drawFooterHints(footer,2,y+height-28);
+    SDL_RenderPresent(g_ren);waitForNextUiFrame();
+  }
+}
+
 static void shaderPacksScreen() {
   if(!griddb_global_init()){
     modalMessageStatic("Shader packs",{"Could not initialize the network."});
@@ -6654,10 +6697,14 @@ static void shaderPacksScreen() {
   }
   const std::string cacheDir=std::string(DATA_DIR)+"/cache";
   std::vector<ShaderPacks::Pack> packs;
-  std::vector<bool> installed;
+  std::vector<std::array<bool,2>> installed;
   auto refreshInstalled=[&](){
     installed.clear();
-    for(const auto &pack:packs) installed.push_back(ShaderPacks::IsInstalled(cacheDir,pack));
+    for(const auto &pack:packs){
+      std::array<bool,2> status{};
+      for(int type=0;type<2;type++) status[type]=ShaderPacks::IsInstalled(cacheDir,pack,static_cast<ShaderPacks::Type>(type));
+      installed.push_back(status);
+    }
   };
   auto loadCatalog=[&](){
     std::string error;
@@ -6669,13 +6716,13 @@ static void shaderPacksScreen() {
       });
     if(finished&&!loaded) modalMessageStatic("Shader packs",{error});
   };
-  auto download=[&](const ShaderPacks::Pack *pack){
+  auto download=[&](const ShaderPacks::Pack *pack,ShaderPacks::Type type){
     ShaderPacks::Progress progress;
     std::atomic_bool cancel{false},complete{false};
     bool success=false;
     std::string error;
     std::thread worker([&]{
-      try { success=ShaderPacks::Install(cacheDir,pack,progress,cancel,error); refreshInstalled(); }
+      try { success=ShaderPacks::Install(cacheDir,pack,progress,cancel,error,type); refreshInstalled(); }
       catch(const std::exception &){ error="Could not install the shader pack."; }
       complete.store(true,std::memory_order_release);
       wakeUiFromWorker(0x53484452);
@@ -6744,7 +6791,12 @@ static void shaderPacksScreen() {
       if(button==SDL_CONTROLLER_BUTTON_DPAD_UP) sel=(sel+nrows-1)%nrows;
       else if(button==SDL_CONTROLLER_BUTTON_DPAD_DOWN) sel=(sel+1)%nrows;
       else if(button==BTN_CONFIRM){
-        download(sel?&packs[sel-1]:nullptr);
+        std::array<bool,2> status{};
+        for(int type=0;type<2;type++)
+          status[type]=sel?installed[sel-1][type]:!installed.empty()&&
+            std::all_of(installed.begin(),installed.end(),[type](const auto &entry){return entry[type];});
+        const int type=chooseShaderPackType(sel?packs[sel-1].name.c_str():tr("Full shader pack"),status);
+        if(type>=0) download(sel?&packs[sel-1]:nullptr,static_cast<ShaderPacks::Type>(type));
         if(packs.empty()) loadCatalog();
         beginScreenFx();
         break;
@@ -6753,7 +6805,7 @@ static void shaderPacksScreen() {
       } else if(button==BTN_X){
         const std::string label=sel?packs[sel-1].name+" ("+packs[sel-1].region+")":tr("Full shader pack");
         showHelpCard(tr("Shader packs"),label.c_str(),tr("Shader cache download"),
-                     tr("Downloads and installs transferable shaders and Vulkan pipelines. Shaders are compiled for your renderer when the game first loads."),
+                     tr("Choose precompiled Deko shaders or Cemu transferable shaders."),
                      sel?packs[sel-1].titleId.c_str():nullptr,tr("Shader pack"));
         beginScreenFx();
       }
@@ -6769,10 +6821,13 @@ static void shaderPacksScreen() {
     const float target=(float)(LIST_Y0+(sel-top)*ROW_H+rowGap(sel)+1);
     g_hy=(!g_uiAnimations||g_hy<0)?target:g_hy+(target-g_hy)*0.30f;
     drawRowHighlight(colX,(int)g_hy,colW,ROW_H-2);
-    const bool allInstalled=!installed.empty()&&std::all_of(installed.begin(),installed.end(),[](bool value){return value;});
+    bool allInstalled=false;
+    for(int type=0;type<2;type++)
+      allInstalled|=!installed.empty()&&std::all_of(installed.begin(),installed.end(),[type](const auto &entry){return entry[type];});
     for(int row=0;row<visible&&top+row<nrows;row++){
       const int index=top+row;
-      const bool done=index?(index-1<(int)installed.size()&&installed[index-1]):allInstalled;
+      const bool done=index?(index-1<(int)installed.size()&&
+        std::any_of(installed[index-1].begin(),installed[index-1].end(),[](bool value){return value;})):allInstalled;
       const std::string label=index?packs[index-1].name+" ("+packs[index-1].region+")":"Download full shader pack";
       drawSettingsRowText(index?label.c_str():tr(label.c_str()),done?tr("Installed"):">",
                           LIST_Y0+row*ROW_H+rowGap(index),colW,labelX,valX,index==sel,

@@ -7,6 +7,8 @@
 
 namespace ShaderPacks {
 
+enum class Type { Deko, Transferable };
+
 struct Pack {
   std::string titleId;
   std::string name;
@@ -23,8 +25,10 @@ struct Progress {
 
 bool LoadCatalog(std::vector<Pack> &packs, std::string &error,
                  const std::atomic_bool &cancel);
-bool IsInstalled(const std::string &cacheDir, const Pack &pack);
+bool IsInstalled(const std::string &cacheDir, const Pack &pack,
+                 Type type = Type::Transferable);
 bool Install(const std::string &cacheDir, const Pack *pack, Progress &progress,
-             const std::atomic_bool &cancel, std::string &error);
+             const std::atomic_bool &cancel, std::string &error,
+             Type type = Type::Transferable);
 
 }
