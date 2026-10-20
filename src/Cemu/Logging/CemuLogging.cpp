@@ -83,15 +83,22 @@ struct _LogContext
 	std::thread log_writer;
 	std::atomic<bool> threadRunning = false;
 
+	void Shutdown()
+	{
+		{
+			std::lock_guard lock(log_mutex);
+			threadRunning.store(false, std::memory_order_relaxed);
+		}
+		log_condition.notify_one();
+		if (log_writer.joinable())
+			log_writer.join();
+		if (file_stream.is_open())
+			file_stream.close();
+	}
+
 	~_LogContext()
 	{
-		// safely shut down the log writer thread
-		threadRunning.store(false);
-		if (log_writer.joinable())
-		{
-			log_condition.notify_one();
-			log_writer.join();
-		}
+		Shutdown();
 	}
 }LogContext;
 
@@ -141,12 +148,11 @@ void cemuLog_thread()
 	while (true)
 	{
 		std::unique_lock lock(LogContext.log_mutex);
-		while (LogContext.text_cache.empty())
-		{
-			LogContext.log_condition.wait(lock);
-			if (!LogContext.threadRunning.load(std::memory_order::relaxed))
-				return;
-		}
+		LogContext.log_condition.wait(lock, [] {
+			return !LogContext.text_cache.empty() || !LogContext.threadRunning.load(std::memory_order_relaxed);
+		});
+		if (LogContext.text_cache.empty())
+			return;
 
 		std::vector<std::string> cache_copy;
 		cache_copy.swap(LogContext.text_cache); // fast copy & clear
@@ -251,6 +257,11 @@ void cemuLog_logHexDump(LogType type, const void* data, size_t size, size_t line
 			hexLine.resize(6 + remainingSize * 3 + 1);
 		cemuLog_log(type, hexLine.data());
 	}
+}
+
+void cemuLog_shutdown()
+{
+	LogContext.Shutdown();
 }
 
 void cemuLog_waitForFlush()

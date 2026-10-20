@@ -241,6 +241,13 @@ static void SwitchPlatformExit()
 		romfsExit();
 }
 
+[[noreturn]] static void ExitCore(int status)
+{
+	SwitchPlatformExit();
+	cemuLog_shutdown();
+	std::_Exit(status);
+}
+
 // Matches EXIT_DETECTION_STR in switch_launcher/fwd/main.c.
 static constexpr const char* kForwarderExitSentinel = "__CEMU_FORWARDER_EXIT__";
 static constexpr const char* kLauncherPath = "sdmc:/switch/cemu/cemu.nro";
@@ -297,8 +304,7 @@ int main(int argc, char* argv[])
 	if (!platformInitialized)
 	{
 		WriteLastCoreError("platform", "platform initialization failed");
-		SwitchPlatformExit();
-		std::_Exit(EXIT_FAILURE);
+		ExitCore(EXIT_FAILURE);
 	}
 
 	// A disengaged optional means that parsing succeeded and normal emulation
@@ -311,8 +317,7 @@ int main(int argc, char* argv[])
 			std::remove(kLastCoreErrorPath);
 		else
 			WriteLastCoreError("platform", "invalid command line");
-		SwitchPlatformExit();
-		std::_Exit(*commandLineResult);
+		ExitCore(*commandLineResult);
 	}
 	std::remove(kLastCoreErrorPath);
 
@@ -344,6 +349,5 @@ int main(int argc, char* argv[])
 
 	if (SwitchPlatform_ShouldReturnToLauncher())
 		ReturnToLauncher();
-	SwitchPlatformExit();
-	std::_Exit(status);
+	ExitCore(status);
 }
