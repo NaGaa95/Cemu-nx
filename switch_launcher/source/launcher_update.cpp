@@ -21,7 +21,7 @@
 #include <unistd.h>
 
 #ifndef CEMU_SWITCH_RELEASE_VERSION
-#define CEMU_SWITCH_RELEASE_VERSION "1.2.0"
+#define CEMU_SWITCH_RELEASE_VERSION "1.3.0"
 #endif
 
 #ifndef CEMU_SWITCH_VERSION

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BUILD_JOBS="${BUILD_JOBS:-18}"
-RELEASE_VERSION="${RELEASE_VERSION:-1.2.0}"
+RELEASE_VERSION="${RELEASE_VERSION:-1.3.0}"
 case "${BUILD_JOBS}" in
 	''|*[!0-9]*|0) echo "BUILD_JOBS must be a positive integer" >&2; exit 2 ;;
 esac
