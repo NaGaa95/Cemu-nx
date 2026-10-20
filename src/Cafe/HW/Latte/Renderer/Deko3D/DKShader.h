@@ -38,6 +38,7 @@ namespace Deko3D
 		bool IsCompiled() override;
 		bool WaitForCompiled() override;
 		const DKShaderProgram* GetProgram();
+		static u32 GetPendingCompilationCount();
 		static void InitializeCompiler();
 		static void ShutdownCompiler();
 

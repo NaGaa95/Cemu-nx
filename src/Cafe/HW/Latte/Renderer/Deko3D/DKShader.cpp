@@ -84,10 +84,11 @@ namespace Deko3D
 							m_condition.wait(lock, [this] { return m_stop || !m_tasks.empty(); });
 							if (m_stop)
 								return;
-							task = std::move(m_tasks.front());
+							task = std::move(m_tasks.front().task);
 							m_tasks.pop_front();
 						}
 						task();
+						m_pending.fetch_sub(1, std::memory_order_relaxed);
 					}
 				});
 			}
@@ -96,6 +97,7 @@ namespace Deko3D
 				{
 					std::lock_guard lock(m_mutex);
 					m_stop = true;
+					m_pending.fetch_sub(static_cast<u32>(m_tasks.size()), std::memory_order_relaxed);
 					m_tasks.clear();
 				}
 				m_condition.notify_all();
@@ -105,23 +107,45 @@ namespace Deko3D
 			{
 				Stop();
 			}
-			std::shared_future<std::shared_ptr<DKShaderProgram>> Add(std::function<std::shared_ptr<DKShaderProgram>()> task)
+			std::shared_future<std::shared_ptr<DKShaderProgram>> Add(std::function<std::shared_ptr<DKShaderProgram>()> task, const void* owner)
 			{
 				std::packaged_task<std::shared_ptr<DKShaderProgram>()> job(std::move(task));
 				auto future = job.get_future().share();
 				{
 					std::lock_guard lock(m_mutex);
 					if (!m_stop)
-						m_tasks.push_back(std::move(job));
+					{
+						m_tasks.push_back({owner, std::move(job)});
+						m_pending.fetch_add(1, std::memory_order_relaxed);
+					}
 				}
 				m_condition.notify_one();
 				return future;
 			}
 
+			u32 PendingCount() const
+			{
+				return m_pending.load(std::memory_order_relaxed);
+			}
+			void Prioritize(const void* owner)
+			{
+				std::lock_guard lock(m_mutex);
+				const auto found = std::ranges::find(m_tasks, owner, &Job::owner);
+				if (found == m_tasks.end() || found == m_tasks.begin())
+					return;
+				std::rotate(m_tasks.begin(), found, std::next(found));
+			}
+
 		  private:
+			struct Job
+			{
+				const void* owner;
+				std::packaged_task<std::shared_ptr<DKShaderProgram>()> task;
+			};
 			std::mutex m_mutex;
 			std::condition_variable m_condition;
-			std::deque<std::packaged_task<std::shared_ptr<DKShaderProgram>()>> m_tasks;
+			std::deque<Job> m_tasks;
+			std::atomic_uint32_t m_pending{0};
 			std::unique_ptr<ShaderThread> m_thread;
 			bool m_stop = true;
 		} s_compiler;
@@ -384,7 +408,7 @@ namespace Deko3D
 									   bool compileAsync, bool gfxPack)
 		: RendererShader(type, base, auxiliary, base != 0, gfxPack)
 	{
-		m_job = s_compiler.Add([=, source = std::move(source)]() mutable { return Compile(type, std::move(source), base, auxiliary); });
+		m_job = s_compiler.Add([=, source = std::move(source)]() mutable { return Compile(type, std::move(source), base, auxiliary); }, this);
 		if (!compileAsync)
 			WaitForCompiled();
 	}
@@ -405,6 +429,8 @@ namespace Deko3D
 	}
 	bool RendererShaderDK::WaitForCompiled()
 	{
+		if (m_job.valid() && !IsCompiled())
+			s_compiler.Prioritize(this);
 		try
 		{
 			m_program = m_job.get();
@@ -418,6 +444,11 @@ namespace Deko3D
 	{
 		return (m_program || WaitForCompiled()) ? m_program.get() : nullptr;
 	}
+	u32 RendererShaderDK::GetPendingCompilationCount()
+	{
+		return s_compiler.PendingCount();
+	}
+
 	void RendererShaderDK::InitializeCompiler()
 	{
 		glslang::InitializeProcess();

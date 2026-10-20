@@ -6,6 +6,10 @@
 #include "config/ActiveSettings.h"
 #include "WindowSystem.h"
 
+#ifdef ENABLE_DEKO3D
+#include "Cafe/HW/Latte/Renderer/Deko3D/DKShader.h"
+#endif
+
 #include <imgui.h>
 #include "resource/IconsFontAwesome5.h"
 #include "imgui/imgui_extension.h"
@@ -312,7 +316,12 @@ void LatteOverlay_RenderNotifications(ImVec2& position, ImVec2& pivot, sint32 di
 	{
 		static int32_t s_shader_count = 0;
 		static int32_t s_shader_count_async = 0;
-		if (s_shader_count > 0 || g_compiled_shaders_total > 0)
+		uint32 pendingShaders = 0;
+#ifdef ENABLE_DEKO3D
+		if (g_renderer->GetType() == RendererAPI::Deko3D)
+			pendingShaders = Deko3D::RendererShaderDK::GetPendingCompilationCount();
+#endif
+		if (s_shader_count > 0 || g_compiled_shaders_total > 0 || pendingShaders > 0)
 		{
 			const int tmp = g_compiled_shaders_total.exchange(0);
 			const int tmpAsync = g_compiled_shaders_async.exchange(0);
@@ -325,13 +334,13 @@ void LatteOverlay_RenderNotifications(ImVec2& position, ImVec2& pivot, sint32 di
 			if (tmp > 0)
 				s_last_tick = now;
 
-			if (std::chrono::duration_cast<std::chrono::milliseconds>(now - s_last_tick).count() >= 2500)
+			if (pendingShaders == 0 && std::chrono::duration_cast<std::chrono::milliseconds>(now - s_last_tick).count() >= 2500)
 			{
 				s_shader_count = 0;
 				s_shader_count_async = 0;
 			}
 
-			if (s_shader_count > 0)
+			if (s_shader_count > 0 || pendingShaders > 0)
 			{
 				ImGui::SetNextWindowPos(position, ImGuiCond_Always, pivot);
 				ImGui::SetNextWindowBgAlpha(kBackgroundAlpha);
@@ -344,7 +353,9 @@ void LatteOverlay_RenderNotifications(ImVec2& position, ImVec2& pivot, sint32 di
 					ImRotateEnd(0.001f * ticks.time_since_epoch().count());
 					ImGui::SameLine();
 
-					if (s_shader_count_async > 0 && GetConfig().async_compile) // the latter condition is to never show async count when async isn't enabled. Since it can be confusing to the user
+					if (pendingShaders > 0)
+						ImGui::Text("Compiling shaders... (%u pending)", pendingShaders);
+					else if (s_shader_count_async > 0 && GetConfig().async_compile)
 					{
 						if(s_shader_count > 1)
 							ImGui::Text("Compiled %d new shaders... (%d async)", s_shader_count, s_shader_count_async);

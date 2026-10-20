@@ -23,6 +23,13 @@ void Deko3D::SetViewport(DkCmdBuf command, const DkViewport& viewport)
 
 namespace
 {
+	bool IsAsyncCompilationAllowed(LatteCachedFBO* framebuffer, u32 indexCount)
+	{
+		if (!framebuffer || (framebuffer->m_size.x == 1600 && framebuffer->m_size.y == 1600))
+			return false;
+		return framebuffer->hasDepthBuffer() || indexCount > 6;
+	}
+
 	DkVtxAttribSize VertexFormat(Latte::E_HWFMT format)
 	{
 		using F = Latte::E_HWFMT;
@@ -140,7 +147,8 @@ void Deko3DRenderer::State::BindShaders(bool bind)
 	u32 count = 0;
 	for (u32 i = 0; i < stages.size(); ++i)
 	{
-		if (shaders[i] && GetConfig().async_compile.GetValue() && !shaders[i]->shader->IsCompiled())
+		if (shaders[i] && GetConfig().async_compile.GetValue() && !shaders[i]->shader->IsCompiled() &&
+			IsAsyncCompilationAllowed(framebuffer, verticesPerInstance))
 		{
 			skipSequence = true;
 			return;
