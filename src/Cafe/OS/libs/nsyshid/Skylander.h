@@ -9,6 +9,8 @@
 
 namespace nsyshid
 {
+	constexpr uint32 SKY_INPUT_REPORT_SIZE = 32;
+
 	class SkylanderPortalDevice final : public Device {
 	  public:
 		SkylanderPortalDevice();
@@ -40,6 +42,7 @@ namespace nsyshid
 
 	  private:
 		bool m_IsOpened;
+		bool m_audioFailed = false;
 	};
 
 	constexpr uint16 SKY_BLOCK_COUNT = 0x40;
@@ -74,7 +77,7 @@ namespace nsyshid
 			uint8 blue = 0;
 		};
 
-		void ControlTransfer(uint8* buf, uint32 length);
+		bool ControlTransfer(const uint8* buf, uint32 length);
 
 		void Activate();
 		void Deactivate();

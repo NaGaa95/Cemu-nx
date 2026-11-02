@@ -526,6 +526,8 @@ namespace nsyshid
 		: Device(0x1430, 0x0150, 1, 2, 0)
 	{
 		m_IsOpened = false;
+		m_maxPacketSizeRX = 64;
+		m_maxPacketSizeTX = 64;
 	}
 
 	bool SkylanderPortalDevice::Open()
@@ -552,36 +554,54 @@ namespace nsyshid
 
 	Device::ReadResult SkylanderPortalDevice::Read(ReadMessage* message)
 	{
-		memcpy(message->data, g_skyportal.GetStatus().data(), message->length);
-		message->bytesRead = message->length;
+		message->bytesRead = 0;
+		if (!message->data || message->length == 0)
+			return ReadResult::Error;
+		const auto response = g_skyportal.GetStatus();
+		message->bytesRead = std::min<uint32>(message->length, SKY_INPUT_REPORT_SIZE);
+		memcpy(message->data, response.data(), message->bytesRead);
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		return Device::ReadResult::Success;
 	}
 
 	Device::WriteResult SkylanderPortalDevice::Write(WriteMessage* message)
 	{
-		if (message->length != 64) {
-			cemu_assert_error();
+		message->bytesWritten = 0;
+		if (!message->data || message->length == 0 || message->length > 64)
+			return WriteResult::Error;
+		if (message->length <= SKY_INPUT_REPORT_SIZE)
+		{
+			if (!g_skyportal.ControlTransfer(message->data, message->length))
+				return WriteResult::Error;
 		}
+		else
+		{
+			if (message->length % sizeof(sint16) != 0)
+				return WriteResult::Error;
+			std::array<sint16, 32> samples{};
+			for (size_t i = 0; i < message->length / sizeof(sint16); ++i)
+				samples[i] = static_cast<uint16>(message->data[i * 2 + 1]) << 8 | message->data[i * 2];
 
-		if (!g_portalAudio)
-		{
-			// Portal audio is mono channel, 16 bit audio.
-			// Audio is unsigned 16 bit, supplied as 64 bytes which is 32 samples per block
-			g_portalAudio = IAudioAPI::CreateDeviceFromConfig(IAudioAPI::AudioType::Portal, 8000, 32, 16);
-		}
-		std::array<sint16, 32> mono_samples;
-		for (unsigned int i = 0; i < mono_samples.size(); ++i)
-		{
-			sint16 sample = static_cast<uint16>(message->data[i * 2 + 1]) << 8 | static_cast<uint16>(message->data[i * 2]);
-			mono_samples[i] = sample;
-		}
-		if (g_portalAudio)
-		{
-			g_portalAudio->FeedBlock(mono_samples.data());
+			std::unique_lock lock(g_audioMutex);
+			try
+			{
+				if (!g_portalAudio && !m_audioFailed)
+				{
+					g_portalAudio = IAudioAPI::CreateDeviceFromConfig(IAudioAPI::AudioType::Portal, 8000, 32, 16);
+					if (g_portalAudio)
+						g_portalAudio->Play();
+				}
+				if (g_portalAudio)
+					g_portalAudio->FeedBlock(samples.data());
+			} catch (const std::exception& error)
+			{
+				m_audioFailed = true;
+				g_portalAudio.reset();
+				cemuLog_log(LogType::Force, "Skylanders portal audio unavailable: {}", error.what());
+			}
 		}
 		message->bytesWritten = message->length;
-		return Device::WriteResult::Success;
+		return WriteResult::Success;
 	}
 
 	bool SkylanderPortalDevice::GetDescriptor(uint8 descType,
@@ -663,20 +683,56 @@ namespace nsyshid
 
 	bool SkylanderPortalDevice::SetReport(ReportMessage* message)
 	{
-		g_skyportal.ControlTransfer(message->data, message->length);
+		if (!g_skyportal.ControlTransfer(message->data, message->length))
+			return false;
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		return true;
 	}
 
-	void SkylanderUSB::ControlTransfer(uint8* buf, uint32 length)
+	bool SkylanderUSB::ControlTransfer(const uint8* buf, uint32 length)
 	{
+		if (!buf || length == 0 || length > 64)
+			return false;
+		uint32 required;
+		switch (buf[0])
+		{
+		case 'A':
+		case 'M':
+			required = 2;
+			break;
+		case 'C':
+			required = 4;
+			break;
+		case 'J':
+		case 'L':
+			required = 5;
+			break;
+		case 'Q':
+			required = 3;
+			break;
+		case 'W':
+			required = 3 + SKY_BLOCK_SIZE;
+			break;
+		case 'R':
+		case 'S':
+		case 'V':
+			required = 1;
+			break;
+		default:
+			return false;
+		}
+		if (length < required)
+			return false;
 		std::array<uint8, 64> interruptResponse = {};
 		switch (buf[0])
 		{
 		case 'A':
 		{
 			interruptResponse = {buf[0], buf[1], 0xFF, 0x77};
-			g_skyportal.Activate();
+			if (buf[1])
+				Activate();
+			else
+				Deactivate();
 			break;
 		}
 		case 'C':
@@ -731,14 +787,14 @@ namespace nsyshid
 			break;
 		}
 		default:
-			cemu_assert_error();
-			break;
+			return false;
 		}
 		if (interruptResponse[0] != 0)
 		{
 			std::lock_guard lock(m_queryMutex);
 			m_queries.push(interruptResponse);
 		}
+		return true;
 	}
 
 	void SkylanderUSB::Activate()
@@ -861,6 +917,8 @@ namespace nsyshid
 	bool SkylanderUSB::RemoveSkylander(uint8 skyNum)
 	{
 		std::lock_guard lock(m_skyMutex);
+		if (skyNum >= m_skylanders.size())
+			return false;
 		auto& thesky = m_skylanders[skyNum];
 
 		if (thesky.status & 1)
@@ -923,11 +981,12 @@ namespace nsyshid
 	{
 		std::lock_guard lock(m_skyMutex);
 
-		const auto& skylander = m_skylanders[skyNum];
-
 		replyBuf[0] = 'Q';
+		replyBuf[1] = skyNum;
 		replyBuf[2] = block;
-		cemu_assert(block < (SKY_FIGURE_SIZE/16));
+		if (skyNum >= m_skylanders.size() || block >= SKY_BLOCK_COUNT)
+			return;
+		const auto& skylander = m_skylanders[skyNum];
 		if (skylander.status & 1)
 		{
 			replyBuf[1] = (0x10 | skyNum);
@@ -943,11 +1002,12 @@ namespace nsyshid
 	{
 		std::lock_guard lock(m_skyMutex);
 
-		auto& skylander = m_skylanders[skyNum];
-
 		replyBuf[0] = 'W';
+		replyBuf[1] = skyNum;
 		replyBuf[2] = block;
-		cemu_assert(block < (SKY_FIGURE_SIZE/16));
+		if (skyNum >= m_skylanders.size() || block >= SKY_BLOCK_COUNT)
+			return;
+		auto& skylander = m_skylanders[skyNum];
 		if (skylander.status & 1)
 		{
 			replyBuf[1] = (0x10 | skyNum);
@@ -962,7 +1022,7 @@ namespace nsyshid
 
 	std::array<uint8, 64> SkylanderUSB::GetStatus()
 	{
-		std::lock_guard lock(m_queryMutex);
+		std::scoped_lock lock(m_queryMutex, m_skyMutex);
 		std::array<uint8, 64> interruptResponse = {};
 
 		if (!m_queries.empty())
