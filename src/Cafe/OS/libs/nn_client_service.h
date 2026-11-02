@@ -194,33 +194,36 @@ public:
 
     ~IPCServiceClient()
     {
-    	Shutdown();
+        Shutdown();
     }
 
 	void Initialize(std::string_view devicePath, uint8_t* buffer, uint32_t bufferSize)
     {
-    	m_devicePath = devicePath;
-    	m_buffer = buffer;
-    	m_bufferSize = bufferSize;
+        cemu_assert_debug(m_clientHandle == 0);
+        m_devicePath = devicePath;
+        m_buffer = buffer;
+        m_bufferSize = bufferSize;
 
-    	static_assert(sizeof(IPCBuffer) == 256);
-    	size_t numCommandBuffers = m_bufferSize / sizeof(IPCBuffer);
+        static_assert(sizeof(IPCBuffer) == 256);
+        size_t numCommandBuffers = m_bufferSize / sizeof(IPCBuffer);
 
-    	m_commandBuffersFree.resize(numCommandBuffers);
-    	for (size_t i = 0; i < numCommandBuffers; ++i)
-    	{
-    		m_commandBuffersFree[i] = reinterpret_cast<IPCBuffer*>(m_buffer + i * sizeof(IPCBuffer));
-    	}
-    	m_clientHandle = coreinit::IOS_Open(m_devicePath.c_str(), 0);
+        m_commandBuffersFree.resize(numCommandBuffers);
+        for (size_t i = 0; i < numCommandBuffers; ++i)
+        {
+            m_commandBuffersFree[i] = reinterpret_cast<IPCBuffer*>(m_buffer + i * sizeof(IPCBuffer));
+        }
+        m_clientHandle = coreinit::IOS_Open(m_devicePath.c_str(), 0);
     }
 
     void Shutdown()
     {
-        if (m_clientHandle != 0)
-        {
-	        coreinit::IOS_Close(m_clientHandle);
-            m_clientHandle = 0;
-        }
+        if (m_clientHandle != 0 && coreinit::OSIsSchedulerActive())
+            coreinit::IOS_Close(m_clientHandle);
+        m_clientHandle = 0;
+        m_devicePath.clear();
+        m_buffer = nullptr;
+        m_bufferSize = 0;
+        m_commandBuffersFree.clear();
     }
 
     IPCServiceCall Begin(uint32_t serviceId, uint32_t commandId)
@@ -230,7 +233,7 @@ public:
 
 	IOSDevHandle GetDevHandle() const
 	{
-    	cemu_assert(m_clientHandle != 0);
+        cemu_assert(m_clientHandle != 0);
 		return m_clientHandle;
 	}
 private:
@@ -242,14 +245,14 @@ private:
     IPCBuffer* AllocateCommandBuffer()
     {
         cemu_assert(m_commandBuffersFree.size() > 0);
-    	IPCBuffer* buf = m_commandBuffersFree.back();
-    	m_commandBuffersFree.pop_back();
+        IPCBuffer* buf = m_commandBuffersFree.back();
+        m_commandBuffersFree.pop_back();
         return buf;
     }
 
     void ReleaseCommandBuffer(IPCBuffer* buffer)
     {
-    	m_commandBuffersFree.emplace_back(buffer);
+        m_commandBuffersFree.emplace_back(buffer);
     }
 
 private:

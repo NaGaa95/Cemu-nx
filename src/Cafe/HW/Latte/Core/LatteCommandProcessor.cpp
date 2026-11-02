@@ -787,20 +787,21 @@ MPTR _tempIndexArrayMPTR = MPTR_NULL;
 
 LatteCMDPtr LatteCP_itDrawImmediate(LatteCMDPtr cmd, uint32 nWords, DrawPassContext& drawPassCtx)
 {
+	cemu_assert(nWords >= 2);
 	uint32 count = LatteReadCMD();
 	uint32 ukn1 = LatteReadCMD();
 	// reserve array for index data	
 	if (_tempIndexArrayMPTR == MPTR_NULL)
 		_tempIndexArrayMPTR = coreinit_allocFromSysArea(0x4000 * sizeof(uint32), 0x4);
-
 	LatteGPUState.currentDrawCallTick = GetTickCount();
 	// calculate size of index data in packet and read indices
 	uint32 numIndexU32s;
 	auto indexType = LatteGPUState.contextNew.VGT_DMA_INDEX_TYPE.get_INDEX_TYPE();
-	if (indexType == Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE::U16_BE)
+	if (indexType == Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE::U16_BE || indexType == Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE::U16_LE)
 	{
 		// 16bit indices
 		numIndexU32s = (count + 1) / 2;
+		cemu_assert(count < 0x4000*2-1 && numIndexU32s <= nWords-2);
 		memcpy(memory_getPointerFromVirtualOffset(_tempIndexArrayMPTR), cmd, numIndexU32s * sizeof(uint32));
 		LatteSkipCMD(numIndexU32s);
 		// swap pairs
@@ -811,11 +812,11 @@ LatteCMDPtr LatteCP_itDrawImmediate(LatteCMDPtr cmd, uint32 nWords, DrawPassCont
 		}
 		LatteIndices_invalidate(memory_getPointerFromVirtualOffset(_tempIndexArrayMPTR), numIndexU32s * sizeof(uint32));
 	}
-	else if (indexType == Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE::U32_BE)
+	else if (indexType == Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE::U32_BE || indexType == Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE::U32_LE)
 	{
 		// 32bit indices
-		cemu_assert_debug(false); // testing needed
 		numIndexU32s = count;
+		cemu_assert(numIndexU32s < 0x4000 && numIndexU32s <= nWords-2);
 		memcpy(memory_getPointerFromVirtualOffset(_tempIndexArrayMPTR), cmd, numIndexU32s * sizeof(uint32));
 		LatteSkipCMD(numIndexU32s);
 		LatteIndices_invalidate(memory_getPointerFromVirtualOffset(_tempIndexArrayMPTR), numIndexU32s * sizeof(uint32));
@@ -825,8 +826,6 @@ LatteCMDPtr LatteCP_itDrawImmediate(LatteCMDPtr cmd, uint32 nWords, DrawPassCont
 		cemuLog_log(LogType::Force, "itDrawImmediate - Unsupported index type");
 		return cmd;
 	}
-	cemu_assert_debug(nWords == (2 + numIndexU32s)); // verify packet size
-
 	drawPassCtx.executeDraw(count, false, _tempIndexArrayMPTR);
 	return cmd;
 }

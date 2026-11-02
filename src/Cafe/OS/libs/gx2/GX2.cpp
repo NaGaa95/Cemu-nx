@@ -311,8 +311,12 @@ void gx2Export_GX2SetSemaphore(PPCInterpreter_t* hCPU)
 	osLib_returnFromFunction(hCPU, 0);
 }
 
+extern MPTR gx2CurrentContextStateMPTR;
+
 namespace GX2
 {
+	constinit COSStaticData s_gx2StaticData;
+
 	class : public COSModule
 	{
 		public:
@@ -326,8 +330,17 @@ namespace GX2
 			return "gx2";
 		}
 
+		void RPLUnmapped() override
+		{
+			s_gx2StaticData.Deallocate();
+		}
+
 		void RPLMapped() override
 		{
+			gx2CurrentContextStateMPTR = MPTR_NULL;
+			lastSwapTime = 0;
+			GX2ResetTilingAperture();
+			s_gx2StaticData.Allocate();
 			osLib_addFunction("gx2", "GX2GetContextStateDisplayList", gx2Export_GX2GetContextStateDisplayList);
 
 			// swap, vsync & timing
@@ -342,10 +355,11 @@ namespace GX2
 			osLib_addFunction("gx2", "GX2SetGeometryShader", gx2Export_GX2SetGeometryShader);
 			osLib_addFunction("gx2", "GX2SetComputeShader", gx2Export_GX2SetComputeShader);
 			osLib_addFunction("gx2", "GX2SetVertexUniformBlock", gx2Export_GX2SetVertexUniformBlock);
-			osLib_addFunction("gx2", "GX2RSetVertexUniformBlock", gx2Export_GX2RSetVertexUniformBlock);
-
 			osLib_addFunction("gx2", "GX2SetPixelUniformBlock", gx2Export_GX2SetPixelUniformBlock);
 			osLib_addFunction("gx2", "GX2SetGeometryUniformBlock", gx2Export_GX2SetGeometryUniformBlock);
+
+			osLib_addFunction("gx2", "GX2RSetVertexUniformBlock", gx2Export_GX2RSetVertexUniformBlock);
+			osLib_addFunction("gx2", "GX2RSetPixelUniformBlock", gx2Export_GX2RSetPixelUniformBlock);
 
 			osLib_addFunction("gx2", "GX2CalcGeometryShaderInputRingBufferSize", gx2Export_GX2CalcGeometryShaderInputRingBufferSize);
 			osLib_addFunction("gx2", "GX2CalcGeometryShaderOutputRingBufferSize", gx2Export_GX2CalcGeometryShaderOutputRingBufferSize);

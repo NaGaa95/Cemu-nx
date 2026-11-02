@@ -315,13 +315,22 @@ void gx2Export_GX2SetGeometryUniformBlock(PPCInterpreter_t* hCPU)
 
 void gx2Export_GX2RSetVertexUniformBlock(PPCInterpreter_t* hCPU)
 {
-	GX2::GX2ReserveCmdSpace(9);
-
 	GX2RBuffer* bufferPtr = (GX2RBuffer*)memory_getPointerFromVirtualOffset(hCPU->gpr[3]);
 	uint32 index = hCPU->gpr[4];
 	uint32 offset = hCPU->gpr[5];
 
 	_GX2SubmitUniformBlock(mmSQ_VTX_UNIFORM_BLOCK_START - mmSQ_TEX_RESOURCE_WORD0, index, bufferPtr->GetVirtualAddr() + offset, bufferPtr->GetSize() - offset);
+
+	osLib_returnFromFunction(hCPU, 0);
+}
+
+void gx2Export_GX2RSetPixelUniformBlock(PPCInterpreter_t* hCPU)
+{
+	GX2RBuffer* bufferPtr = (GX2RBuffer*)memory_getPointerFromVirtualOffset(hCPU->gpr[3]);
+	uint32 index = hCPU->gpr[4];
+	uint32 offset = hCPU->gpr[5];
+
+	_GX2SubmitUniformBlock(mmSQ_PS_UNIFORM_BLOCK_START - mmSQ_TEX_RESOURCE_WORD0, index, bufferPtr->GetVirtualAddr() + offset, bufferPtr->GetSize() - offset);
 
 	osLib_returnFromFunction(hCPU, 0);
 }

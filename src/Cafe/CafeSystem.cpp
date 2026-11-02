@@ -21,6 +21,7 @@
 #include "Cafe/TitleList/TitleList.h"
 #include "Cafe/TitleList/GameInfo.h"
 #include "Cafe/OS/libs/coreinit/coreinit_Alarm.h"
+#include "Cafe/OS/libs/coreinit/coreinit_IPC.h"
 #include "Cafe/OS/libs/snd_core/ax.h"
 #include "Cafe/OS/RPL/rpl.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
@@ -28,6 +29,8 @@
 #include "Common/FileStream.h"
 #include "GamePatch.h"
 #include "HW/Espresso/Debugger/GDBStub.h"
+
+#include "Common/CafeStaticVar.h"
 #include "Cafe/IOSU/legacy/iosu_ioctl.h"
 #include "Cafe/IOSU/legacy/iosu_act.h"
 #include "Cafe/IOSU/legacy/iosu_fpd.h"
@@ -555,8 +558,9 @@ namespace CafeSystem
 			platform = "Linux (AppImage)";
 		else if (getenv ("SNAP"))
 			platform = "Linux (Snap)";
-		else if (platform = getenv ("container"))
+		else if (getenv ("container"))
 		{
+			platform = getenv ("container");
 			if (strcmp (platform, "flatpak") == 0)
 				platform = "Linux (Flatpak)";
 		}
@@ -628,9 +632,6 @@ namespace CafeSystem
 		cemuLog_log(LogType::Force, "Used CPU extensions: {}", g_CPUFeatures.GetCommaSeparatedExtensionList());
 		// misc systems
 		rplSymbolStorage_init();
-		// allocate memory for all SysAllocators
-		// must happen before COS module init, but also before iosu::kernel::Initialize()
-		SysAllocatorContainer::GetInstance().Initialize();
 		// init IOSU modules
 		for(auto& module : s_iosuModules)
 			module->SystemLaunch();
@@ -673,6 +674,7 @@ namespace CafeSystem
 		// shutdown IOSU modules
 		for(auto it = s_iosuModules.rbegin(); it != s_iosuModules.rend(); ++it)
 			(*it)->SystemExit();
+		cemu_assert_debug(!IOSUStaticData::HasAnyAllocations()); // check for leak
         s_initialized = false;
     }
 
@@ -1082,6 +1084,7 @@ namespace CafeSystem
 			return;
 		coreinit::OSSchedulerEnd();
 		Latte_Stop();
+		coreinit::IPCCloseAllHandles();
 		// reset Cafe OS userspace modules
 		snd_core::reset();
 		coreinit::OSAlarm_Shutdown();

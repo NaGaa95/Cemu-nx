@@ -285,7 +285,7 @@ bool RPLLoader_ProcessHeaders(std::string_view moduleName, uint8* rplData, uint3
 	std::string fileName{moduleName};
 	fileName.append(rplLoaderContext->IsRPX() ? ".rpx" : ".rpl");
 	// allocate modulename in PPC memory
-	rplLoaderContext->ppcName = coreinit_allocFromSysArea(fileName.size() + 1, 4);
+	rplLoaderContext->ppcName = OSAllocFromSystem(fileName.size() + 1, 4);
 	memcpy(rplLoaderContext->ppcName.GetPtr(), fileName.data(), fileName.size() + 1);
 
 	// load CRC section
@@ -1755,6 +1755,8 @@ void RPLLoader_LoadSectionDebugSymbols(RPLModule* rplLoaderContext, RPLFileSecti
 		RPLFileSectionEntry& symbolSection = rplLoaderContext->sectionTable[symSectionIndex];
 		if(symbolSection.type == SHT_RPL_EXPORTS || symbolSection.type == SHT_RPL_IMPORTS)
 			continue; // exports and imports are handled separately
+		if ((symbolSection.flags & SHF_EXECUTE) == 0)
+			continue;
 
 		uint32 symbolOffset = sym->symbolAddress - symbolSection.virtualAddress;
 
@@ -1762,7 +1764,9 @@ void RPLLoader_LoadSectionDebugSymbols(RPLModule* rplLoaderContext, RPLFileSecti
 		if (nameOffset > 0)
 		{
 			char* symbolName = (char*)strtabData + nameOffset;
-			if (sym->info == 0x12)
+			uint8 symbolType = sym->info & 0xF;
+			uint8 symbolBinding = sym->info >> 4;
+			if (symbolType == 2 && symbolBinding <= 2)
 			{
 				rplSymbolStorage_store(rplLoaderContext->moduleName.c_str(), symbolName, sym->symbolAddress);
 			}
@@ -2175,6 +2179,7 @@ void RPLLoader_UpdateDependencies()
 				}
 				// remove from dependency list
 				s_rplDependencyList.erase(s_rplDependencyList.begin()+idx);
+				delete dependency;
 				idx--;
 				repeat = true; // unload can effect reference count of other dependencies
 				break;
@@ -2479,6 +2484,8 @@ void RPLLoader_UnloadAll()
 			dependency->rplHLEModule->rpl_entry(dependency->coreinitHandle, coreinit::RplEntryReason::Unloaded);
 		dependency->rplHLEModule->RPLUnmapped();
 	}
+	for (auto* dependency : s_rplDependencyList)
+		delete dependency;
 	s_rplDependencyList.clear();
 	// unload all remaining symbols
 	rplSymbolStorage_unloadAll();

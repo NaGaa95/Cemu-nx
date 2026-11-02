@@ -277,6 +277,8 @@ namespace coreinit
 
 	void InitializeDynLoad()
 	{
+		notifyCallbacks.clear();
+
 		cafeExportRegister("coreinit", OSDynLoad_SetAllocator, LogType::Placeholder);
 		cafeExportRegister("coreinit", OSDynLoad_SetTLSAllocator, LogType::Placeholder);
 		cafeExportRegister("coreinit", OSDynLoad_GetAllocator, LogType::Placeholder);

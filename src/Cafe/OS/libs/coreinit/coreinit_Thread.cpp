@@ -4,6 +4,7 @@
 #include "Cafe/OS/libs/coreinit/coreinit_Thread.h"
 #include "Cafe/OS/libs/coreinit/coreinit_Time.h"
 #include "Cafe/OS/libs/coreinit/coreinit_Alarm.h"
+#include "Cafe/OS/libs/coreinit/coreinit_GHS.h"
 #include "Cafe/OS/libs/snd_core/ax.h"
 #include "Cafe/HW/Espresso/Debugger/GDBStub.h"
 #include "Cafe/HW/Espresso/Interpreter/PPCInterpreterInternal.h"
@@ -74,9 +75,9 @@ namespace coreinit
 	std::vector<std::thread> sSchedulerThreads;
 	std::mutex sSchedulerStateMtx;
 
-	SysAllocator<OSThreadQueue> g_activeThreadQueue; // list of all threads (can include non-detached inactive threads)
+	CafeStaticVar<OSThreadQueue> g_activeThreadQueue{coreinit::g_coreinitStaticData}; // list of all threads (can include non-detached inactive threads)
 
-	SysAllocator<OSThreadQueue, 3> g_coreRunQueue;
+	CafeStaticVar<OSThreadQueue, 3> g_coreRunQueue{coreinit::g_coreinitStaticData};
 #if defined(__SWITCH__)
 	class alignas(64) RunQueueCount
 	{
@@ -269,6 +270,7 @@ namespace coreinit
 		cemu_assert_debug(thread->state == OSThread_t::THREAD_STATE::STATE_NONE);
 		thread->id = 0x8000;
 
+		__OSTLSFreeForThread(thread);
 		__OSDeleteHostThread(thread);
 	}
 
@@ -402,7 +404,7 @@ namespace coreinit
 		thread->waitingForMutex = nullptr;
 		memset(&thread->crt, 0, sizeof(thread->crt));
 		static_assert(sizeof(thread->crt) == 0x1D8);
-		thread->tlsBlocksMPTR = 0;
+		thread->tlsBlocks = nullptr;
 		thread->numAllocatedTLSBlocks = 0;
 		thread->tlsStatus = 0;
 		OSInitThreadQueueEx(&thread->joinQueue, thread);
@@ -1051,7 +1053,7 @@ namespace coreinit
 	{
 		if (newPriority < 0 || newPriority >= 0x20)
 		{
-			cemu_assert_debug(false);
+			cemuLog_log(LogType::APIErrors, "OSSetThreadPriority: Thread priority must be in range 0-31");
 			return false; // invalid priority value
 		}
 		__OSLockScheduler();
@@ -1586,8 +1588,8 @@ namespace coreinit
 		return sSchedulerActive;
 	}
 
-	SysAllocator<OSThread_t, PPC_CORE_COUNT> s_defaultThreads;
-	SysAllocator<uint8, PPC_CORE_COUNT * 1024 * 1024> s_stack;
+	CafeStaticVar<OSThread_t, PPC_CORE_COUNT> s_defaultThreads{coreinit::g_coreinitStaticData};
+	CafeStaticVar<uint8, PPC_CORE_COUNT * 1024 * 1024> s_stack{coreinit::g_coreinitStaticData};
 
 	OSThread_t* OSGetDefaultThread(sint32 coreIndex)
 	{
@@ -1633,10 +1635,10 @@ namespace coreinit
 			MEMPTR<void> deallocatorFunc;
 		};
 
-		SysAllocator<OSThread_t> terminatorThread;
-		SysAllocator<uint8, 16 * 1024> threadStack;
-		SysAllocator<char, 64> threadName;
-		SysAllocator<OSSemaphore> semaphoreQueuedDeallocators;
+		CafeStaticVar<OSThread_t> terminatorThread{coreinit::g_coreinitStaticData};
+		CafeStaticVar<uint8, 16 * 1024> threadStack{coreinit::g_coreinitStaticData};
+		CafeStaticVar<char, 64> threadName{coreinit::g_coreinitStaticData};
+		CafeStaticVar<OSSemaphore> semaphoreQueuedDeallocators{coreinit::g_coreinitStaticData};
 		ConcurrentQueue<DeallocatorQueueEntry> queueDeallocators;
 	};
 
@@ -1668,6 +1670,7 @@ namespace coreinit
 	{
 		for (sint32 i = 0; i < PPC_CORE_COUNT; i++)
 		{
+			s_terminatorThreads[i].queueDeallocators.clear();
 			OSInitSemaphore(s_terminatorThreads[i].semaphoreQueuedDeallocators.GetPtr(), 0);
 			sprintf(s_terminatorThreads[i].threadName.GetPtr(), "{SYS Thread Terminator Core %d}", i);
 			OSCreateThreadType(s_terminatorThreads[i].terminatorThread.GetPtr(), PPCInterpreter_makeCallableExportDepr(__OSTerminatorThreadFunc), 0, nullptr, (uint8*)s_terminatorThreads[i].threadStack.GetPtr() + s_terminatorThreads[i].threadStack.GetByteSize(), (sint32)s_terminatorThreads[i].threadStack.GetByteSize(), 0, 1 << i, OSThread_t::THREAD_TYPE::TYPE_IO);
@@ -1676,18 +1679,18 @@ namespace coreinit
 		}
 	}
 
-	SysAllocator<char, 64> _defaultThreadName[PPC_CORE_COUNT];
+	CafeStaticVar<std::array<char, 64>, PPC_CORE_COUNT> _defaultThreadName{coreinit::g_coreinitStaticData};
 
 	void __OSInitDefaultThreads()
 	{
 		for (sint32 i = 0; i < PPC_CORE_COUNT; i++)
 		{
-			sprintf(_defaultThreadName[i].GetPtr(), "Default Core %d", i);
+			sprintf(_defaultThreadName[i].data(), "Default Core %d", i);
 			OSThread_t* coreDefaultThread = coreinit::OSGetDefaultThread(i);
 			uint32 stackSize;
 			void* stackBase = coreinit::OSGetDefaultThreadStack(i, stackSize);
 			coreinit::OSCreateThreadType(coreDefaultThread, MPTR_NULL, 0, nullptr, (uint8*)stackBase + stackSize, stackSize, 16, 1 << i, OSThread_t::THREAD_TYPE::TYPE_APP);
-			coreinit::OSSetThreadName(coreDefaultThread, _defaultThreadName[i].GetPtr());
+			coreinit::OSSetThreadName(coreDefaultThread, _defaultThreadName[i].data());
 		}
 	}
 
@@ -1742,10 +1745,8 @@ namespace coreinit
 		OSInitThreadQueue(g_activeThreadQueue.GetPtr());
 		for (sint32 i = 0; i < Espresso::CORE_COUNT; i++)
 		{
-			OSInitThreadQueue(g_coreRunQueue.GetPtr() + i);
-#if defined(__SWITCH__)
 			g_coreRunQueueThreadCount[i].reset();
-#endif
+			OSInitThreadQueue(g_coreRunQueue.GetPtr() + i);
 		}
 		for (sint32 i = 0; i < Espresso::CORE_COUNT; i++)
 			__currentCoreThread[i] = nullptr;

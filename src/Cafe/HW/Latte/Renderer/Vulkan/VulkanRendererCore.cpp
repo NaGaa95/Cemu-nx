@@ -126,6 +126,14 @@ uint64 VulkanRenderer::draw_calculateGraphicsPipelineHash(const LatteFetchShader
 	stateHash = std::rotl<uint64>(stateHash, 17);
 	stateHash += depthControl;
 
+	// step rate divisor is part of the pipeline
+	uint32 stepRate0 = lcr.GetRawView()[Latte::REGADDR::VGT_INSTANCE_STEP_RATE_0];
+	uint32 stepRate1 = lcr.GetRawView()[Latte::REGADDR::VGT_INSTANCE_STEP_RATE_1];
+	if ( (fetchShader->stepRateRegMask&1) && stepRate0 != 1)
+		stateHash += (0xcac61ffb * stepRate0);
+	if ( (fetchShader->stepRateRegMask&2) && stepRate1 != 1)
+		stateHash += (0x9c181711 * stepRate1);
+
 	// polygon offset
 	if (polygonCtrl & (1 << 11))
 	{
@@ -1459,6 +1467,7 @@ void VulkanRenderer::draw_execute_first(uint32 baseVertex, uint32 baseInstance, 
 	{
 		// invalid/uninitialized pipeline
 		m_state.activeVertexDS = nullptr;
+		m_state.drawSequenceSkip = true;
 		return;
 	}
 
@@ -1655,7 +1664,7 @@ void VulkanRenderer::draw_execute_continued(uint32 baseVertex, uint32 baseInstan
 	if (vkObjPipeline->GetPipeline() == VK_NULL_HANDLE)
 	{
 		// invalid/uninitialized pipeline
-		//m_state.activeVertexDS = nullptr;
+		m_state.drawSequenceSkip = true;
 		return;
 	}
 

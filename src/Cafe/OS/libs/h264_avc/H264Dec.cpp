@@ -416,7 +416,6 @@ namespace H264
 		auto it = sDecoderSessions.find(handle);
 		if (it == sDecoderSessions.end())
 			return nullptr;
-		it->second->Destroy();
 		delete it->second;
 		it->second = CreateAVCDecoder();
 		return it->second;
@@ -429,7 +428,6 @@ namespace H264
 		if (it == sDecoderSessions.end())
 			return;
 		H264DecoderBackend* session = it->second;
-		session->Destroy();
 		delete session;
 		sDecoderSessions.erase(it);
 	}
@@ -835,6 +833,7 @@ namespace H264
 
 		void RPLMapped() override
 		{
+			sCurrentSessionHandle = 1;
 			cafeExportRegister("h264", H264DECCheckMemSegmentation, LogType::H264);
 			cafeExportRegister("h264", H264DECMemoryRequirement, LogType::H264);
 			cafeExportRegister("h264", H264DECFindDecstartpoint, LogType::H264);
@@ -857,6 +856,13 @@ namespace H264
 
 			cafeExportRegister("h264", H264DECCheckDecunitLength, LogType::H264);
 		};
+
+		void RPLUnmapped() override
+		{
+			for (auto& session : sDecoderSessions)
+				delete session.second;
+			sDecoderSessions.clear();
+		}
 	}s_COSh264Module;
 
 	COSModule* GetModule()

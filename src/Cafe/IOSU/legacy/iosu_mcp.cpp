@@ -1,7 +1,6 @@
 #include "iosu_ioctl.h"
 #include "iosu_mcp.h"
 #include "Cafe/OS/libs/nn_common.h"
-#include "util/tinyxml2/tinyxml2.h"
 
 #include "config/CemuConfig.h"
 #include "Cafe/TitleList/GameInfo.h"
@@ -11,6 +10,7 @@
 #include "Cafe/CafeSystem.h"
 #include "Cafe/IOSU/iosu_ipc_common.h"
 #include "Cafe/IOSU/kernel/iosu_kernel.h"
+#include "Common/CafeStaticVar.h"
 
 using namespace iosu::kernel;
 
@@ -24,6 +24,7 @@ namespace iosu
 	std::thread s_iosuMcpThread;
 
 	std::recursive_mutex sTitleInfoMutex;
+	constinit IOSUStaticData s_mcpStaticData;
 
 	bool sHasAllTitlesMounted = false;
 
@@ -172,7 +173,7 @@ namespace iosu
 	namespace mcp
 	{
 		IOSMsgQueueId sMCPIoMsgQueue;
-		SysAllocator<iosu::kernel::IOSMessage, 352> _m_sMCPIoMsgQueueMsgBuffer;
+		CafeStaticVar<iosu::kernel::IOSMessage, 352> _m_sMCPIoMsgQueueMsgBuffer{s_mcpStaticData};
 		std::thread sMCPIoThread;
 
 		struct MCPClient
@@ -266,6 +267,7 @@ namespace iosu
 
 		void Init()
 		{
+			s_mcpStaticData.Allocate();
 			for (auto& it : sMCPClientArray)
 				it.ReleaseAndCleanup();
 			sMCPIoMsgQueue = (IOSMsgQueueId)IOS_CreateMessageQueue(_m_sMCPIoMsgQueueMsgBuffer.GetPtr(), _m_sMCPIoMsgQueueMsgBuffer.GetCount());
@@ -279,6 +281,8 @@ namespace iosu
 		{
 			IOS_SendMessage(sMCPIoMsgQueue, 0, 0);
 			sMCPIoThread.join();
+			IOS_DestroyMessageQueue(sMCPIoMsgQueue);
+			s_mcpStaticData.Deallocate();
 		}
 	};
 }

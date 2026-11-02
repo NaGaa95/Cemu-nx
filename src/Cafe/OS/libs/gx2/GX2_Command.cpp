@@ -60,7 +60,7 @@ namespace GX2
 		uint64be lastSubmissionTime;
     };
 
-	SysAllocator<GX2CommandState> s_commandState;
+	CafeStaticVar<GX2CommandState> s_commandState{s_gx2StaticData};
 	GX2PerCoreCBState s_mainCoreLastCommandState;
 	bool s_cbBufferIsInternallyAllocated;
 
@@ -291,7 +291,7 @@ namespace GX2
 			else
 			{
 				// current buffer is empty so we dont need to queue it
-				if (numU32sForNextBuffer > s_commandState->commandPoolSizeInU32s)
+				if (numU32sForNextBuffer > coreCBState.bufferSizeInU32s)
 					GX2Command_StartNewCommandBuffer(numU32sForNextBuffer);
 			}
 		}
@@ -507,6 +507,9 @@ namespace GX2
 
 	void GX2CommandInit()
 	{
+		for (auto& state : s_perCoreCBState)
+			state = {};
+		s_mainCoreLastCommandState = {};
 		cafeExportRegister("gx2", GX2Flush, LogType::GX2);
 
 		cafeExportRegister("gx2", GX2GetLastSubmittedTimeStamp, LogType::GX2);
@@ -529,6 +532,8 @@ namespace GX2
 
     void GX2CommandResetToDefaultState()
     {
+		if (!s_commandState.IsAllocated())
+			return;
 		s_commandState->commandPoolBase = nullptr;
 		s_commandState->commandPoolSizeInU32s = 0;
 		s_commandState->gpuCommandReadPtr = nullptr;

@@ -54,7 +54,7 @@ namespace H264
 			ResetOutputState();
 		}
 
-		void Destroy() override
+		void Destroy()
 		{
 			if (!m_threadShouldExit.exchange(true, std::memory_order_acq_rel))
 				m_decodeSem.increment();

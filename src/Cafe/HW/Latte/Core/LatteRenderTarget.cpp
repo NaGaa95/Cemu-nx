@@ -48,8 +48,6 @@ struct
 	// tracking
 	sint32 rtUpdateListCount;
 	LatteTextureView* rtUpdateList[64];
-	sint32 rtUpdateListSlice[64];
-	sint32 rtUpdateListMip[64];
 }sLatteRenderTargetState;
 
 struct
@@ -348,19 +346,63 @@ uint8 LatteMRT::GetActiveColorBufferMask(const LatteDecompilerShader* pixelShade
 		if (((channelTargetMask >> (i * 4)) & 0xF) == 0)
 			colorBufferMask &= ~(1 << i);
 	}
-	// skip color buffers without a valid pointer
-	// (a scissor rectangle extending beyond a render target does not disable the color target —
-	// the part outside the render-target bounds is clipped, matching original Wii U hardware behavior.
-	// This is required for games like TANK! TANK! TANK! which keep a 1280x720 scissor active while
-	// rendering to an 854x480 GamePad intermediate color buffer.)
-	cemu_assert_debug(lcr.PA_SC_GENERIC_SCISSOR_TL.get_WINDOW_OFFSET_DISABLE() == true); // todo (not exposed by GX2 API)
+
+	// on hardware pixels writes are not bounded by the color/depth buffer dimensions. Instead they are bounded by only the scissor box
+	// thus unlike on host APIs, you can have a smaller buffer bound (by accident) and still write to a larger render rectangle
+	// on host APIs generally the smallest shared rectangle is used, reduced further by scissor box
+	// For now we don't emulate this accurately, but we will try to filter out smaller-than-vp/scissor attachments which are set by accident as to not affect the render rectangle for the intentional targets (but only if its not the only attachment)
+	uint32 blockMask = 0;
+	struct
+	{
+		uint32 width;
+		uint32 height;
+	} minAssumedArea;
+	{
+		float vpWidth = lcr.PA_CL_VPORT_XSCALE.get_SCALE() / 0.5f;
+		float vpX = lcr.PA_CL_VPORT_XOFFSET.get_OFFSET() - lcr.PA_CL_VPORT_XSCALE.get_SCALE();
+		float vpHeight = lcr.PA_CL_VPORT_YSCALE.get_SCALE() / -0.5f;
+		float vpY = lcr.PA_CL_VPORT_YOFFSET.get_OFFSET() + lcr.PA_CL_VPORT_YSCALE.get_SCALE();
+
+		cemu_assert_debug(lcr.PA_SC_GENERIC_SCISSOR_TL.get_WINDOW_OFFSET_DISABLE() == true); // todo (not exposed by GX2 API)
+		// precalculate the minimum viewport&scissor pixel extend
+		minAssumedArea.width = lcr.PA_SC_GENERIC_SCISSOR_BR.get_BR_X();
+		minAssumedArea.height = lcr.PA_SC_GENERIC_SCISSOR_BR.get_BR_Y();
+		if (lcr.PA_CL_VTE_CNTL.get_VPORT_X_SCALE_ENA() && lcr.PA_CL_VTE_CNTL.get_VPORT_X_OFFSET_ENA())
+			minAssumedArea.width = static_cast<uint32>(std::clamp(vpX + std::max(vpWidth, 0.0f), 0.0f, (float)minAssumedArea.width));
+		if (lcr.PA_CL_VTE_CNTL.get_VPORT_Y_SCALE_ENA() && lcr.PA_CL_VTE_CNTL.get_VPORT_Y_OFFSET_ENA())
+			minAssumedArea.height = static_cast<uint32>(std::clamp(vpY + std::max(vpHeight, 0.0f), 0.0f, (float)minAssumedArea.height));
+	}
+
 	for (uint32 i = 0; i < 8; i++)
 	{
 		if( (colorBufferMask&(1<<i)) == 0 )
 			continue;
 		if (regView[mmCB_COLOR0_BASE + i] == MPTR_NULL) [[unlikely]]
+		{
 			colorBufferMask &= ~(1 << i);
+			continue;
+		}
+		// get width/height
+		uint32 regColorSize = regView[mmCB_COLOR0_SIZE + i];
+		uint32 regColorInfo = regView[mmCB_COLOR0_INFO + i];
+		// decode color buffer reg info
+		uint32 colorBufferPitch = (((regColorSize >> 0) & 0x3FF) + 1);
+		colorBufferPitch <<= 3;
+		uint32 pitchHeight = (((regColorSize >> 10) & 0xFFFFF) + 1);
+		pitchHeight <<= 6;
+		uint32 colorBufferHeight = pitchHeight / colorBufferPitch;
+		uint32 colorBufferWidth = colorBufferPitch;
+
+		if (colorBufferWidth < minAssumedArea.width || colorBufferHeight < minAssumedArea.height)
+		{
+			blockMask |= (1<<i);
+			cemuLog_logDebugOnce(LogType::Force, "Color texture smaller than scissor/viewport");
+		}
 	}
+	// as an dditional heuristic, only apply filter if there is more than one attachment (todo - consider depthbuffer in the count buffer?)
+	if (!std::has_single_bit(colorBufferMask) && colorBufferMask != blockMask)
+		colorBufferMask &= ~blockMask;
+
 	return colorBufferMask;
 }
 
