@@ -19,6 +19,7 @@
 #include "Cafe/OS/libs/swkbd/swkbd.h"
 #if defined(__SWITCH__)
 #include "platform/switch/SwitchPlatform.h"
+#include "platform/switch/SwitchSaltyNX.h"
 #endif
 
 uint32 prevScissorX = 0;
@@ -702,6 +703,10 @@ void LatteRenderTarget_itHLESwapScanBuffer()
 	LatteRenderTarget_finalizeCompositeFrame();
 #endif
 	g_renderer->SwapBuffers(true, true);
+#if defined(__SWITCH__)
+	const auto api = g_renderer->GetType();
+	saltynx_frame(api == RendererAPI::Vulkan ? 3 : api == RendererAPI::OpenGL ? 2 : 1);
+#endif
 
 	catchOpenGLError();
 	performanceMonitor.gpuTime_frameTime.beginMeasuring();

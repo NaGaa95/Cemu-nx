@@ -2,6 +2,10 @@
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "config/ActiveSettings.h"
+#if defined(__SWITCH__)
+#include "platform/switch/SwitchPlatform.h"
+#include "platform/switch/SwitchSaltyNX.h"
+#endif
 
 const std::string RendererOutputShader::s_copy_shader_source =
 R"(
@@ -279,6 +283,10 @@ RendererOutputShader::OutputUniformVariables RendererOutputShader::FillUniformBl
 
 	sint32 effectiveWidth, effectiveHeight;
 	texture_view.baseTexture->GetEffectiveSize(effectiveWidth, effectiveHeight, 0);
+#if defined(__SWITCH__)
+	if (padView == SwitchPlatform_IsGamePadOnly() && effectiveWidth > 0 && effectiveHeight > 0)
+		saltynx_set_resolution(effectiveWidth, effectiveHeight);
+#endif
 	vars.textureSrcResolution = {(float)effectiveWidth, (float)effectiveHeight};
 
 	vars.nativeResolution = {(float)texture_view.baseTexture->width, (float)texture_view.baseTexture->height};

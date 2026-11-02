@@ -100,6 +100,7 @@ if(PLATFORM_SWITCH)
 		platform/switch/SwitchInput.cpp
 		platform/switch/SwitchAmiibo.cpp
 		platform/switch/SwitchOverlay.cpp
+		platform/switch/SwitchSaltyNX.cpp
 		${SWITCH_LSFG_CONTROL}
 		platform/switch/SwitchToys.cpp
 		platform/switch/SwitchSwkbd.cpp

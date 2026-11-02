@@ -16,6 +16,7 @@
 #include "common/SwitchStorage.h"
 #include "common/SwitchLaunchPolicy.h"
 #include "platform/switch/SwitchThread.h"
+#include "platform/switch/SwitchSaltyNX.h"
 #include "util/MemMapper/MemMapper.h"
 #include "util/MemMapper/SwitchGuestMemory.h"
 
@@ -213,6 +214,7 @@ static bool SwitchPlatformInit()
 {
 	// Before anything else spawns a thread: new threads inherit this mask.
 	SwitchThread_RestoreProcessAffinity();
+	saltynx_start();
 	s_romfsMounted = R_SUCCEEDED(romfsInit());
 	s_hidInitialized = R_SUCCEEDED(hidInitialize());
 	if (s_hidInitialized)
@@ -226,6 +228,7 @@ static bool SwitchPlatformInit()
 
 static void SwitchPlatformExit()
 {
+	saltynx_stop();
 	MemMapper::SwitchGuestMemory::DiscardEarly("core exited before adoption");
 	SwitchAudioAPI::Destroy();
 	if (s_storageInitialized)
