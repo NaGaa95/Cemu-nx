@@ -11,7 +11,53 @@ WiimoteController::WiimoteController(size_t player_index)
 void WiimoteController::set_device_type(WPADDeviceType device_type)
 {
 	m_device_type = device_type;
+	m_mpls_mode = 0;
+	if (device_type == kWAPDevMPLS)
+		m_mpls_mode = 4;
+	else if (device_type == kWAPDevMPLSFreeStyle)
+		m_mpls_mode = 5;
+	else if (device_type == kWAPDevMPLSClassic)
+		m_mpls_mode = 7;
 	m_data_format = get_default_data_format();
+}
+
+WPADDeviceType WiimoteController::get_device_type() const
+{
+	if (m_device_type != kWAPDevMPLS && m_device_type != kWAPDevMPLSFreeStyle && m_device_type != kWAPDevMPLSClassic)
+		return m_device_type;
+	switch (get_mpls_mode())
+	{
+	case 4:
+		return kWAPDevMPLS;
+	case 5:
+		return kWAPDevMPLSFreeStyle;
+	case 7:
+		return kWAPDevMPLSClassic;
+	default:
+		break;
+	}
+	if (m_device_type == kWAPDevMPLSFreeStyle)
+		return kWAPDevFreestyle;
+	if (m_device_type == kWAPDevMPLSClassic)
+		return kWAPDevClassic;
+	return kWAPDevCore;
+}
+
+bool WiimoteController::set_mpls_mode(uint32 mode)
+{
+	if (mode != 0 && mode != 4 && mode != 5 && mode != 7)
+		return false;
+	if (mode != 0 && !is_mpls_attached())
+		return false;
+	if ((mode == 5 && m_device_type != kWAPDevMPLSFreeStyle) ||
+		(mode == 7 && m_device_type != kWAPDevMPLSClassic))
+		mode = 4;
+	if (get_mpls_mode() == mode)
+		return true;
+	m_mpls_mode = mode;
+	m_data_format = get_default_data_format();
+	m_extension_status = ConnectCallbackStatus::ReportConnect;
+	return true;
 }
 
 bool WiimoteController::is_mpls_attached()
@@ -101,7 +147,7 @@ void WiimoteController::load(const pugi::xml_node& node)
 	base_type::load(node);
 
 	if (const auto value = node.child("device_type"))
-		m_device_type = ConvertString<WPADDeviceType>(value.child_value());
+		set_device_type(ConvertString<WPADDeviceType>(value.child_value()));
 }
 
 void WiimoteController::save(pugi::xml_node& node)

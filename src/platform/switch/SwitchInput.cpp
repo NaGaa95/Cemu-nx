@@ -21,6 +21,7 @@ extern "C" {
 #include "input/emulated/VPADController.h"
 #include "input/emulated/ProController.h"
 #include "input/emulated/ClassicController.h"
+#include "input/emulated/WiimoteController.h"
 #include "input/motion/MotionHandler.h"
 #include "platform/switch/SwitchInput.h"
 #include "platform/switch/SwitchOverlay.h"
@@ -46,10 +47,10 @@ constexpr std::array<HidNpadIdType, kSwitchControllerCount> kNpadIds = {
 class SwitchGamepadController : public ControllerBase
 {
   public:
-	SwitchGamepadController(size_t playerIndex, HidNpadIdType npadId, bool useHandheld, bool gamePadFeatures)
+	SwitchGamepadController(size_t playerIndex, HidNpadIdType npadId, bool useHandheld, bool gamePadFeatures, bool enableMotion)
 		: ControllerBase(fmt::format("switch-{}", playerIndex), fmt::format("Switch Controller {}", playerIndex + 1)),
 		  m_npadId(npadId), m_useHandheld(useHandheld), m_hasTouch(gamePadFeatures),
-		  m_enableMotion(gamePadFeatures)
+		  m_enableMotion(enableMotion)
 	{
 		u64 mask = BITL(static_cast<u32>(m_npadId));
 		if (m_useHandheld)
@@ -99,6 +100,10 @@ class SwitchGamepadController : public ControllerBase
 	void start_rumble() override { sendVibration(std::clamp(get_settings().rumble, 0.0f, 1.0f)); }
 	void stop_rumble() override { sendVibration(0.0f); }
 	bool usesGamePadFeatures() const { return m_hasTouch; }
+	bool usesMotion() const
+	{
+		return m_enableMotion;
+	}
 
 	bool has_position() override
 	{
@@ -472,6 +477,7 @@ class SwitchGamepadController : public ControllerBase
 struct InputConfig
 {
 	std::string type = "GamePad";
+	std::string secondaryType = "Pro";
 	bool rumble = true;
 	int deadzone = 15;
 	int players = 1;
@@ -506,6 +512,8 @@ static InputConfig loadInputConfig(const char* path)
 		if (section == "controller")
 		{
 			if (k == "type") cfg.type = v;
+			else if (k == "secondary_type")
+				cfg.secondaryType = v;
 			else if (k == "rumble") cfg.rumble = (v == "on" || v == "true" || v == "1");
 			else if (k == "deadzone") cfg.deadzone = std::clamp(std::atoi(v.c_str()), 0, 50);
 			else if (k == "players") cfg.players = std::clamp(std::atoi(v.c_str()), 1, static_cast<int>(kSwitchControllerCount));
@@ -537,6 +545,21 @@ InputConfig s_config;
 std::array<std::shared_ptr<SwitchGamepadController>, kSwitchControllerCount> s_controllers;
 std::atomic<SwitchControllerType> s_controllerType{SwitchControllerType::GamePad};
 
+SwitchControllerType ParseControllerType(const std::string& type, SwitchControllerType fallback)
+{
+	if (type == "GamePad")
+		return SwitchControllerType::GamePad;
+	if (type == "Pro")
+		return SwitchControllerType::Pro;
+	if (type == "Classic")
+		return SwitchControllerType::Classic;
+	if (type == "Wiimote")
+		return SwitchControllerType::Wiimote;
+	if (type == "WiimoteNunchuk")
+		return SwitchControllerType::WiimoteNunchuk;
+	return fallback;
+}
+
 EmulatedController::Type ToEmulatedType(SwitchControllerType type)
 {
 	switch (type)
@@ -545,6 +568,9 @@ EmulatedController::Type ToEmulatedType(SwitchControllerType type)
 		return EmulatedController::Type::Pro;
 	case SwitchControllerType::Classic:
 		return EmulatedController::Type::Classic;
+	case SwitchControllerType::Wiimote:
+	case SwitchControllerType::WiimoteNunchuk:
+		return EmulatedController::Type::Wiimote;
 	case SwitchControllerType::GamePad:
 	default:
 		return EmulatedController::Type::VPAD;
@@ -611,6 +637,26 @@ bool ConfigureMappings(const EmulatedControllerPtr& emu, EmulatedController::Typ
 		emu->set_mapping(T::kButtonId_StickR_Left, physical, kRotationXN);
 		emu->set_mapping(T::kButtonId_StickR_Right, physical, kRotationXP);
 	}
+	else if (emuType == EmulatedController::Type::Wiimote)
+	{
+		using T = WiimoteController;
+		mapBtn(T::kButtonId_A, "A", "A");
+		mapBtn(T::kButtonId_B, "B", "B");
+		mapBtn(T::kButtonId_1, "X", "X");
+		mapBtn(T::kButtonId_2, "Y", "Y");
+		mapBtn(T::kButtonId_Plus, "Plus", "PLUS");
+		mapBtn(T::kButtonId_Minus, "Minus", "MINUS");
+		mapBtn(T::kButtonId_Up, "Up", "DUP");
+		mapBtn(T::kButtonId_Down, "Down", "DDOWN");
+		mapBtn(T::kButtonId_Left, "Left", "DLEFT");
+		mapBtn(T::kButtonId_Right, "Right", "DRIGHT");
+		mapBtn(T::kButtonId_Nunchuck_C, "L", "L");
+		mapBtn(T::kButtonId_Nunchuck_Z, "ZL", "ZL");
+		emu->set_mapping(T::kButtonId_Nunchuck_Up, physical, kAxisYP);
+		emu->set_mapping(T::kButtonId_Nunchuck_Down, physical, kAxisYN);
+		emu->set_mapping(T::kButtonId_Nunchuck_Left, physical, kAxisXN);
+		emu->set_mapping(T::kButtonId_Nunchuck_Right, physical, kAxisXP);
+	}
 	else
 	{
 		using T = ClassicController;
@@ -628,16 +674,20 @@ bool ConfigureMappings(const EmulatedControllerPtr& emu, EmulatedController::Typ
 	return true;
 }
 
-void EnsurePhysicalController(size_t index, bool gamePadFeatures)
+void EnsurePhysicalController(size_t index, EmulatedController::Type type)
 {
-	if (s_controllers[index] && s_controllers[index]->usesGamePadFeatures() == gamePadFeatures)
+	const bool gamePadFeatures = type == EmulatedController::Type::VPAD;
+	const bool motion = gamePadFeatures || type == EmulatedController::Type::Wiimote;
+	if (s_controllers[index] && s_controllers[index]->usesGamePadFeatures() == gamePadFeatures &&
+		s_controllers[index]->usesMotion() == motion)
 		return;
+	s_controllers[index].reset();
 	s_controllers[index] = std::make_shared<SwitchGamepadController>(
-		index, kNpadIds[index], index == 0, gamePadFeatures);
+		index, kNpadIds[index], index == 0, gamePadFeatures, motion);
 	auto settings = s_controllers[index]->get_settings();
 	settings.axis.deadzone = settings.rotation.deadzone = s_config.deadzone / 100.0f;
 	settings.rumble = s_config.rumble ? 1.0f : 0.0f;
-	settings.motion = gamePadFeatures;
+	settings.motion = motion;
 	s_controllers[index]->set_settings(settings);
 }
 
@@ -657,19 +707,27 @@ bool ConfigureControllers(SwitchControllerType type)
 		? kSwitchControllerCount
 		: InputManager::kMaxWPADControllers;
 	const size_t configuredPlayers = std::min(requestedPlayers, maxPlayers);
+	auto secondaryType = ParseControllerType(s_config.secondaryType, SwitchControllerType::Pro);
+	if (secondaryType == SwitchControllerType::GamePad)
+		secondaryType = SwitchControllerType::Pro;
+	const auto secondaryEmulatedType = ToEmulatedType(secondaryType);
 	for (size_t i = 0; i < configuredPlayers; ++i)
-		EnsurePhysicalController(i, i == 0 && playerOneType == EmulatedController::Type::VPAD);
+		EnsurePhysicalController(i, i == 0 ? playerOneType : secondaryEmulatedType);
 	for (size_t i = configuredPlayers; i < s_controllers.size(); ++i)
 		s_controllers[i].reset();
 
-	auto playerOne = inputManager.set_controller(0, playerOneType);
-	if (!ConfigureMappings(playerOne, playerOneType, s_controllers[0]))
-		return false;
-	for (size_t i = 1; i < configuredPlayers; ++i)
+	for (size_t i = 0; i < configuredPlayers; ++i)
 	{
-		auto emu = inputManager.set_controller(i, EmulatedController::Type::Pro);
-		if (!ConfigureMappings(emu, EmulatedController::Type::Pro, s_controllers[i]))
+		const auto controllerType = i == 0 ? type : secondaryType;
+		const auto emulatedType = i == 0 ? playerOneType : secondaryEmulatedType;
+		auto emu = inputManager.set_controller(i, emulatedType);
+		if (!ConfigureMappings(emu, emulatedType, s_controllers[i]))
 			return false;
+		if (emulatedType == EmulatedController::Type::Wiimote)
+		{
+			std::static_pointer_cast<WiimoteController>(emu)->set_device_type(
+				controllerType == SwitchControllerType::WiimoteNunchuk ? kWAPDevMPLSFreeStyle : kWAPDevMPLS);
+		}
 	}
 
 	s_controllerType.store(type, std::memory_order_release);
@@ -680,12 +738,7 @@ bool ConfigureControllers(SwitchControllerType type)
 void SwitchInput_Setup()
 {
 	s_config = loadInputConfig("sdmc:/switch/cemu/input.ini");
-	SwitchControllerType type = SwitchControllerType::GamePad;
-	if (s_config.type == "Pro")
-		type = SwitchControllerType::Pro;
-	else if (s_config.type == "Classic")
-		type = SwitchControllerType::Classic;
-	ConfigureControllers(type);
+	ConfigureControllers(ParseControllerType(s_config.type, SwitchControllerType::GamePad));
 }
 
 void SwitchInput_Shutdown()
@@ -696,6 +749,8 @@ void SwitchInput_Shutdown()
 
 bool SwitchInput_SetControllerType(SwitchControllerType type)
 {
+	if (type < SwitchControllerType::GamePad || type >= SwitchControllerType::Count)
+		return false;
 	if (type == SwitchInput_GetControllerType())
 		return true;
 	return ConfigureControllers(type);

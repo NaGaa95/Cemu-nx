@@ -300,7 +300,10 @@ static const Choice C_ovpos[]    = { {"Disabled","0"}, {"Top-left","1"}, {"Top-c
 static const Choice C_lang[]     = { {"Auto","-1"}, {"Japanese","0"}, {"English","1"}, {"French","2"}, {"German","3"},
                                      {"Italian","4"}, {"Spanish","5"}, {"Chinese","6"}, {"Korean","7"},
                                      {"Dutch","8"}, {"Portuguese","9"}, {"Russian","10"}, {"Taiwanese","11"} };
-static const Choice C_ctype[]    = { {"Wii U GamePad","GamePad"}, {"Pro Controller","Pro"}, {"Classic Controller","Classic"} };
+static const Choice C_ctype[]    = { {"Wii U GamePad","GamePad"}, {"Pro Controller","Pro"}, {"Classic Controller","Classic"},
+                                     {"Wii Remote + MotionPlus","Wiimote"}, {"Wii Remote + MotionPlus + Nunchuk","WiimoteNunchuk"} };
+static const Choice C_secondaryCtype[] = { {"Pro Controller","Pro"}, {"Classic Controller","Classic"},
+                                           {"Wii Remote + MotionPlus","Wiimote"}, {"Wii Remote + MotionPlus + Nunchuk","WiimoteNunchuk"} };
 static const Choice C_gamepadLayout[] = { {"TV only","off"}, {"PAD only","pad"}, {"PAD on right","right"}, {"PAD on left","left"},
                                            {"PAD below TV","below"}, {"PAD above TV","above"} };
 static const Choice C_lsfgFlowScale[] = { {"Quarter resolution","0.25"}, {"Half resolution","0.5"} };
@@ -365,6 +368,7 @@ static const Opt S_overlay[] = {
 static const Opt O_console_language = O_CHOICE("Console language", "console_language", C_lang, "-1");
 static const Opt S_input[] = {
   O_CHOICE("Controller type",  "in_type",   C_ctype, "GamePad"),
+  O_CHOICE("Additional controllers", "in_secondary_type", C_secondaryCtype, "Pro"),
   O_CHOICE("Active players",   "in_players", C_players, "1"),
   O_CHOICE("Rumble",           "in_rumble", C_bool,  "true"),
   O_RANGE ("Stick dead zone",  "in_deadzone", 0, 50, 1, "15"),
@@ -457,6 +461,8 @@ static const SettingHelpEntry SETTING_HELP[] = {
 
   {"in_type", "Emulated controller",
    "Selects the Wii U controller type presented to the game. Wii U GamePad is required by games that use its screen, microphone, or touch features."},
+  {"in_secondary_type", "Additional controllers",
+   "Selects the controllers for players 2-8. Choose Wii Remote for MotionPlus games alongside the GamePad."},
   {"in_players", "Controller input",
    "Sets how many active emulated controller slots Cemu creates for local multiplayer."},
   {"in_rumble", "Controller feedback",
@@ -589,6 +595,7 @@ static std::vector<CemuKV> buildEffectiveSettings(const std::string &gameKey) {
 static bool writeInputIni(const std::vector<CemuKV> &eff) {
   std::string text = "[controller]\n";
   text += "type = " + std::string(cemuKVGet(eff, "in_type", "GamePad")) + "\n";
+  text += "secondary_type = " + std::string(cemuKVGet(eff, "in_secondary_type", "Pro")) + "\n";
   text += "players = " + std::string(cemuKVGet(eff, "in_players", "1")) + "\n";
   text += "rumble = ";
   text += (strcmp(cemuKVGet(eff, "in_rumble", "true"), "true") == 0 ? "on\n" : "off\n");

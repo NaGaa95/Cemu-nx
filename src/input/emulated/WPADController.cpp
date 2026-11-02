@@ -21,9 +21,8 @@ WPADDataFormat WPADController::get_default_data_format() const
 	case kWAPDevClassic:
 		return kDataFormat_CLASSIC;
 	case kWAPDevMPLS:
-		return kDataFormat_MPLS;
 	case kWAPDevMPLSFreeStyle:
-		return kDataFormat_FREESTYLE_ACC_DPD;
+		return kDataFormat_MPLS;
 	case kWAPDevMPLSClassic:
 		return kDataFormat_CLASSIC_ACC_DPD;
 	case kWAPDevURCC:
@@ -146,8 +145,40 @@ void WPADController::WPADRead(WPADStatus_t* status)
 	case kDataFormat_MPLS:
 	{
 		WPADMPStatus_t* ex_status = (WPADMPStatus_t*)status;
-		ex_status->stat = 1; // attached
-		// TODO
+		memset(ex_status, 0, sizeof(*ex_status));
+		ex_status->button = button;
+		if (get_mpls_mode() == 0)
+			break;
+		ex_status->stat = 0x80;
+		glm::vec3 gyro{};
+		if (has_motion())
+		{
+			auto sample = get_motion_data();
+			sample.getGyrometer(&gyro[0]);
+		}
+		const auto encode = [&](float radians, uint8 slowFlag) {
+			constexpr float toDegrees = 180.0f / 3.14159265358979323846f;
+			constexpr float slowScale = (0x1100 / 270.0f) * toDegrees;
+			constexpr float fastScale = (0x1100 / 1200.0f) * toDegrees;
+			if (!std::isfinite(radians))
+				radians = 0;
+			const bool slow = std::abs(radians) < 8192.0f / slowScale;
+			if (slow)
+				ex_status->stat |= slowFlag;
+			const float value = std::clamp(8192.0f + radians * (slow ? slowScale : fastScale), 0.0f, 16383.0f);
+			return static_cast<uint16>(std::lround(value));
+		};
+		ex_status->pitch = encode(-gyro.x, 0x04);
+		ex_status->yaw = encode(-gyro.y, 0x08);
+		ex_status->roll = encode(gyro.z, 0x02);
+		if (get_device_type() == kWAPDevMPLSFreeStyle)
+		{
+			ex_status->stat |= 0x41;
+			const auto axis = get_axis() * 127.0f;
+			ex_status->status.fs.fsStickX = static_cast<sint8>(axis.x);
+			ex_status->status.fs.fsStickY = static_cast<sint8>(axis.y);
+			ex_status->status.fs.fsAccZ = 99;
+		}
 		break;
 	}
 	case kDataFormat_URCC:
@@ -175,6 +206,20 @@ void WPADController::WPADRead(WPADStatus_t* status)
 		cemu_assert(false);
 	}
 
+	if (type() == Wiimote && has_motion())
+	{
+		auto sample = get_motion_data();
+		glm::vec3 acc;
+		sample.getAccelerometer(&acc[0]);
+		const auto encode = [](float value) {
+			if (!std::isfinite(value))
+				value = 0;
+			return static_cast<uint16>(static_cast<sint16>(std::lround(std::clamp(value * 99.0f, -32768.0f, 32767.0f))));
+		};
+		status->accX = encode(acc.x);
+		status->accY = encode(acc.y);
+		status->accZ = encode(acc.z);
+	}
 	status->dev = get_device_type();
 	status->err = WPAD_ERR_NONE;
 }
@@ -241,7 +286,7 @@ void WPADController::KPADRead(KPADStatus_t& status, const BtnRepeat& repeat)
 	//status.trig = ~m_last_holdvalue & *hold;
 	m_last_holdvalue = *hold;
 
-	if (is_mpls_attached())
+	if (get_mpls_mode() != 0)
 	{
 		status.mpls.dir.X.x = 1;
 		status.mpls.dir.X.y = 0;
@@ -277,10 +322,10 @@ void WPADController::KPADRead(KPADStatus_t& status, const BtnRepeat& repeat)
 		status.accVertical.x = std::min(1.0f, std::abs(acc.x + acc.y));
 		status.accVertical.y = std::min(std::max(-1.0f, -acc.z), 1.0f);
 
-		if (is_mpls_attached())
+		if (get_mpls_mode() != 0)
 		{
 			// todo
-			glm::vec3 gyroChange;
+			glm::vec3 gyroChange{};
 			motion_sample.getVPADGyroChange(&gyroChange[0]);
 			//const auto& gyroChange = motionSample.getVPADGyroChange();
 			status.mpls.mpls.x = gyroChange.x;

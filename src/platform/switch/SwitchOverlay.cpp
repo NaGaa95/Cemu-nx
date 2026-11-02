@@ -113,6 +113,12 @@ const char* ControllerTypeName(SwitchControllerType type)
 		return "Wii U Pro Controller";
 	case SwitchControllerType::Classic:
 		return "Wii Classic Controller";
+	case SwitchControllerType::Wiimote:
+		return "Wii Remote + MotionPlus";
+	case SwitchControllerType::WiimoteNunchuk:
+		return "Wii Remote + MotionPlus + Nunchuk";
+	case SwitchControllerType::Count:
+		break;
 	}
 	return "Wii U GamePad";
 }
@@ -120,7 +126,7 @@ const char* ControllerTypeName(SwitchControllerType type)
 void CycleControllerType(int direction)
 {
 	int type = static_cast<int>(SwitchInput_GetControllerType());
-	type = (type + direction + 3) % 3;
+	type = (type + direction + static_cast<int>(SwitchControllerType::Count)) % static_cast<int>(SwitchControllerType::Count);
 	SwitchInput_SetControllerType(static_cast<SwitchControllerType>(type));
 }
 

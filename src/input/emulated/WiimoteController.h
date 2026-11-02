@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+
 #include "input/emulated/WPADController.h"
 
 class WiimoteController : public WPADController
@@ -41,10 +43,15 @@ public:
 	WiimoteController(size_t player_index);
 
 	Type type() const override { return Type::Wiimote; }
-	WPADDeviceType get_device_type() const override { return m_device_type; }
+	WPADDeviceType get_device_type() const override;
 	void set_device_type(WPADDeviceType device_type);
 
 	bool is_mpls_attached() override;
+	uint32 get_mpls_mode() const override
+	{
+		return m_mpls_mode.load();
+	}
+	bool set_mpls_mode(uint32 mode) override;
 
 	uint32 get_emulated_button_flag(uint32 id) const override;
 	size_t get_highest_mapping_id() const override { return kButtonId_Max; }
@@ -74,4 +81,5 @@ public:
 
 private:
 	WPADDeviceType m_device_type = kWAPDevCore;
+	std::atomic<uint32> m_mpls_mode{0};
 };

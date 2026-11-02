@@ -121,6 +121,14 @@ public:
 
 	void KPADRead(KPADStatus_t& status, const BtnRepeat& repeat);
 	virtual bool is_mpls_attached() { return false; }
+	virtual uint32 get_mpls_mode() const
+	{
+		return 0;
+	}
+	virtual bool set_mpls_mode(uint32)
+	{
+		return false;
+	}
 
 	enum class ConnectCallbackStatus
 	{

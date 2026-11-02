@@ -66,6 +66,7 @@ namespace padscore
 			MEMPTR<void> connectCallback;
 			MEMPTR<void> sampling_callback;
 			MEMPTR<void> dpd_callback;
+			MEMPTR<void> mpls_callback;
 			bool dpd_enabled = true;
 
 			bool disconnectCalled = false;
@@ -73,6 +74,7 @@ namespace padscore
 			BtnRepeat btn_repeat{};
 		} controller_data[InputManager::kMaxWPADControllers] = {};
 
+		MEMPTR<void> mpls_workarea;
 		int max_controllers = kWPADMaxControllers; // max bt controllers?
 	} g_padscore;
 }
@@ -295,25 +297,19 @@ void padscoreExport_KPADGetUnifiedWpadStatus(PPCInterpreter_t* hCPU)
 
 	cemuLog_log(LogType::InputAPI, "KPADGetUnifiedWpadStatus({}, 0x{:08x}, 0x{:x})", channel, MEMPTR<void>(status).GetMPTR(), count);
 
+	if (count == 0)
+	{
+		osLib_returnFromFunction(hCPU, 0);
+		return;
+	}
 	if (channel < InputManager::kMaxWPADControllers)
 	{
 		memset(status, 0x00, sizeof(KPADUnifiedWpadStatus_t) * count);
 
 		if (const auto controller = InputManager::instance().get_wpad_controller(channel))
 		{
-			switch (controller->get_data_format())
-			{
-			case WPAD_FMT_CORE:
-			case WPAD_FMT_CORE_ACC:
-			case WPAD_FMT_CORE_ACC_DPD:
-			{
-				status->fmt = controller->get_data_format();
-				controller->WPADRead(&status->u.core);
-				break;
-			}
-			default:
-				debugBreakpoint();
-			}
+			controller->WPADRead(&status->u.core);
+			status->fmt = controller->get_data_format();
 		}
 		else
 		{
@@ -476,6 +472,8 @@ sint32 _KPADRead(uint32 channel, KPADStatus_t* samplingBufs, uint32 length, bety
 	{
 		const auto btn_repeat = padscore::g_padscore.controller_data[channel].btn_repeat;
 		controller->KPADRead(*samplingBufs, btn_repeat);
+		if (!padscore::g_padscore.mpls_workarea)
+			memset(&samplingBufs->mpls, 0, sizeof(samplingBufs->mpls));
 	}
 
 	if (errResult)
@@ -538,6 +536,52 @@ namespace padscore
 	{
 		cemuLog_log(LogType::InputAPI, "KPADGetMplsWorkSize()");
 		osLib_returnFromFunction(hCPU, 0x5FE0);
+	}
+
+	void KPADSetMplsWorkarea(void* workarea)
+	{
+		g_padscore.mpls_workarea = workarea;
+	}
+
+	void KPADSetControlMplsCallback(sint32 channel, void* callback)
+	{
+		if (channel >= 0 && channel < InputManager::kMaxWPADControllers)
+			g_padscore.controller_data[channel].mpls_callback = callback;
+	}
+
+	uint32 KPADGetMplsStatus(sint32 channel)
+	{
+		if (channel < 0 || channel >= InputManager::kMaxWPADControllers)
+			return 0;
+		const auto controller = InputManager::instance().get_wpad_controller(channel);
+		return controller ? controller->get_mpls_mode() : 0;
+	}
+
+	void KPADEnableMpls(sint32 channel, uint32 mode)
+	{
+		if (channel < 0 || channel >= InputManager::kMaxWPADControllers)
+			return;
+		const auto callback = g_padscore.controller_data[channel].mpls_callback.GetMPTR();
+		if (callback)
+			coreinitAsyncCallback_add(callback, 2, channel, 0);
+		const auto controller = InputManager::instance().get_wpad_controller(channel);
+		const bool success = !controller || controller->set_mpls_mode(mode);
+		sint32 result = 1;
+		if (!success)
+		{
+			result = -1;
+			if (mode == 5)
+				result = -2;
+			else if (mode == 7)
+				result = -3;
+		}
+		if (callback)
+			coreinitAsyncCallback_add(callback, 2, channel, result);
+	}
+
+	void KPADDisableMpls(sint32 channel)
+	{
+		KPADEnableMpls(channel, 0);
 	}
 
 	void KPADInitEx(KPADUnifiedWpadStatus_t ring_buffer[], uint32 length)
@@ -659,7 +703,7 @@ namespace padscore
 
 	WPADStatus WPADIsMplsAttached(sint32 index, uint32be* attached, void* callback)
 	{
-		if (index >= kKPADMaxControllers)
+		if (index < 0 || index >= kKPADMaxControllers || !attached)
 			return WPADStatus::NoController;
 
 		const auto controller = InputManager::instance().get_wpad_controller(index);
@@ -779,6 +823,9 @@ namespace padscore
 		void RPLUnmapped() override
 		{
 			coreinit::OSCancelAlarm(g_padscore.alarm.GetPtr());
+			for (auto& data : g_padscore.controller_data)
+				data.mpls_callback = nullptr;
+			g_padscore.mpls_workarea = nullptr;
 			s_padscoreStaticData.Deallocate();
 		}
 
@@ -791,6 +838,11 @@ namespace padscore
 		void RPLMapped() override
 		{
 			s_padscoreStaticData.Allocate();
+			cafeExportRegister("padscore", KPADSetMplsWorkarea, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADSetControlMplsCallback, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADGetMplsStatus, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADEnableMpls, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADDisableMpls, LogType::InputAPI);
 			cafeExportRegister("padscore", WPADIsMplsAttached, LogType::InputAPI);
 			cafeExportRegister("padscore", WPADGetAccGravityUnit, LogType::InputAPI);
 

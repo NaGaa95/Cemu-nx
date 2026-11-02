@@ -5,6 +5,9 @@ enum class SwitchControllerType
 	GamePad,
 	Pro,
 	Classic,
+	Wiimote,
+	WiimoteNunchuk,
+	Count,
 };
 
 void SwitchInput_Setup();
