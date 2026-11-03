@@ -9,4 +9,5 @@ namespace nsyshid
 	void DetachBackend(const std::shared_ptr<Backend>& backend);
 
 	COSModule* GetModule();
+	void StopTransfers();
 } // namespace nsyshid

@@ -58,6 +58,7 @@
 #include "Cafe/OS/libs/gx2/GX2_Misc.h"
 #include "Cafe/OS/libs/mic/mic.h"
 #include "Cafe/OS/libs/nfc/nfc.h"
+#include "Cafe/OS/libs/nsyshid/nsyshid.h"
 #include "Cafe/OS/libs/ntag/ntag.h"
 #include "Cafe/OS/libs/nn_aoc/nn_aoc.h"
 #include "Cafe/OS/libs/nn_pdm/nn_pdm.h"
@@ -1082,6 +1083,7 @@ namespace CafeSystem
 	{
 		if(!sSystemRunning)
 			return;
+		nsyshid::StopTransfers();
 		coreinit::OSSchedulerEnd();
 		Latte_Stop();
 		coreinit::IPCCloseAllHandles();

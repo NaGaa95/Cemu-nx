@@ -4,11 +4,29 @@
 #include "Cafe/OS/libs/coreinit/coreinit_Thread.h"
 #include "Backend.h"
 #include "Whitelist.h"
+#if defined(__SWITCH__)
+#include "HIDWorkQueue.h"
+#endif
 #include "util/helpers/ThreadHelpers.h"
 
 
 namespace nsyshid
 {
+#if defined(__SWITCH__)
+	HIDWorkQueue s_readTransfers;
+	HIDWorkQueue s_controlTransfers;
+	std::atomic_bool s_transfersActive = false;
+#endif
+
+	void StopTransfers()
+	{
+#if defined(__SWITCH__)
+		s_transfersActive.store(false);
+		s_readTransfers.Stop();
+		s_controlTransfers.Stop();
+#endif
+	}
+
 	constinit COSStaticData s_nsyshidStaticData;
 
 	std::list<std::shared_ptr<Backend>> backendList;
@@ -344,7 +362,62 @@ namespace nsyshid
 	void DoHIDTransferCallback(MPTR callbackFuncMPTR, MPTR callbackParamMPTR, uint32 hidHandle, uint32 errorCode,
 							   MPTR buffer, sint32 length)
 	{
+#if defined(__SWITCH__)
+		if (!s_transfersActive.load())
+			return;
+#endif
 		coreinitAsyncCallback_add(callbackFuncMPTR, 5, hidHandle, errorCode, buffer, length, callbackParamMPTR);
+	}
+
+	template<typename Function, typename... Args>
+	sint32 SubmitTransfer(bool read, const std::shared_ptr<Device>& device, MPTR callback, MPTR parameter,
+						  MPTR buffer, Function function, Args&&... args)
+	{
+		try
+		{
+			auto task = std::bind(function, device, std::forward<Args>(args)...);
+			auto error = [device, callback, parameter, buffer](std::exception_ptr exception) {
+				try
+				{
+					std::rethrow_exception(exception);
+				} catch (const std::exception& failure)
+				{
+					cemuLog_log(LogType::Force, "nsyshid: transfer failed: {}", failure.what());
+				} catch (...)
+				{
+					cemuLog_log(LogType::Force, "nsyshid: transfer failed with an unknown exception");
+				}
+				DoHIDTransferCallback(callback, parameter, device->m_hid->handle, static_cast<uint32>(-1), buffer, 0);
+			};
+#if defined(__SWITCH__)
+			if (!s_transfersActive.load())
+				return -1;
+			auto& queue = read ? s_readTransfers : s_controlTransfers;
+			if (!queue.Submit(std::move(task), std::move(error)))
+			{
+				cemuLog_log(LogType::Force, "nsyshid: transfer queue unavailable");
+				return -1;
+			}
+#else
+			cemuCreateDetachedThread([task = std::move(task), error = std::move(error)]() mutable {
+				try
+				{
+					task();
+				} catch (...)
+				{
+					error(std::current_exception());
+				}
+			});
+#endif
+			return 0;
+		} catch (const std::system_error& error)
+		{
+			cemuLog_log(LogType::Force, "nsyshid: cannot queue transfer: {} (code={})", error.what(), error.code().value());
+		} catch (const std::exception& error)
+		{
+			cemuLog_log(LogType::Force, "nsyshid: cannot queue transfer: {}", error.what());
+		}
+		return -1;
 	}
 
 	void _hidGetDescriptorAsync(std::shared_ptr<Device> device, uint8 descType, uint8 descIndex, uint16 lang, uint8* output, uint32 outputMaxLength, MPTR callbackFuncMPTR, MPTR callbackParamMPTR)
@@ -404,8 +477,7 @@ namespace nsyshid
 		else
 		{
 			// asynchronous
-			cemuCreateDetachedThread(&_hidGetDescriptorAsync, device, descType, descIndex, lang, output, outputMaxLength, cbFuncMPTR, cbParamMPTR);
-			returnCode = 0;
+			returnCode = SubmitTransfer(false, device, cbFuncMPTR, cbParamMPTR, 0, &_hidGetDescriptorAsync, descType, descIndex, lang, output, outputMaxLength, cbFuncMPTR, cbParamMPTR);
 		}
 		osLib_returnFromFunction(hCPU, returnCode);
 	}
@@ -465,8 +537,7 @@ namespace nsyshid
 		else
 		{
 			// asynchronous
-			cemuCreateDetachedThread(&_hidSetIdleAsync, device, ifIndex, reportId, duration, callbackFuncMPTR, callbackParamMPTR);
-			returnCode = 0;
+			returnCode = SubmitTransfer(false, device, callbackFuncMPTR, callbackParamMPTR, 0, &_hidSetIdleAsync, ifIndex, reportId, duration, callbackFuncMPTR, callbackParamMPTR);
 		}
 		osLib_returnFromFunction(hCPU, returnCode);
 	}
@@ -524,8 +595,7 @@ namespace nsyshid
 		else
 		{
 			// asynchronous
-			cemuCreateDetachedThread(&_hidSetProtocolAsync, device, ifIndex, protocol, callbackFuncMPTR, callbackParamMPTR);
-			returnCode = 0;
+			returnCode = SubmitTransfer(false, device, callbackFuncMPTR, callbackParamMPTR, 0, &_hidSetProtocolAsync, ifIndex, protocol, callbackFuncMPTR, callbackParamMPTR);
 		}
 		osLib_returnFromFunction(hCPU, returnCode);
 	}
@@ -613,9 +683,8 @@ namespace nsyshid
 		else
 		{
 			// asynchronous
-			cemuCreateDetachedThread(&_hidSetReportAsync, device, reportType, reportId, data, dataLength,
-				callbackFuncMPTR, callbackParamMPTR);
-			returnCode = 0;
+			returnCode = SubmitTransfer(false, device, callbackFuncMPTR, callbackParamMPTR, memory_getVirtualOffsetFromPointer(data),
+										&_hidSetReportAsync, reportType, reportId, data, dataLength, callbackFuncMPTR, callbackParamMPTR);
 		}
 		osLib_returnFromFunction(hCPU, returnCode);
 	}
@@ -702,8 +771,7 @@ namespace nsyshid
 		if (callbackFuncMPTR != MPTR_NULL)
 		{
 			// asynchronous transfer
-			cemuCreateDetachedThread(&_hidReadAsync, device, data, maxLength, callbackFuncMPTR, callbackParamMPTR);
-			returnCode = 0;
+			returnCode = SubmitTransfer(true, device, callbackFuncMPTR, callbackParamMPTR, memory_getVirtualOffsetFromPointer(data), &_hidReadAsync, data, maxLength, callbackFuncMPTR, callbackParamMPTR);
 		}
 		else
 		{
@@ -799,8 +867,7 @@ namespace nsyshid
 		if (callbackFuncMPTR != MPTR_NULL)
 		{
 			// asynchronous transfer
-			cemuCreateDetachedThread(&_hidWriteAsync, device, data, maxLength, callbackFuncMPTR, callbackParamMPTR);
-			returnCode = 0;
+			returnCode = SubmitTransfer(false, device, callbackFuncMPTR, callbackParamMPTR, memory_getVirtualOffsetFromPointer(data), &_hidWriteAsync, data, maxLength, callbackFuncMPTR, callbackParamMPTR);
 		}
 		else
 		{
@@ -953,6 +1020,7 @@ namespace nsyshid
 
 		void RPLUnmapped() override
 		{
+			StopTransfers();
 			// Stop backends and drop callbacks before their guest descriptors go away.
 			{
 				std::lock_guard<std::recursive_mutex> lock(hidMutex);
@@ -973,6 +1041,11 @@ namespace nsyshid
 		void RPLMapped() override
 		{
 			s_nsyshidStaticData.Allocate();
+#if defined(__SWITCH__)
+			s_readTransfers.Start();
+			s_controlTransfers.Start();
+			s_transfersActive.store(true);
+#endif
 			osLib_addFunction("nsyshid", "HIDAddClient", export_HIDAddClient);
 			osLib_addFunction("nsyshid", "HIDDelClient", export_HIDDelClient);
 			osLib_addFunction("nsyshid", "HIDGetDescriptor", export_HIDGetDescriptor);
