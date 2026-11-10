@@ -32,6 +32,9 @@ namespace
 constexpr uint32 kNoCode = 0xFFFFFFFF;
 constexpr size_t kSwitchControllerCount = InputManager::kMaxController;
 constexpr float kTau = 6.2831853071795864769f;
+// rotation that sweeps the pointer across the whole screen, in radians
+constexpr float kPointerYawRange = 0.6981317f;
+constexpr float kPointerPitchRange = 0.3926991f;
 
 constexpr std::array<HidNpadIdType, kSwitchControllerCount> kNpadIds = {
 	HidNpadIdType_No1,
@@ -47,10 +50,10 @@ constexpr std::array<HidNpadIdType, kSwitchControllerCount> kNpadIds = {
 class SwitchGamepadController : public ControllerBase
 {
   public:
-	SwitchGamepadController(size_t playerIndex, HidNpadIdType npadId, bool useHandheld, bool gamePadFeatures, bool enableMotion)
+	SwitchGamepadController(size_t playerIndex, HidNpadIdType npadId, bool useHandheld, bool gamePadFeatures, bool enableMotion, bool enablePointer)
 		: ControllerBase(fmt::format("switch-{}", playerIndex), fmt::format("Switch Controller {}", playerIndex + 1)),
 		  m_npadId(npadId), m_useHandheld(useHandheld), m_hasTouch(gamePadFeatures),
-		  m_enableMotion(enableMotion)
+		  m_enableMotion(enableMotion), m_hasPointer(enablePointer)
 	{
 		u64 mask = BITL(static_cast<u32>(m_npadId));
 		if (m_useHandheld)
@@ -104,26 +107,30 @@ class SwitchGamepadController : public ControllerBase
 	{
 		return m_enableMotion;
 	}
+	bool usesPointer() const
+	{
+		return m_hasPointer;
+	}
 
 	bool has_position() override
 	{
 		std::scoped_lock lock(m_padMutex);
-		return m_touchDown;
+		return m_hasPointer ? m_connected : m_touchDown;
 	}
 	glm::vec2 get_position() override
 	{
 		std::scoped_lock lock(m_padMutex);
-		return m_touchPos;
+		return m_hasPointer ? m_pointerPos : m_touchPos;
 	}
 	glm::vec2 get_prev_position() override
 	{
 		std::scoped_lock lock(m_padMutex);
-		return m_touchPrevPos;
+		return m_hasPointer ? m_pointerPrevPos : m_touchPrevPos;
 	}
 	PositionVisibility GetPositionVisibility() override
 	{
 		std::scoped_lock lock(m_padMutex);
-		return m_touchDown ? PositionVisibility::FULL : PositionVisibility::NONE;
+		return (m_hasPointer ? m_connected : m_touchDown) ? PositionVisibility::FULL : PositionVisibility::NONE;
 	}
 
 	ControllerState raw_state() override
@@ -155,6 +162,9 @@ class SwitchGamepadController : public ControllerBase
 			m_mainMouseWasDown = false;
 			return {};
 		}
+
+		if (m_hasPointer && (b & HidNpadButton_StickR))
+			m_pointerPos = m_pointerPrevPos = {0.5f, 0.5f};
 
 		if (m_hasTouch)
 		{
@@ -418,6 +428,36 @@ class SwitchGamepadController : public ControllerBase
 			std::scoped_lock lock(m_motionMutex);
 			m_motionSample = sample;
 		}
+		if (m_hasPointer)
+			updatePointer(sample, deltaTime);
+	}
+
+	void updatePointer(MotionSample sample, float deltaTime)
+	{
+		glm::vec3 gyro, acc;
+		sample.getGyrometer(&gyro[0]);
+		sample.getAccelerometer(&acc[0]);
+
+		// track gravity only while the controller is not being swung
+		const float accLength = glm::length(acc);
+		if (accLength > 0.5f && accLength < 1.5f)
+			m_pointerDown = glm::mix(m_pointerDown, acc / accLength, std::min(1.0f, deltaTime * 4.0f));
+		const float downLength = glm::length(m_pointerDown);
+		const glm::vec3 down = downLength > 0.001f ? m_pointerDown / downLength : glm::vec3{0.0f, 1.0f, 0.0f};
+		glm::vec3 right{down.y, -down.x, 0.0f};
+		const float rightLength = glm::length(right);
+		right = rightLength > 0.2f ? right / rightLength : glm::vec3{1.0f, 0.0f, 0.0f};
+
+		float yaw = glm::dot(gyro, down);
+		float pitch = glm::dot(gyro, right);
+		if (std::abs(yaw) < 0.02f)
+			yaw = 0.0f;
+		if (std::abs(pitch) < 0.02f)
+			pitch = 0.0f;
+
+		m_pointerPrevPos = m_pointerPos;
+		m_pointerPos.x = std::clamp(m_pointerPos.x + yaw * deltaTime / kPointerYawRange, 0.0f, 1.0f);
+		m_pointerPos.y = std::clamp(m_pointerPos.y - pitch * deltaTime / kPointerPitchRange, 0.0f, 1.0f);
 	}
 
 	void sendVibration(float amp)
@@ -453,12 +493,16 @@ class SwitchGamepadController : public ControllerBase
 	bool m_useHandheld = false;
 	bool m_hasTouch = false;
 	bool m_enableMotion = false;
+	bool m_hasPointer = false;
 	std::mutex m_padMutex;
 	ControllerState m_cachedState{};
 	bool m_connected = false;
 	bool m_touchDown = false;
 	glm::vec2 m_touchPos{};
 	glm::vec2 m_touchPrevPos{};
+	glm::vec2 m_pointerPos{0.5f, 0.5f};
+	glm::vec2 m_pointerPrevPos{0.5f, 0.5f};
+	glm::vec3 m_pointerDown{0.0f, 1.0f, 0.0f};
 	bool m_mainMouseWasDown = false;
 	std::array<VibrationDevice, 5> m_vibration{};
 	std::array<HidSixAxisSensorHandle, 6> m_motionHandles{};
@@ -677,13 +721,14 @@ bool ConfigureMappings(const EmulatedControllerPtr& emu, EmulatedController::Typ
 void EnsurePhysicalController(size_t index, EmulatedController::Type type)
 {
 	const bool gamePadFeatures = type == EmulatedController::Type::VPAD;
-	const bool motion = gamePadFeatures || type == EmulatedController::Type::Wiimote;
+	const bool pointer = type == EmulatedController::Type::Wiimote;
+	const bool motion = gamePadFeatures || pointer;
 	if (s_controllers[index] && s_controllers[index]->usesGamePadFeatures() == gamePadFeatures &&
-		s_controllers[index]->usesMotion() == motion)
+		s_controllers[index]->usesMotion() == motion && s_controllers[index]->usesPointer() == pointer)
 		return;
 	s_controllers[index].reset();
 	s_controllers[index] = std::make_shared<SwitchGamepadController>(
-		index, kNpadIds[index], index == 0, gamePadFeatures, motion);
+		index, kNpadIds[index], index == 0, gamePadFeatures, motion, pointer);
 	auto settings = s_controllers[index]->get_settings();
 	settings.axis.deadzone = settings.rotation.deadzone = s_config.deadzone / 100.0f;
 	settings.rumble = s_config.rumble ? 1.0f : 0.0f;

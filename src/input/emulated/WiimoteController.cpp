@@ -55,6 +55,8 @@ bool WiimoteController::set_mpls_mode(uint32 mode)
 	if (get_mpls_mode() == mode)
 		return true;
 	m_mpls_mode = mode;
+	if (mode != 0)
+		reset_mpls();
 	m_data_format = get_default_data_format();
 	m_extension_status = ConnectCallbackStatus::ReportConnect;
 	return true;

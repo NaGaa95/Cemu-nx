@@ -66,8 +66,16 @@ namespace padscore
 			MEMPTR<void> connectCallback;
 			MEMPTR<void> sampling_callback;
 			MEMPTR<void> dpd_callback;
+			MEMPTR<void> dpd_control_callback;
 			MEMPTR<void> mpls_callback;
 			bool dpd_enabled = true;
+
+			struct MplsState
+			{
+				bool calibrating = false;
+				uint64 calibration_start = 0;
+				uint32 features = 0;
+			} mpls;
 
 			bool disconnectCalled = false;
 
@@ -77,6 +85,14 @@ namespace padscore
 		MEMPTR<void> mpls_workarea;
 		int max_controllers = kWPADMaxControllers; // max bt controllers?
 	} g_padscore;
+
+	bool IsDpdEnabled(uint32 channel)
+	{
+		if (channel >= InputManager::kMaxWPADControllers || !g_padscore.controller_data[channel].dpd_enabled)
+			return false;
+		const auto controller = InputManager::instance().get_wpad_controller(channel);
+		return controller && controller->type() == EmulatedController::Wiimote;
+	}
 }
 
 
@@ -144,7 +160,7 @@ void padscoreExport_WPADGetInfoAsync(PPCInterpreter_t* hCPU)
 	{
 		if (const auto controller = InputManager::instance().get_wpad_controller(channel))
 		{
-			wpadInfo->dpd = FALSE;
+			wpadInfo->dpd = padscore::IsDpdEnabled(channel) ? TRUE : FALSE;
 			wpadInfo->speaker = FALSE;
 			wpadInfo->attach = FALSE;
 			wpadInfo->lowBat = FALSE;
@@ -234,7 +250,7 @@ void padscoreExport_WPADGetInfo(PPCInterpreter_t* hCPU)
 	{
 		if (const auto controller = InputManager::instance().get_wpad_controller(channel))
 		{
-			wpadInfo->dpd = FALSE;
+			wpadInfo->dpd = padscore::IsDpdEnabled(channel) ? TRUE : FALSE;
 			wpadInfo->speaker = FALSE;
 			wpadInfo->attach = FALSE;
 			wpadInfo->lowBat = FALSE;
@@ -371,6 +387,7 @@ void padscoreExport_WPADControlDpd(PPCInterpreter_t* hCPU)
 		if (const auto controller = InputManager::instance().get_wpad_controller(channel))
 		{
 			padscore::g_padscore.controller_data[channel].dpd_callback = callback;
+			padscore::g_padscore.controller_data[channel].dpd_enabled = command != 0;
 			if (callback)
 			{
 				coreinitAsyncCallback_add(callback, 2, channel, WPAD_ERR_NONE);
@@ -474,6 +491,13 @@ sint32 _KPADRead(uint32 channel, KPADStatus_t* samplingBufs, uint32 length, bety
 		controller->KPADRead(*samplingBufs, btn_repeat);
 		if (!padscore::g_padscore.mpls_workarea)
 			memset(&samplingBufs->mpls, 0, sizeof(samplingBufs->mpls));
+		if (!padscore::g_padscore.controller_data[channel].dpd_enabled)
+		{
+			samplingBufs->dpd_valid_fg = 0;
+			samplingBufs->pos = {};
+			samplingBufs->vec = {};
+			samplingBufs->speed = 0.0f;
+		}
 	}
 
 	if (errResult)
@@ -516,6 +540,32 @@ void padscoreExport_KPADRead(PPCInterpreter_t* hCPU)
 
 namespace padscore
 {
+	auto* GetControllerData(sint32 channel)
+	{
+		return channel >= 0 && channel < InputManager::kMaxWPADControllers ? &g_padscore.controller_data[channel] : nullptr;
+	}
+
+	std::shared_ptr<WPADController> GetController(sint32 channel)
+	{
+		return channel >= 0 ? InputManager::instance().get_wpad_controller(channel) : nullptr;
+	}
+
+	void ReturnFloat(PPCInterpreter_t* hCPU, float value)
+	{
+		hCPU->fpr[1].fpr = value;
+		osLib_returnFromFunction(hCPU, 0);
+	}
+
+	void NotifyDpdControl(sint32 channel)
+	{
+		const auto* data = GetControllerData(channel);
+		const MPTR callback = data ? data->dpd_control_callback.GetMPTR() : MPTR_NULL;
+		if (callback == MPTR_NULL)
+			return;
+		coreinitAsyncCallback_add(callback, 2, channel, 0);
+		coreinitAsyncCallback_add(callback, 2, channel, 1);
+	}
+
 	void export_KPADEnableDPD(PPCInterpreter_t* hCPU)
 	{
 		ppcDefineParamS32(channel, 0);
@@ -527,9 +577,29 @@ namespace padscore
 			if (controller->get_data_format() != kDataFormat_FREESTYLE && controller->get_data_format() != 0x1F)
 				g_padscore.controller_data[channel].dpd_enabled = true;
 		}
-		
+		NotifyDpdControl(channel);
 
 		osLib_returnFromFunction(hCPU, 0);
+	}
+
+	void KPADDisableDPD(sint32 channel)
+	{
+		if (auto* data = GetControllerData(channel))
+		{
+			data->dpd_enabled = false;
+			NotifyDpdControl(channel);
+		}
+	}
+
+	void KPADSetControlDpdCallback(sint32 channel, void* callback)
+	{
+		if (auto* data = GetControllerData(channel))
+			data->dpd_control_callback = callback;
+	}
+
+	uint32 WPADIsDpdEnabled(sint32 channel)
+	{
+		return channel >= 0 && IsDpdEnabled(channel) ? 1 : 0;
 	}
 
 	void export_KPADGetMplsWorkSize(PPCInterpreter_t* hCPU)
@@ -582,6 +652,169 @@ namespace padscore
 	void KPADDisableMpls(sint32 channel)
 	{
 		KPADEnableMpls(channel, 0);
+	}
+
+	constexpr uint64 kMplsCalibrationMs = 1000;
+
+	enum MplsFeature : uint32
+	{
+		kMplsZeroPlay = 1 << 0,
+		kMplsDirRevise = 1 << 1,
+		kMplsAccRevise = 1 << 2,
+		kMplsDpdRevise = 1 << 3,
+	};
+
+	void KPADStartMplsCalibration(sint32 channel)
+	{
+		if (auto* data = GetControllerData(channel))
+		{
+			data->mpls.calibrating = true;
+			data->mpls.calibration_start = coreinit::OSGetTime();
+		}
+	}
+
+	void KPADStopMplsCalibration(sint32 channel)
+	{
+		if (auto* data = GetControllerData(channel))
+			data->mpls.calibrating = false;
+	}
+
+	void export_KPADWorkMplsCalibration(PPCInterpreter_t* hCPU)
+	{
+		ppcDefineParamS32(channel, 0);
+		// remaining work from 1 to 0, negative while idle
+		float remaining = -1.0f;
+		const auto* data = GetControllerData(channel);
+		if (data && data->mpls.calibrating)
+		{
+			const uint64 total = coreinit::EspressoTime::ConvertMsToTimerTicks(kMplsCalibrationMs);
+			const uint64 elapsed = coreinit::OSGetTime() - data->mpls.calibration_start;
+			remaining = elapsed >= total ? 0.0f : 1.0f - (float)elapsed / (float)total;
+		}
+		cemuLog_log(LogType::InputAPI, "KPADWorkMplsCalibration({}) -> {}", channel, remaining);
+		ReturnFloat(hCPU, remaining);
+	}
+
+	void KPADResetMpls(sint32 channel)
+	{
+		if (const auto controller = GetController(channel))
+			controller->reset_mpls();
+	}
+
+	void KPADReset()
+	{
+		for (sint32 i = 0; i < InputManager::kMaxWPADControllers; ++i)
+			KPADResetMpls(i);
+	}
+
+	void KPADSetMplsAngle(sint32 channel, float rx, float ry, float rz)
+	{
+		if (const auto controller = GetController(channel))
+			controller->set_mpls_angle({rx, ry, rz});
+	}
+
+	void KPADSetMplsDirection(sint32 channel, KPADMPDir_t* dir)
+	{
+		const auto controller = GetController(channel);
+		if (!controller || !dir)
+			return;
+		const auto toVec = [](const beVec3D_t& v) { return glm::vec3{(float)v.x, (float)v.y, (float)v.z}; };
+		controller->set_mpls_direction({toVec(dir->X), toVec(dir->Y), toVec(dir->Z)});
+	}
+
+	void SetMplsFeature(sint32 channel, uint32 feature, bool enabled)
+	{
+		if (auto* data = GetControllerData(channel))
+			data->mpls.features = enabled ? (data->mpls.features | feature) : (data->mpls.features & ~feature);
+	}
+
+	void KPADEnableMplsZeroPlay(sint32 channel)
+	{
+		SetMplsFeature(channel, kMplsZeroPlay, true);
+	}
+
+	void KPADDisableMplsZeroPlay(sint32 channel)
+	{
+		SetMplsFeature(channel, kMplsZeroPlay, false);
+	}
+
+	void KPADEnableMplsDirRevise(sint32 channel)
+	{
+		SetMplsFeature(channel, kMplsDirRevise, true);
+	}
+
+	void KPADDisableMplsDirRevise(sint32 channel)
+	{
+		SetMplsFeature(channel, kMplsDirRevise, false);
+	}
+
+	void KPADEnableMplsAccRevise(sint32 channel)
+	{
+		SetMplsFeature(channel, kMplsAccRevise, true);
+	}
+
+	void KPADDisableMplsAccRevise(sint32 channel)
+	{
+		SetMplsFeature(channel, kMplsAccRevise, false);
+	}
+
+	void KPADEnableMplsDpdRevise(sint32 channel)
+	{
+		SetMplsFeature(channel, kMplsDpdRevise, true);
+	}
+
+	void KPADDisableMplsDpdRevise(sint32 channel)
+	{
+		SetMplsFeature(channel, kMplsDpdRevise, false);
+	}
+
+	// 1 while the controller is at rest
+	float GetMplsStability(sint32 channel)
+	{
+		const auto controller = GetController(channel);
+		if (!controller || !controller->has_motion())
+			return 1.0f;
+		auto sample = controller->get_motion_data();
+		glm::vec3 gyro;
+		sample.getGyrometer(&gyro[0]);
+		return glm::length(gyro) < 0.35f ? 1.0f : 0.0f;
+	}
+
+	// negative while the feature is off
+	float GetMplsFeatureState(sint32 channel, uint32 feature, float enabledValue)
+	{
+		const auto* data = GetControllerData(channel);
+		return data && (data->mpls.features & feature) ? enabledValue : -1.0f;
+	}
+
+	void export_KPADIsEnableMplsZeroPlay(PPCInterpreter_t* hCPU)
+	{
+		ppcDefineParamS32(channel, 0);
+		ReturnFloat(hCPU, GetMplsFeatureState(channel, kMplsZeroPlay, GetMplsStability(channel)));
+	}
+
+	void export_KPADIsEnableMplsZeroDrift(PPCInterpreter_t* hCPU)
+	{
+		ppcDefineParamS32(channel, 0);
+		ReturnFloat(hCPU, GetControllerData(channel) ? GetMplsStability(channel) : -1.0f);
+	}
+
+	void export_KPADIsEnableMplsDirRevise(PPCInterpreter_t* hCPU)
+	{
+		ppcDefineParamS32(channel, 0);
+		ReturnFloat(hCPU, GetMplsFeatureState(channel, kMplsDirRevise, 0.0f));
+	}
+
+	void export_KPADIsEnableMplsAccRevise(PPCInterpreter_t* hCPU)
+	{
+		ppcDefineParamS32(channel, 0);
+		ReturnFloat(hCPU, GetMplsFeatureState(channel, kMplsAccRevise, 0.0f));
+	}
+
+	void export_KPADIsEnableMplsDpdRevise(PPCInterpreter_t* hCPU)
+	{
+		ppcDefineParamS32(channel, 0);
+		ReturnFloat(hCPU, GetMplsFeatureState(channel, kMplsDpdRevise, 0.0f));
 	}
 
 	void KPADInitEx(KPADUnifiedWpadStatus_t ring_buffer[], uint32 length)
@@ -824,7 +1057,12 @@ namespace padscore
 		{
 			coreinit::OSCancelAlarm(g_padscore.alarm.GetPtr());
 			for (auto& data : g_padscore.controller_data)
+			{
 				data.mpls_callback = nullptr;
+				data.dpd_control_callback = nullptr;
+				data.dpd_enabled = true;
+				data.mpls = {};
+			}
 			g_padscore.mpls_workarea = nullptr;
 			s_padscoreStaticData.Deallocate();
 		}
@@ -843,6 +1081,23 @@ namespace padscore
 			cafeExportRegister("padscore", KPADGetMplsStatus, LogType::InputAPI);
 			cafeExportRegister("padscore", KPADEnableMpls, LogType::InputAPI);
 			cafeExportRegister("padscore", KPADDisableMpls, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADStartMplsCalibration, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADStopMplsCalibration, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADResetMpls, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADReset, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADSetMplsAngle, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADSetMplsDirection, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADEnableMplsZeroPlay, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADDisableMplsZeroPlay, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADEnableMplsDirRevise, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADDisableMplsDirRevise, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADEnableMplsAccRevise, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADDisableMplsAccRevise, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADEnableMplsDpdRevise, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADDisableMplsDpdRevise, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADDisableDPD, LogType::InputAPI);
+			cafeExportRegister("padscore", KPADSetControlDpdCallback, LogType::InputAPI);
+			cafeExportRegister("padscore", WPADIsDpdEnabled, LogType::InputAPI);
 			cafeExportRegister("padscore", WPADIsMplsAttached, LogType::InputAPI);
 			cafeExportRegister("padscore", WPADGetAccGravityUnit, LogType::InputAPI);
 
@@ -854,6 +1109,12 @@ namespace padscore
 			osLib_addFunction("padscore", "KPADGetMaxControllers", padscore::export_KPADGetMaxControllers);
 			osLib_addFunction("padscore", "KPADEnableDPD", padscore::export_KPADEnableDPD);
 			osLib_addFunction("padscore", "KPADGetMplsWorkSize", padscore::export_KPADGetMplsWorkSize);
+			osLib_addFunction("padscore", "KPADWorkMplsCalibration", padscore::export_KPADWorkMplsCalibration);
+			osLib_addFunction("padscore", "KPADIsEnableMplsZeroPlay", padscore::export_KPADIsEnableMplsZeroPlay);
+			osLib_addFunction("padscore", "KPADIsEnableMplsZeroDrift", padscore::export_KPADIsEnableMplsZeroDrift);
+			osLib_addFunction("padscore", "KPADIsEnableMplsDirRevise", padscore::export_KPADIsEnableMplsDirRevise);
+			osLib_addFunction("padscore", "KPADIsEnableMplsAccRevise", padscore::export_KPADIsEnableMplsAccRevise);
+			osLib_addFunction("padscore", "KPADIsEnableMplsDpdRevise", padscore::export_KPADIsEnableMplsDpdRevise);
 			osLib_addFunction("padscore", "KPADInit", padscore::export_KPADInit);
 			osLib_addFunction("padscore", "KPADInitEx", padscore::export_KPADInitEx);
 

@@ -10,6 +10,100 @@ WPADController::WPADController(size_t player_index, WPADDataFormat data_format)
 {
 }
 
+namespace
+{
+	bool HasDpdData(WPADDataFormat format)
+	{
+		switch (format)
+		{
+		case kDataFormat_CORE_ACC_DPD:
+		case kDataFormat_FREESTYLE_ACC_DPD:
+		case kDataFormat_CLASSIC_ACC_DPD:
+		case kDataFormat_CORE_ACC_DPD_FULL:
+		case kDataFormat_MPLS:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	// right turn is positive, dir is expressed in X left, Y up, Z towards the TV
+	float GetMplsHeading(const WPADController::MplsDir& dir)
+	{
+		const glm::vec3& forward = dir[2];
+		if (forward.x * forward.x + forward.z * forward.z >= 0.25f)
+			return std::atan2(-forward.x, forward.z);
+		return std::atan2(dir[0].z, dir[0].x);
+	}
+
+	void RotateMplsHeading(WPADController::MplsDir& dir, float angle)
+	{
+		const float c = std::cos(angle);
+		const float s = std::sin(angle);
+		for (auto& v : dir)
+			v = {v.x * c + v.z * s, v.y, v.z * c - v.x * s};
+	}
+}
+
+void WPADController::reset_mpls()
+{
+	std::scoped_lock lock(m_mpls_mutex);
+	m_mpls_pending_angle = glm::vec3{};
+	m_mpls_pending_heading = 0.0f;
+}
+
+void WPADController::set_mpls_angle(const glm::vec3& angle)
+{
+	std::scoped_lock lock(m_mpls_mutex);
+	m_mpls_pending_angle = angle;
+}
+
+void WPADController::set_mpls_direction(const MplsDir& dir)
+{
+	std::scoped_lock lock(m_mpls_mutex);
+	m_mpls_pending_heading = GetMplsHeading(dir);
+}
+
+void WPADController::apply_mpls_reference(glm::vec3& angle, MplsDir& dir)
+{
+	std::scoped_lock lock(m_mpls_mutex);
+	if (m_mpls_pending_angle)
+	{
+		m_mpls_angle_offset = angle - *m_mpls_pending_angle;
+		m_mpls_pending_angle.reset();
+	}
+	angle -= m_mpls_angle_offset;
+	if (m_mpls_pending_heading)
+	{
+		m_mpls_heading_offset = GetMplsHeading(dir) - *m_mpls_pending_heading;
+		m_mpls_pending_heading.reset();
+	}
+	RotateMplsHeading(dir, m_mpls_heading_offset);
+}
+
+glm::vec3 WPADController::get_kpad_acc(MotionSample& sample) const
+{
+	bool nativeAxes = false;
+	{
+		std::shared_lock lock(m_mutex);
+		for (const auto& controller : m_controllers)
+		{
+			if (controller->use_motion())
+			{
+				nativeAxes = controller->api() == InputAPI::Wiimote;
+				break;
+			}
+		}
+	}
+	// only native Wii Remote samples already use the KPAD axes
+	glm::vec3 acc;
+	if (nativeAxes)
+		sample.getAccelerometer(&acc[0]);
+	else
+		sample.getVPADAccelerometer(&acc[0]);
+	return acc;
+}
+
 WPADDataFormat WPADController::get_default_data_format() const
 {
 	switch (get_device_type())
@@ -209,16 +303,29 @@ void WPADController::WPADRead(WPADStatus_t* status)
 	if (type() == Wiimote && has_motion())
 	{
 		auto sample = get_motion_data();
-		glm::vec3 acc;
-		sample.getAccelerometer(&acc[0]);
+		const glm::vec3 acc = get_kpad_acc(sample);
 		const auto encode = [](float value) {
 			if (!std::isfinite(value))
 				value = 0;
 			return static_cast<uint16>(static_cast<sint16>(std::lround(std::clamp(value * 99.0f, -32768.0f, 32767.0f))));
 		};
-		status->accX = encode(acc.x);
-		status->accY = encode(acc.y);
-		status->accZ = encode(acc.z);
+		status->accX = encode(-acc.x);
+		status->accY = encode(acc.z);
+		status->accZ = encode(-acc.y);
+	}
+	if (HasDpdData(m_data_format) && has_position() && GetPositionVisibility() != PositionVisibility::NONE)
+	{
+		const auto position = get_position();
+		const float x = (1.0f - position.x) * 1023.0f;
+		const float y = std::clamp(position.y * 767.0f, 0.0f, 767.0f);
+		for (int i = 0; i < 2; ++i)
+		{
+			auto& obj = status->obj[i];
+			obj.x = static_cast<uint16>(std::clamp(x + (i == 0 ? -64.0f : 64.0f), 0.0f, 1023.0f));
+			obj.y = static_cast<uint16>(y);
+			obj.size = 2;
+			obj.traceId = static_cast<uint8>(i);
+		}
 	}
 	status->dev = get_device_type();
 	status->err = WPAD_ERR_NONE;
@@ -286,27 +393,15 @@ void WPADController::KPADRead(KPADStatus_t& status, const BtnRepeat& repeat)
 	//status.trig = ~m_last_holdvalue & *hold;
 	m_last_holdvalue = *hold;
 
-	if (get_mpls_mode() != 0)
-	{
-		status.mpls.dir.X.x = 1;
-		status.mpls.dir.X.y = 0;
-		status.mpls.dir.X.z = 0;
-
-		status.mpls.dir.Y.x = 0;
-		status.mpls.dir.Y.y = 1;
-		status.mpls.dir.Y.z = 0;
-
-		status.mpls.dir.Z.x = 0;
-		status.mpls.dir.Z.y = 0;
-		status.mpls.dir.Z.z = 1;
-	}
+	const bool mplsEnabled = get_mpls_mode() != 0;
+	glm::vec3 mplsVel{}, mplsAngle{};
+	MplsDir mplsDir{glm::vec3{1.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}, glm::vec3{0.0f, 0.0f, 1.0f}};
 
 	if (has_motion())
 	{
 		auto motion_sample = get_motion_data();
 
-		glm::vec3 acc;
-		motion_sample.getAccelerometer(&acc[0]);
+		const glm::vec3 acc = get_kpad_acc(motion_sample);
 		status.acc.x = acc.x;
 		status.acc.y = acc.y;
 		status.acc.z = acc.z;
@@ -322,37 +417,30 @@ void WPADController::KPADRead(KPADStatus_t& status, const BtnRepeat& repeat)
 		status.accVertical.x = std::min(1.0f, std::abs(acc.x + acc.y));
 		status.accVertical.y = std::min(std::max(-1.0f, -acc.z), 1.0f);
 
-		if (get_mpls_mode() != 0)
+		if (mplsEnabled)
 		{
-			// todo
-			glm::vec3 gyroChange{};
-			motion_sample.getVPADGyroChange(&gyroChange[0]);
-			//const auto& gyroChange = motionSample.getVPADGyroChange();
-			status.mpls.mpls.x = gyroChange.x;
-			status.mpls.mpls.y = gyroChange.y;
-			status.mpls.mpls.z = gyroChange.z;
-
-			//debug_printf("GyroChange %7.2lf %7.2lf %7.2lf\n", (float)status.gyroChange.x, (float)status.gyroChange.y, (float)status.gyroChange.z);
-
-			glm::vec3 gyroOrientation;
-			motion_sample.getVPADOrientation(&gyroOrientation[0]);
-			//const auto& gyroOrientation = motionSample.getVPADOrientation();
-			status.mpls.angle.x = gyroOrientation.x;
-			status.mpls.angle.y = gyroOrientation.y;
-			status.mpls.angle.z = gyroOrientation.z;
+			motion_sample.getVPADGyroChange(&mplsVel[0]);
+			motion_sample.getVPADOrientation(&mplsAngle[0]);
 
 			float attitude[9];
 			motion_sample.getVPADAttitudeMatrix(attitude);
-			status.mpls.dir.X.x = attitude[0];
-			status.mpls.dir.X.y = attitude[1];
-			status.mpls.dir.X.z = attitude[2];
-			status.mpls.dir.Y.x = attitude[3];
-			status.mpls.dir.Y.y = attitude[4];
-			status.mpls.dir.Y.z = attitude[5];
-			status.mpls.dir.Z.x = attitude[6];
-			status.mpls.dir.Z.y = attitude[7];
-			status.mpls.dir.Z.z = attitude[8];
+			for (int i = 0; i < 3; ++i)
+				mplsDir[i] = {attitude[i * 3], attitude[i * 3 + 1], attitude[i * 3 + 2]};
+			apply_mpls_reference(mplsAngle, mplsDir);
 		}
+	}
+	if (mplsEnabled)
+	{
+		const auto store = [](beVec3D_t& out, const glm::vec3& v) {
+			out.x = v.x;
+			out.y = v.y;
+			out.z = v.z;
+		};
+		store(status.mpls.mpls, mplsVel);
+		store(status.mpls.angle, mplsAngle);
+		store(status.mpls.dir.X, mplsDir[0]);
+		store(status.mpls.dir.Y, mplsDir[1]);
+		store(status.mpls.dir.Z, mplsDir[2]);
 	}
 	auto visibility = GetPositionVisibility();
 	if (has_position() && visibility != PositionVisibility::NONE)
@@ -361,6 +449,9 @@ void WPADController::KPADRead(KPADStatus_t& status, const BtnRepeat& repeat)
 			status.dpd_valid_fg = 2;
 		else
 			status.dpd_valid_fg = -1;
+
+		status.horizon.x = 1.0f;
+		status.dist = 1.0f;
 
 		const auto position = get_position();
 

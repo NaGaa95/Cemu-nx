@@ -130,6 +130,11 @@ public:
 		return false;
 	}
 
+	using MplsDir = std::array<glm::vec3, 3>;
+	void reset_mpls();
+	void set_mpls_angle(const glm::vec3& angle);
+	void set_mpls_direction(const MplsDir& dir);
+
 	enum class ConnectCallbackStatus
 	{
 		None, // do nothing
@@ -145,9 +150,18 @@ protected:
 	WPADDataFormat m_data_format;
 
 private:
+	glm::vec3 get_kpad_acc(MotionSample& sample) const;
+	void apply_mpls_reference(glm::vec3& angle, MplsDir& dir);
+
 	uint32be m_last_holdvalue = 0;
 
 	std::chrono::steady_clock::time_point m_last_hold_change{}, m_last_pulse{};
+
+	std::mutex m_mpls_mutex;
+	std::optional<glm::vec3> m_mpls_pending_angle = glm::vec3{};
+	std::optional<float> m_mpls_pending_heading = 0.0f;
+	glm::vec3 m_mpls_angle_offset{};
+	float m_mpls_heading_offset = 0.0f;
 
 	
 };
