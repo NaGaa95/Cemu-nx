@@ -320,6 +320,7 @@ static const InputMapping C_inputMappings[] = {
   {"D-Pad Left", "Left", "in_Left", "DLEFT"}, {"D-Pad Right", "Right", "in_Right", "DRIGHT"},
   {"L-Stick click", "StickL", "in_StickL", "LCLICK"},
   {"R-Stick click", "StickR", "in_StickR", "RCLICK"},
+  {"Pointer recenter", "Recenter", "in_Recenter", "RCLICK"},
 };
 static const Choice C_launcherTheme[] = { {"Wii U","wiiu"}, {"Classic","classic"} };
 static const Choice C_gridColumns[] = { {"3","3"}, {"4","4"}, {"5","5"}, {"6","6"}, {"7","7"}, {"8","8"} };

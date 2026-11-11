@@ -111,6 +111,11 @@ class SwitchGamepadController : public ControllerBase
 	{
 		return m_hasPointer;
 	}
+	void setRecenterButton(uint32 code)
+	{
+		std::scoped_lock lock(m_padMutex);
+		m_recenterCode = code;
+	}
 
 	bool has_position() override
 	{
@@ -162,9 +167,6 @@ class SwitchGamepadController : public ControllerBase
 			m_mainMouseWasDown = false;
 			return {};
 		}
-
-		if (m_hasPointer && (b & HidNpadButton_StickR))
-			m_pointerPos = m_pointerPrevPos = {0.5f, 0.5f};
 
 		if (m_hasTouch)
 		{
@@ -254,6 +256,8 @@ class SwitchGamepadController : public ControllerBase
 		set(kRotationXN, rx < -th);
 		set(kRotationYP, ry > th);
 		set(kRotationYN, ry < -th);
+		if (m_hasPointer && m_recenterCode != kNoCode && s.buttons.GetButtonState(m_recenterCode))
+			m_pointerPos = m_pointerPrevPos = {0.5f, 0.5f};
 		return s;
 	}
 
@@ -503,6 +507,7 @@ class SwitchGamepadController : public ControllerBase
 	glm::vec2 m_pointerPos{0.5f, 0.5f};
 	glm::vec2 m_pointerPrevPos{0.5f, 0.5f};
 	glm::vec3 m_pointerDown{0.0f, 1.0f, 0.0f};
+	uint32 m_recenterCode = kButton9;
 	bool m_mainMouseWasDown = false;
 	std::array<VibrationDevice, 5> m_vibration{};
 	std::array<HidSixAxisSensorHandle, 6> m_motionHandles{};
@@ -588,6 +593,7 @@ static uint32 physCode(const std::string& tok)
 InputConfig s_config;
 std::array<std::shared_ptr<SwitchGamepadController>, kSwitchControllerCount> s_controllers;
 std::atomic<SwitchControllerType> s_controllerType{SwitchControllerType::GamePad};
+std::atomic<SwitchControllerType> s_secondaryControllerType{SwitchControllerType::Pro};
 
 SwitchControllerType ParseControllerType(const std::string& type, SwitchControllerType fallback)
 {
@@ -729,6 +735,8 @@ void EnsurePhysicalController(size_t index, EmulatedController::Type type)
 	s_controllers[index].reset();
 	s_controllers[index] = std::make_shared<SwitchGamepadController>(
 		index, kNpadIds[index], index == 0, gamePadFeatures, motion, pointer);
+	const auto recenter = s_config.map.find("Recenter");
+	s_controllers[index]->setRecenterButton(physCode(recenter != s_config.map.end() ? recenter->second : "RCLICK"));
 	auto settings = s_controllers[index]->get_settings();
 	settings.axis.deadzone = settings.rotation.deadzone = s_config.deadzone / 100.0f;
 	settings.rumble = s_config.rumble ? 1.0f : 0.0f;
@@ -752,9 +760,7 @@ bool ConfigureControllers(SwitchControllerType type)
 		? kSwitchControllerCount
 		: InputManager::kMaxWPADControllers;
 	const size_t configuredPlayers = std::min(requestedPlayers, maxPlayers);
-	auto secondaryType = ParseControllerType(s_config.secondaryType, SwitchControllerType::Pro);
-	if (secondaryType == SwitchControllerType::GamePad)
-		secondaryType = SwitchControllerType::Pro;
+	const auto secondaryType = s_secondaryControllerType.load(std::memory_order_acquire);
 	const auto secondaryEmulatedType = ToEmulatedType(secondaryType);
 	for (size_t i = 0; i < configuredPlayers; ++i)
 		EnsurePhysicalController(i, i == 0 ? playerOneType : secondaryEmulatedType);
@@ -783,6 +789,10 @@ bool ConfigureControllers(SwitchControllerType type)
 void SwitchInput_Setup()
 {
 	s_config = loadInputConfig("sdmc:/switch/cemu/input.ini");
+	auto secondaryType = ParseControllerType(s_config.secondaryType, SwitchControllerType::Pro);
+	if (secondaryType == SwitchControllerType::GamePad)
+		secondaryType = SwitchControllerType::Pro;
+	s_secondaryControllerType.store(secondaryType, std::memory_order_release);
 	ConfigureControllers(ParseControllerType(s_config.type, SwitchControllerType::GamePad));
 }
 
@@ -804,4 +814,19 @@ bool SwitchInput_SetControllerType(SwitchControllerType type)
 SwitchControllerType SwitchInput_GetControllerType()
 {
 	return s_controllerType.load(std::memory_order_acquire);
+}
+
+bool SwitchInput_SetSecondaryControllerType(SwitchControllerType type)
+{
+	if (type <= SwitchControllerType::GamePad || type >= SwitchControllerType::Count)
+		return false;
+	if (type == SwitchInput_GetSecondaryControllerType())
+		return true;
+	s_secondaryControllerType.store(type, std::memory_order_release);
+	return ConfigureControllers(SwitchInput_GetControllerType());
+}
+
+SwitchControllerType SwitchInput_GetSecondaryControllerType()
+{
+	return s_secondaryControllerType.load(std::memory_order_acquire);
 }

@@ -14,3 +14,5 @@ void SwitchInput_Setup();
 void SwitchInput_Shutdown();
 bool SwitchInput_SetControllerType(SwitchControllerType type);
 SwitchControllerType SwitchInput_GetControllerType();
+bool SwitchInput_SetSecondaryControllerType(SwitchControllerType type);
+SwitchControllerType SwitchInput_GetSecondaryControllerType();

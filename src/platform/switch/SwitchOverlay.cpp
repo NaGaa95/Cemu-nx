@@ -63,7 +63,8 @@ constexpr std::uint64_t kAllowedButtons = HidNpadButton_A | HidNpadButton_B | Hi
 	HidNpadButton_Plus | HidNpadButton_Minus | HidNpadButton_StickL | HidNpadButton_StickR |
 	HidNpadButton_Up | HidNpadButton_Down | HidNpadButton_Left | HidNpadButton_Right;
 constexpr size_t kHotkeyCount = static_cast<size_t>(HotkeyAction::Count);
-constexpr int kMainMenuItems = 11;
+constexpr int kMainMenuItems = 12;
+constexpr float kMainRowHeight = 38.0f;
 constexpr int kAccessoryMenuItems = 4;
 constexpr int kPositionCount = 7;
 
@@ -128,6 +129,16 @@ void CycleControllerType(int direction)
 	int type = static_cast<int>(SwitchInput_GetControllerType());
 	type = (type + direction + static_cast<int>(SwitchControllerType::Count)) % static_cast<int>(SwitchControllerType::Count);
 	SwitchInput_SetControllerType(static_cast<SwitchControllerType>(type));
+}
+
+void CycleSecondaryControllerType(int direction)
+{
+	constexpr int count = static_cast<int>(SwitchControllerType::Count);
+	int type = static_cast<int>(SwitchInput_GetSecondaryControllerType());
+	do
+		type = (type + direction + count) % count;
+	while (static_cast<SwitchControllerType>(type) == SwitchControllerType::GamePad);
+	SwitchInput_SetSecondaryControllerType(static_cast<SwitchControllerType>(type));
 }
 
 const char* GamePadLayoutName(SwitchGamePadLayout layout)
@@ -429,9 +440,11 @@ void RenderMainPage()
 	auto& config = GetConfig();
 	char row[192];
 	std::snprintf(row, sizeof(row), "Controller type     <  %s  >", ControllerTypeName(SwitchInput_GetControllerType()));
-	SelectableRow(row, 0);
+	SelectableRow(row, 0, kMainRowHeight);
+	std::snprintf(row, sizeof(row), "Other controllers   <  %s  >", ControllerTypeName(SwitchInput_GetSecondaryControllerType()));
+	SelectableRow(row, 1, kMainRowHeight);
 	std::snprintf(row, sizeof(row), "GamePad screen      <  %s  >", GamePadLayoutName(SwitchPlatform_GetGamePadLayout()));
-	SelectableRow(row, 1);
+	SelectableRow(row, 2, kMainRowHeight);
 	const char* frameGenerationStatus = !SwitchLSFG_IsPrepared() ? "Not prepared" :
 		(!SwitchLSFG_IsAvailable() ? "Unavailable" :
 		(!SwitchLSFG_IsEnabled() ? "Off" :
@@ -441,21 +454,21 @@ void RenderMainPage()
 		frameGenerationStatus = "Preparing";
 #endif
 	std::snprintf(row, sizeof(row), "Frame generation    <  %s  >", frameGenerationStatus);
-	SelectableRow(row, 2);
+	SelectableRow(row, 3, kMainRowHeight);
 	std::snprintf(row, sizeof(row), "FPS counter         <  %s  >", config.overlay.fps ? "On" : "Off");
-	SelectableRow(row, 3);
+	SelectableRow(row, 4, kMainRowHeight);
 	std::snprintf(row, sizeof(row), "Overlay position    <  %s  >", PositionName(config.overlay.position));
-	SelectableRow(row, 4);
+	SelectableRow(row, 5, kMainRowHeight);
 	std::snprintf(row, sizeof(row), "Shader notice       <  %s  >", config.notification.shader_compiling ? "On" : "Off");
-	SelectableRow(row, 5);
-	SelectableRow("Runtime hotkeys                              >", 6);
-	SelectableRow("Virtual USB accessories                      >", 7);
+	SelectableRow(row, 6, kMainRowHeight);
+	SelectableRow("Runtime hotkeys                              >", 7, kMainRowHeight);
+	SelectableRow("Virtual USB accessories                      >", 8, kMainRowHeight);
 	char amiiboStatus[96];
 	SwitchAmiibo_GetStatus(amiiboStatus, sizeof(amiiboStatus));
 	std::snprintf(row, sizeof(row), "Scan Amiibo         %s", amiiboStatus);
-	SelectableRow(row, 8);
-	SelectableRow("Exit to launcher", 9);
-	SelectableRow("Close quick menu", 10);
+	SelectableRow(row, 9, kMainRowHeight);
+	SelectableRow("Exit to launcher", 10, kMainRowHeight);
+	SelectableRow("Close quick menu", 11, kMainRowHeight);
 	ImGui::Separator();
 	CenteredText("D-Pad  Navigate     A  Select     B  Close");
 }
@@ -639,31 +652,35 @@ void SwitchOverlay_UpdateInput(std::uint64_t down, std::uint64_t held)
 		else if (selection == 0 && (next || confirm))
 			CycleControllerType(1);
 		else if (selection == 1 && previous)
-			ChangeGamePadLayout(-1);
+			CycleSecondaryControllerType(-1);
 		else if (selection == 1 && (next || confirm))
+			CycleSecondaryControllerType(1);
+		else if (selection == 2 && previous)
+			ChangeGamePadLayout(-1);
+		else if (selection == 2 && (next || confirm))
 			ChangeGamePadLayout(1);
-		else if (selection == 2 && (previous || next || confirm))
-			SwitchLSFG_RequestEnabled(!SwitchLSFG_IsEnabled());
 		else if (selection == 3 && (previous || next || confirm))
+			SwitchLSFG_RequestEnabled(!SwitchLSFG_IsEnabled());
+		else if (selection == 4 && (previous || next || confirm))
 			s_fpsToggleRequests.fetch_add(1, std::memory_order_release);
-		else if (selection == 4 && previous)
+		else if (selection == 5 && previous)
 			s_positionRequests.fetch_sub(1, std::memory_order_release);
-		else if (selection == 4 && (next || confirm))
+		else if (selection == 5 && (next || confirm))
 			s_positionRequests.fetch_add(1, std::memory_order_release);
-		else if (selection == 5 && (previous || next || confirm))
+		else if (selection == 6 && (previous || next || confirm))
 			s_shaderToggleRequests.fetch_add(1, std::memory_order_release);
-		else if (selection == 6 && confirm)
-			SetPage(Page::Hotkeys);
 		else if (selection == 7 && confirm)
-			SetPage(Page::Accessories);
+			SetPage(Page::Hotkeys);
 		else if (selection == 8 && confirm)
-			s_amiiboScanRequests.fetch_add(1, std::memory_order_release);
+			SetPage(Page::Accessories);
 		else if (selection == 9 && confirm)
+			s_amiiboScanRequests.fetch_add(1, std::memory_order_release);
+		else if (selection == 10 && confirm)
 		{
 			s_exitRequests.fetch_add(1, std::memory_order_release);
 			CloseMenu();
 		}
-		else if (selection == 10 && confirm)
+		else if (selection == 11 && confirm)
 			CloseMenu();
 		return;
 	}
