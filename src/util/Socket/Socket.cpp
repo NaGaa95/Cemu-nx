@@ -78,8 +78,7 @@ UDPSocket::UDPSocket()
 {
 	m_socket = static_cast<std::intptr_t>(socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP));
 	if (IsValid())
-		Close();
-	SetSocketSettings(Native(m_socket));
+		SetSocketSettings(Native(m_socket));
 }
 
 UDPSocket::~UDPSocket()
