@@ -11,7 +11,18 @@
 #include "config/ActiveSettings.h"
 #include "util/helpers/ThreadHelpers.h"
 
+#if BOOST_OS_WINDOWS
+#include "util/DXGIWrapper/DXGIWrapper.h"
+#endif
+
 std::unique_ptr<Renderer> g_renderer;
+
+Renderer::Renderer(RendererAPI api)
+	: m_rendererAPI(api)
+{
+}
+
+Renderer::~Renderer() = default;
 
 bool Renderer::GetVRAMInfo(int& usageInMB, int& totalInMB) const
 {

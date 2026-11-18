@@ -1,21 +1,6 @@
 #pragma once
 
-#if BOOST_OS_WINDOWS
-#include "input/api/DirectInput/DirectInputControllerProvider.h"
-#include "input/api/XInput/XInputControllerProvider.h"
-#endif
-
-#ifdef SUPPORTS_WIIMOTE
-#include "input/api/Wiimote/WiimoteControllerProvider.h"
-#endif
-
-#ifdef HAS_SDL
-#include "input/api/SDL/SDLControllerProvider.h"
-#endif
-
-#include "input/api/Keyboard/KeyboardControllerProvider.h"
-#include "input/api/DSU/DSUControllerProvider.h"
-#include "input/api/GameCube/GameCubeControllerProvider.h"
+#include "input/api/ControllerProvider.h"
 
 #include "input/emulated/VPADController.h"
 #include "input/emulated/WPADController.h"
@@ -38,8 +23,6 @@ public:
 	
 	void load() noexcept;
 	bool load(size_t player_index, std::string_view filename = {});
-
-	bool migrate_config(const fs::path& file_path);
 
 	void save() noexcept;
 	bool save(size_t player_index, std::string_view filename = {});

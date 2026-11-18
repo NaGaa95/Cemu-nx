@@ -1,5 +1,4 @@
 #pragma once
-#include "Cafe/HW/Latte/Core/LatteConst.h"
 #include "Cafe/OS/RPL/COSModule.h"
 
 // base defines for GX2
@@ -7,8 +6,6 @@
 #define GX2_FALSE	0
 #define GX2_ENABLE	1
 #define GX2_DISABLE	0
-
-#include "GX2_Surface.h"
 
 // general
 
@@ -35,17 +32,11 @@ void gx2Export_GX2CalcGeometryShaderOutputRingBufferSize(PPCInterpreter_t* hCPU)
 
 // write gather / command queue
 
-#define GX2_COMMAND_RING_BUFFER_SIZE	(64*1024*1024) // 64MB
-
 void gx2Export_GX2GetContextStateDisplayList(PPCInterpreter_t* hCPU);
 
 #include "GX2_Command.h"
 
 // misc
-void gx2Export_GX2AllocateTilingApertureEx(PPCInterpreter_t* hCPU);
-void gx2Export_GX2FreeTilingAperture(PPCInterpreter_t* hCPU);
-void GX2ResetTilingAperture();
-
 void gx2Export_GX2SetSwapInterval(PPCInterpreter_t* hCPU);
 void gx2Export_GX2GetSwapInterval(PPCInterpreter_t* hCPU);
 void gx2Export_GX2GetSwapStatus(PPCInterpreter_t* hCPU);

@@ -49,6 +49,7 @@ public:
 	void LockRead() { m_sm.lock_shared(); }
 	void UnlockRead() { m_sm.unlock_shared(); }
 	void LockWrite() { m_sm.lock(); }
+	bool TryLockWrite() { return m_sm.try_lock(); }
 	void UnlockWrite() { m_sm.unlock(); }
 
 private:

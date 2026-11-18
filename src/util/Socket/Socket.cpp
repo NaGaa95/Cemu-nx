@@ -77,8 +77,12 @@ static sockaddr_in MakeAddress(SocketIPv4 ip, uint16 port)
 UDPSocket::UDPSocket()
 {
 	m_socket = static_cast<std::intptr_t>(socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP));
-	if (IsValid())
-		SetSocketSettings(Native(m_socket));
+	if (!IsValid())
+	{
+		cemuLog_log(LogType::Force, "UDP socket creation failed");
+		return;
+	}
+	SetSocketSettings(Native(m_socket));
 }
 
 UDPSocket::~UDPSocket()
