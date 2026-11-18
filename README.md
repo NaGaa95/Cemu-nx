@@ -20,6 +20,10 @@ Cemu is currently only available for 64-bit Windows, Linux & macOS devices.
  - [Cemu-Language](https://github.com/cemu-project/Cemu-Language)
  - [Cemu's Community Graphic Packs](https://github.com/cemu-project/cemu_graphic_packs)
 
+## Nintendo Switch and Switch 2
+
+This fork runs Cemu on the Nintendo Switch and the Nintendo Switch 2 (kaiHEN). Each release carries both builds: `cemu.nro` for the Switch and `cemu-nx2.nro` for the Switch 2, to put in `sdmc:/switch/cemu/`.
+
 ## Download
 
 You can download the latest Cemu releases for Windows, Linux and Mac from the [GitHub Releases](https://github.com/cemu-project/Cemu/releases/). For Linux you can also find Cemu on [Flathub](https://flathub.org/apps/info.cemu.Cemu).
