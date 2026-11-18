@@ -59,7 +59,12 @@ static void drawToastOverlay();
 static void pumpCoverDecodeResults();
 static void cancelQueuedCoverDecodes();
 static void stopCoverDecodeWorker();
+#if defined(__SWITCH2__)
+static void drawJoyConMouseCursor();
+static void presentUi(SDL_Renderer *renderer) { drawToastOverlay(); drawJoyConMouseCursor(); SDL_RenderPresent(renderer); }
+#else
 static void presentUi(SDL_Renderer *renderer) { drawToastOverlay(); SDL_RenderPresent(renderer); }
+#endif
 #define SDL_RenderPresent presentUi
 
 // SDL uses Xbox button names.
@@ -388,6 +393,9 @@ static const Opt S_framegen[] = {
   O_CHOICE("LSFG 2x", "Wrapper/LSFGEnabled", C_bool, "false"),
   O_CHOICE("Flow resolution", "Wrapper/LSFGFlowScale", C_lsfgFlowScale, LSFG_DEFAULT_FLOW_SCALE),
   O_CHOICE("Performance mode", "Wrapper/LSFGPerformance", C_bool, "true"),
+#if defined(__SWITCH2__)
+  O_CHOICE("120 Hz Docked Mode", "Wrapper/LSFG120Hz", C_bool, "false"),
+#endif
   O_STATUS("Lossless.dll"),
 };
 static const Opt S_overlay[] = {
@@ -417,6 +425,9 @@ static const Opt S_launcher[] = {
   O_CHOICE("Show custom settings badges", "Wrapper/ShowCustomSettingsBadges", C_bool, "true"),
   O_CHOICE("UI animations",     "Wrapper/UiAnimations",   C_bool,          "true"),
   O_CHOICE("Sound effects",     "Wrapper/UiSounds",       C_bool,          "true"),
+#if defined(__SWITCH2__)
+  O_CHOICE("Joy-Con mouse",     "Wrapper/JoyConMouse",    C_bool,          "true"),
+#endif
   O_CHOICE("Check updates at boot", "Wrapper/CheckUpdatesAtBoot", C_bool,   "true"),
 };
 struct Screen { const char *title; const Opt *opts; int n; };
@@ -481,6 +492,10 @@ static const SettingHelpEntry SETTING_HELP[] = {
    "Sets the resolution used for optical-flow analysis. Quarter resolution uses the least GPU time and memory and suits the Switch; Half resolution keeps more motion detail and is the Switch 2 default; Full resolution keeps the most and costs the most."},
   {"Wrapper/LSFGPerformance", "Frame generation performance",
    "Uses LSFG's lighter performance-oriented processing path. Disable it only when you prefer image quality and have enough GPU headroom."},
+#if defined(__SWITCH2__)
+  {"Wrapper/LSFG120Hz", "Frame generation",
+   "Docked, switches the output to 120 Hz (1440p or 1080p, the TV's 120 Hz mode) so that frame generation doubles 50/60 FPS games to 120. It is used only while the game runs at 50/60 FPS. Off, the output stays at the TV's resolution (up to 4K at 60 Hz) and frame generation doubles 30 FPS games only. Handheld always runs at 120 Hz."},
+#endif
 
   {"OverlayFPS", "Performance display",
    "Shows Cemu's frame-rate counter during gameplay."},
@@ -529,6 +544,10 @@ static const SettingHelpEntry SETTING_HELP[] = {
    "Enables launcher transitions, moving highlights, and animated theme effects."},
   {"Wrapper/UiSounds", "Launcher audio",
    "Enables navigation, confirmation, and back sound effects in the SDL launcher."},
+#if defined(__SWITCH2__)
+  {"Wrapper/JoyConMouse", "Launcher input",
+   "Lets a Joy-Con set down on a surface move a cursor in the launcher (Switch 2). Turn it off to keep the Joy-Con's shoulder buttons for the launcher only."},
+#endif
   {"Wrapper/CheckUpdatesAtBoot", "Launcher updates",
    "Checks for a newer Cemu-nx release when the SDL launcher starts. The result appears in Launcher settings."},
 };
@@ -884,7 +903,7 @@ static std::unordered_map<EllipsisKey, EllipsisEntry, EllipsisKeyHash> g_ellipsi
 static size_t g_textCacheBytes = 0;
 static Uint64 g_textUseSerial = 0;
 static constexpr size_t TEXT_CACHE_LIMIT = 512;
-static constexpr size_t TEXT_CACHE_BYTES = 12 * 1024 * 1024;
+static constexpr size_t TEXT_CACHE_BYTES = 12 * 1024 * 1024;   // for text up to 1080p: see textCacheBytes
 static constexpr size_t METRIC_CACHE_LIMIT = 2048;
 static constexpr size_t ELLIPSIS_CACHE_LIMIT = 512;
 
@@ -909,9 +928,16 @@ static void rememberTextMetric(TTF_Font *font, const std::string &text, int widt
   g_metricCache.emplace(std::move(key), MetricEntry{width, ++g_textUseSerial});
 }
 
+// Text textures are at output resolution: scale the 1080p budget by area.
+static size_t textCacheBytes() {
+  const float scale = std::max(1.5f, g_fontScale) / 1.5f;
+  return (size_t)((float)TEXT_CACHE_BYTES * scale * scale);
+}
+
 static void evictTextEntries(size_t incomingBytes) {
+  const size_t budget = textCacheBytes();
   while (!g_textCache.empty() &&
-         (g_textCache.size() >= TEXT_CACHE_LIMIT || g_textCacheBytes > TEXT_CACHE_BYTES - incomingBytes)) {
+         (g_textCache.size() >= TEXT_CACHE_LIMIT || g_textCacheBytes > budget - incomingBytes)) {
     auto victim = g_textCache.begin();
     for (auto it = std::next(g_textCache.begin()); it != g_textCache.end(); ++it)
       if (it->second.use < victim->second.use) victim = it;
@@ -997,6 +1023,26 @@ static Uint8 blendChannel(Uint8 first,Uint8 second,float amount) {
   return (Uint8)(first+(second-first)*std::clamp(amount,0.f,1.f));
 }
 
+// A ring (or part of one) between two radii, as one triangle strip.
+static void drawRingArc(float centerX,float centerY,float inner,float outer,float from,float to,int segments,
+                        SDL_Color color) {
+  constexpr int maxSegments=24;
+  if(segments<1||segments>maxSegments||outer<=0.f) return;
+  std::array<SDL_Vertex,(maxSegments+1)*2> vertices;
+  std::array<int,maxSegments*6> indices;
+  int vertex=0,index=0;
+  for(int segment=0;segment<=segments;segment++){
+    const float angle=from+(to-from)*segment/segments,x=cosf(angle),y=sinf(angle);
+    vertices[vertex++]={{centerX+x*inner,centerY+y*inner},color,{0,0}};
+    vertices[vertex++]={{centerX+x*outer,centerY+y*outer},color,{0,0}};
+  }
+  for(int segment=0;segment<segments;segment++){
+    const int a=segment*2,b=a+1,c=a+2,d=a+3;
+    for(const int corner:{a,b,c,c,b,d}) indices[index++]=corner;
+  }
+  SDL_RenderGeometry(g_ren,nullptr,vertices.data(),vertex,indices.data(),index);
+}
+
 static void drawBubble(int centerX,int centerY,int radius,Uint8 alpha) {
   if(radius<3||alpha==0) return;
   if(g_glowTexture){
@@ -1005,24 +1051,11 @@ static void drawBubble(int centerX,int centerY,int radius,Uint8 alpha) {
     SDL_Rect glow={centerX-radius*2,centerY-radius*2,radius*4,radius*4};
     SDL_RenderCopy(g_ren,g_glowTexture,nullptr,&glow);
   }
-  const int segments=24;
-  SDL_SetRenderDrawColor(g_ren,124,220,255,alpha);
-  std::array<SDL_Point,segments+1> outer{},inner{};
-  for(int segment=0;segment<=segments;segment++){
-    float angle=segment*6.2831853f/segments;
-    float x=cosf(angle),y=sinf(angle);
-    outer[segment]={centerX+(int)(x*radius),centerY+(int)(y*radius)};
-    inner[segment]={centerX+(int)(x*(radius-1)),centerY+(int)(y*(radius-1))};
-  }
-  SDL_RenderDrawLines(g_ren,outer.data(),(int)outer.size());
-  SDL_RenderDrawLines(g_ren,inner.data(),(int)inner.size());
-  SDL_SetRenderDrawColor(g_ren,235,252,255,(Uint8)std::min(255,(int)alpha+55));
-  std::array<SDL_Point,6> highlight{};
-  for(int segment=0;segment<(int)highlight.size();segment++){
-    float angle=3.55f+segment*0.13f;
-    highlight[segment]={centerX+(int)(cosf(angle)*radius),centerY+(int)(sinf(angle)*radius)};
-  }
-  SDL_RenderDrawLines(g_ren,highlight.data(),(int)highlight.size());
+  // Triangle strips: SDL draws a scaled line one rectangle per pixel.
+  drawRingArc((float)centerX,(float)centerY,radius-1.5f,radius+0.5f,0.f,6.2831853f,24,
+              (SDL_Color){124,220,255,alpha});
+  drawRingArc((float)centerX,(float)centerY,radius-0.5f,radius+0.5f,3.55f,3.55f+5*0.13f,5,
+              (SDL_Color){235,252,255,(Uint8)std::min(255,(int)alpha+55)});
 }
 
 static void drawBubblesBackground(float time) {
@@ -1112,7 +1145,7 @@ static void drawText(TTF_Font*f,int x,int y,const char*s,SDL_Color c){
   SDL_FreeSurface(sf);
   if(!t) return;
   rememberTextMetric(f,s,(int)std::ceil(w));
-  if(bytes<=TEXT_CACHE_BYTES){
+  if(bytes<=textCacheBytes()){
     evictTextEntries(bytes);
     TextEntry entry{t,w,h,bytes,++g_textUseSerial};
     auto inserted=g_textCache.emplace(std::move(key),entry);
@@ -2806,6 +2839,139 @@ static void wakeUiFromWorker(int code) {
 }
 static void usbStatusWake(void*) { wakeUiFromWorker(0x55534248); }
 
+#if defined(__SWITCH2__)
+// --- Joy-Con mouse (Switch 2): the merged Nmouse pointer drives a cursor; a click is sent as an SDL finger.
+static constexpr SDL_FingerID JOYCON_MOUSE_FINGER=0x4A434D53;
+static constexpr Uint32 JOYCON_MOUSE_SHOWN_MS=4000;
+static std::atomic_int g_mouseX{-1},g_mouseY{-1};
+static std::atomic<Uint32> g_mouseMovedAt{0};
+static std::atomic_bool g_mouseDown{false},g_mouseStop{false};
+static std::thread g_mouseThread;
+
+static bool joyConMouseInUse(){
+  const Uint32 movedAt=g_mouseMovedAt.load(std::memory_order_relaxed);
+  return g_mouseDown.load(std::memory_order_relaxed)||(movedAt&&SDL_GetTicks()-movedAt<JOYCON_MOUSE_SHOWN_MS);
+}
+
+static void pushJoyConMouseFinger(Uint32 type,int x,int y){
+  SDL_Event event{};
+  event.type=type;
+  event.tfinger.timestamp=SDL_GetTicks();
+  event.tfinger.touchId=JOYCON_MOUSE_FINGER;
+  event.tfinger.fingerId=JOYCON_MOUSE_FINGER;
+  event.tfinger.x=std::clamp((float)x/std::max(1,SW),0.f,1.f);
+  event.tfinger.y=std::clamp((float)y/std::max(1,SH),0.f,1.f);
+  event.tfinger.pressure=type==SDL_FINGERUP?0.f:1.f;
+  SDL_PushEvent(&event);
+}
+
+static void joyConMouseThread(){
+  if(R_FAILED(hidInitializeNmouse(nullptr,0,std::max(1,SW),std::max(1,SH),HidNmousePointerType_Default))) return;
+  hidSetMergedNmouseSourceTypes(HidNmouseType_JoyLeft|HidNmouseType_JoyRight|HidNmouseType_StandardMouse);
+  const int width=std::max(1,SW),height=std::max(1,SH);
+  int lastX=-1,lastY=-1;
+  u64 lastSample=0;
+  Uint32 lastWake=0;
+  bool hideWakeSent=true;
+  while(!g_mouseStop.load(std::memory_order_acquire)){
+    HidNmouseHandle handle{};
+    HidNmouseState state{};
+    size_t total=0;
+    const bool present=R_SUCCEEDED(hidGetMergedNmouseHandle(&handle))&&
+                       R_SUCCEEDED(hidGetNmouseStates(handle,&state,1,&total))&&total;
+    if(present&&state.sampling_number!=lastSample){
+      lastSample=state.sampling_number;
+      const int x=std::clamp((int)state.x,0,width-1),y=std::clamp((int)state.y,0,height-1);
+      const bool moved=lastX>=0&&(x!=lastX||y!=lastY);
+      const bool held=(state.buttons&HidMouseButton_Left)!=0;
+      const bool wasDown=g_mouseDown.load(std::memory_order_relaxed);
+      const Uint32 now=SDL_GetTicks();
+      if(moved){
+        g_mouseMovedAt.store(now?now:1,std::memory_order_relaxed);
+        hideWakeSent=false;
+      }
+      g_mouseX.store(x,std::memory_order_relaxed);
+      g_mouseY.store(y,std::memory_order_relaxed);
+      // A click counts only while the cursor shows, so a Joy-Con in hand keeps its shoulder buttons.
+      if(held&&!wasDown&&joyConMouseInUse()){
+        g_mouseDown.store(true,std::memory_order_relaxed);
+        pushJoyConMouseFinger(SDL_FINGERDOWN,x,y);
+      } else if(!held&&wasDown){
+        g_mouseDown.store(false,std::memory_order_relaxed);
+        pushJoyConMouseFinger(SDL_FINGERUP,x,y);
+      } else if(wasDown&&moved){
+        pushJoyConMouseFinger(SDL_FINGERMOTION,x,y);
+      }
+      // A static screen sleeps until an SDL event: wake it to draw the cursor where it went.
+      if(moved&&now-lastWake>=16){
+        wakeUiFromWorker(0x4D4F5553);
+        lastWake=now;
+      }
+      lastX=x;lastY=y;
+    }
+    // Wake once more when the cursor times out, so a static screen erases it.
+    if(!hideWakeSent&&!joyConMouseInUse()){
+      wakeUiFromWorker(0x4D4F5553);
+      hideWakeSent=true;
+    }
+    svcSleepThread(present?4000000ULL:50000000ULL);
+  }
+  hidFinalizeNmouse();
+}
+
+// While the cursor is in use, L/R/ZL/ZR only click.
+static int SDLCALL joyConMouseEventFilter(void*,SDL_Event *event){
+  if(!joyConMouseInUse()) return 1;
+  if((event->type==SDL_CONTROLLERBUTTONDOWN||event->type==SDL_CONTROLLERBUTTONUP)&&
+     (event->cbutton.button==SDL_CONTROLLER_BUTTON_LEFTSHOULDER||event->cbutton.button==SDL_CONTROLLER_BUTTON_RIGHTSHOULDER))
+    return 0;
+  if(event->type==SDL_CONTROLLERAXISMOTION&&
+     (event->caxis.axis==SDL_CONTROLLER_AXIS_TRIGGERLEFT||event->caxis.axis==SDL_CONTROLLER_AXIS_TRIGGERRIGHT))
+    return 0;
+  return 1;
+}
+
+static void startJoyConMouse(){
+  // Once: SDL_SetEventFilter drops the queued events, and the filter passes everything while the mouse is off.
+  static bool filterSet=false;
+  if(!filterSet){
+    SDL_SetEventFilter(joyConMouseEventFilter,nullptr);
+    filterSet=true;
+  }
+  g_mouseStop.store(false,std::memory_order_release);
+  g_mouseThread=std::thread(joyConMouseThread);
+}
+
+// Before a chainload or exit: the next program opens the Joy-Con mouse itself.
+static void stopJoyConMouse(){
+  if(!g_mouseThread.joinable()) return;
+  g_mouseStop.store(true,std::memory_order_release);
+  g_mouseThread.join();
+  g_mouseDown.store(false,std::memory_order_relaxed);
+  g_mouseMovedAt.store(0,std::memory_order_relaxed);
+  g_mouseX.store(-1,std::memory_order_relaxed);
+}
+
+// The Launcher settings' "Joy-Con mouse" option (on by default).
+static void applyJoyConMouseSetting(){
+  const bool enabled=strcmp(storeGet(g_global,"Wrapper/JoyConMouse","true"),"false")!=0;
+  if(enabled&&!g_mouseThread.joinable()) startJoyConMouse();
+  else if(!enabled) stopJoyConMouse();
+}
+
+static void drawJoyConMouseCursor(){
+  const int x=g_mouseX.load(std::memory_order_relaxed),y=g_mouseY.load(std::memory_order_relaxed);
+  if(!g_ren||x<0||!joyConMouseInUse()) return;
+  SDL_RenderSetClipRect(g_ren,nullptr);
+  const float fx=(float)x,fy=(float)y;
+  const SDL_Color edge={20,24,32,235},fill={250,252,255,255};
+  const SDL_Vertex outline[]={{{fx-1.5f,fy-2.5f},edge,{0,0}},{{fx-1.5f,fy+21.f},edge,{0,0}},{{fx+16.f,fy+15.5f},edge,{0,0}}};
+  const SDL_Vertex arrow[]={{{fx,fy},fill,{0,0}},{{fx,fy+17.f},fill,{0,0}},{{fx+12.5f,fy+13.f},fill,{0,0}}};
+  SDL_RenderGeometry(g_ren,nullptr,outline,3,nullptr,0);
+  SDL_RenderGeometry(g_ren,nullptr,arrow,3,nullptr,0);
+}
+#endif
+
 static void libraryScanWorker(const std::shared_ptr<LibraryScanState> &state,
                               std::vector<std::string> sources,Store titles,Store recent,
                               Store containerTitles,Store identities) {
@@ -4366,7 +4532,8 @@ static bool optionEnabled(int screen,const Opt &option) {
   if(!nativeVulkan && !nativeDeko && screen==SCR_FRAMEGEN) return false;
   if(!nativeVulkan && option.key && !strcmp(option.key,"vkAccurateBarriers")) return false;
   if(screen==SCR_FRAMEGEN&&option.key&&
-     (!strcmp(option.key,"Wrapper/LSFGFlowScale")||!strcmp(option.key,"Wrapper/LSFGPerformance")))
+     (!strcmp(option.key,"Wrapper/LSFGFlowScale")||!strcmp(option.key,"Wrapper/LSFGPerformance")||
+      !strcmp(option.key,"Wrapper/LSFG120Hz")))
     return !strcmp(iniGet("Wrapper/LSFGEnabled","false"),"true")&&regularFileExists(LSFG_DLL_FILE);
   return true;
 }
@@ -4531,7 +4698,7 @@ static void renderSettings(int scr,int sel,int top,const char *ctx){
     SDL_Color lc = enabled?(cur?COL_VAL:COL_TXT):(SDL_Color){92,98,110,255};
     SDL_Color vc = enabled?(cur?COL_VAL:COL_DIM):(SDL_Color){92,98,110,255};
     if(S.opts[i].type==OT_STATUS){
-      const bool ok=(S.opts[i].key&&!strcmp(S.opts[i].key,"cpu-cores"))
+      bool ok=(S.opts[i].key&&!strcmp(S.opts[i].key,"cpu-cores"))
         ? allowedCpuCores()>=4 : regularFileExists(LSFG_DLL_FILE);
       vc=ok?(SDL_Color){120,220,120,255}:(SDL_Color){235,125,115,255};
     }
@@ -4972,6 +5139,9 @@ static void launcherSettingsScreen() {
     }
     applyLauncherAppearance();
     uiAudioSetEnabled(strcmp(storeGet(g_global,"Wrapper/UiSounds","true"),"false")!=0);
+#if defined(__SWITCH2__)
+    applyJoyConMouseSetting();
+#endif
   };
   auto finish=[&](){ savedSelection=sel; savedTop=top; storeSave(g_global,LAUNCHER_INI); };
   beginScreenFx();
@@ -8251,6 +8421,9 @@ static bool ensureDirectory(const char *path) {
 }
 
 static void cleanupLauncher() {
+#if defined(__SWITCH2__)
+  stopJoyConMouse();
+#endif
   LauncherUpdate_Shutdown();
   stopGameScan();
   stopCoverDecodeWorker();
@@ -8419,6 +8592,9 @@ static bool writeLaunchHandoff(const std::vector<CemuKV> &settings,const std::st
      !appendHandoffValue(handoff,"lsfg_enabled",lsfgPrepared?"true":"false") ||
      !appendHandoffValue(handoff,"lsfg_flow_scale",cemuKVGet(settings,"Wrapper/LSFGFlowScale",LSFG_DEFAULT_FLOW_SCALE)) ||
      !appendHandoffValue(handoff,"lsfg_performance",cemuKVGet(settings,"Wrapper/LSFGPerformance","true")) ||
+#if defined(__SWITCH2__)
+     !appendHandoffValue(handoff,"lsfg_120hz",cemuKVGet(settings,"Wrapper/LSFG120Hz","false")) ||
+#endif
      !appendHandoffValue(handoff,"usb_skylanders",cemuKVGet(settings,"UsbSkylanders","false")) ||
      !appendHandoffValue(handoff,"usb_infinity",cemuKVGet(settings,"UsbInfinity","false")) ||
      !appendHandoffValue(handoff,"usb_dimensions",cemuKVGet(settings,"UsbDimensions","false")))
@@ -8696,6 +8872,9 @@ int main(int argc, char **argv){
     cleanupLauncher();
     return 0;
   }
+#if defined(__SWITCH2__)
+  applyJoyConMouseSetting();
+#endif
   showLaunchError(addressSpaceError!=SwitchLaunch::Error::None?addressSpaceError:pendingLaunchError);
   g_griddbReady = griddb_global_init();
   if(!g_griddbReady && R_SUCCEEDED(socketInitializeDefault())) g_storageSocketReady=true;

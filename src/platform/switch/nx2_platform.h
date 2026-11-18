@@ -53,18 +53,18 @@ Result nx2SetCpuBoost(bool on);
 // ------------------------------------------------------------------------------------------------ display
 // Sets the handheld and docked sizes and the refresh rate. Call once at start.
 void nx2DisplayInit(void);
-// Frame generation on or off: docked, it switches the output between up to 2160p at 60 Hz and up to 1440p at
-// 120 Hz. True when the refresh rate changed (the pacing then needs nx2DisplayApply or nx2DisplayReapply).
+// Frame generation's 120 Hz output on or off: docked, the window is capped at 1440 lines and asks for 120 Hz (VI2
+// picks the TV's 1440p or 1080p 120 Hz mode). True when the refresh rate changed (then nx2DisplayReapply).
 bool nx2DisplaySetFrameGeneration(bool enabled);
-// 120 handheld or with frame generation docked, else 60.
+// The requested refresh rate: 120 handheld or with the 120 Hz output docked, else 60.
 int nx2DisplayRefreshRate(void);
 // The present pacing for every renderer: at 120 Hz every refresh with VRR (the swap interval is not used), else
 // nwindowSetSwapInterval(swap_interval). Cheap when nothing changed.
 Result nx2DisplayApply(int swap_interval);
 // nx2DisplayApply again with the last swap interval (1 before any): after Mesa set its own.
 Result nx2DisplayReapply(void);
-// Follows docking and TV resolution changes, and applies a refresh rate change to the pacing: true when the default
-// window's size changed since the last call.
+// Follows docking and TV resolution changes and applies the refresh rate to the pacing: true when the default
+// window's size changed since the last call. Call it every frame.
 bool nx2DisplayUpdate(void);
 void nx2DisplaySize(u32* width, u32* height);
 bool nx2Docked(void);

@@ -22,4 +22,6 @@ bool SwitchLSFG_IsPrepared();
 bool SwitchLSFG_IsAvailable();
 bool SwitchLSFG_IsEnabled();
 bool SwitchLSFG_IsHighRatePassthrough();
+// A 50/60 FPS game while frame generation is on (kept until it is off): the Switch 2's docked 120 Hz trigger.
+bool SwitchLSFG_IsHighRateSource();
 void SwitchLSFG_RequestEnabled(bool enabled);

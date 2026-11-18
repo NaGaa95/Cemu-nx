@@ -100,7 +100,8 @@ bool nx2Docked(void)
 	return appletGetOperationMode() == AppletOperationMode_Console;
 }
 
-// The TV's resolution (AM's default display resolution), reread when AM signals a change.
+// The TV's resolution (AM's default display resolution), reread when AM signals a change (also when the TV's mode
+// changes for 120 Hz).
 static void nx2ReadTvResolution(void)
 {
 	if (!s_tvEventOpen && R_SUCCEEDED(appletGetDefaultDisplayResolutionChangeEvent(&s_tvEvent)))
@@ -119,11 +120,13 @@ static void nx2ReadTvResolution(void)
 	s_tvRead = true;
 }
 
-// The refresh rate for the operation mode, and the docked size: the TV's resolution, at most 2160 lines, 1440 at
-// 120 Hz. Call with s_displayMutex held.
+// The refresh rate for the operation mode, and the docked size: the TV's resolution, at most 2160 lines, or 1440 with
+// frame generation's 120 Hz output (the window asks for 120 Hz, and VI2 picks the TV's 120 Hz mode, 1440p or 1080p;
+// 4K stays at 60 Hz). Call with s_displayMutex held.
 static void nx2ApplyMode(void)
 {
-	s_refreshHz = !nx2Docked() || s_frameGeneration ? 120 : 60;
+	const bool docked = nx2Docked();
+	s_refreshHz = !docked || s_frameGeneration ? 120 : 60;
 	nx2ReadTvResolution();
 	u32 width = (u32)s_tvWidth, height = (u32)s_tvHeight;
 	const u32 maxHeight = s_frameGeneration ? 1440 : 2160;
@@ -213,9 +216,12 @@ bool nx2DisplayUpdate(void)
 	mutexLock(&s_displayMutex);
 	const int previousHz = s_refreshHz;
 	nx2ApplyMode();
-	if (s_refreshHz != previousHz)
+	// Docked at 120 Hz, every update: a renderer that sets a swap interval withdraws the 120 Hz request, and libounce
+	// caches the request, so asking again is cheap.
+	if (s_refreshHz != previousHz || (s_refreshHz > 60 && nx2Docked()))
 	{
-		s_presentApplied = false;
+		if (s_refreshHz != previousHz)
+			s_presentApplied = false;
 		nx2ApplyPacing(s_presentInterval < 0 ? 1 : s_presentInterval);
 	}
 	u32 width = 0, height = 0;

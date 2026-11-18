@@ -11,3 +11,5 @@ void SwitchLSFGDeko_SetAvailable(bool available);
 bool SwitchLSFGDeko_IsPreparing();
 void SwitchLSFGDeko_SetPreparing(bool preparing);
 void SwitchLSFGDeko_SetHighRate(bool highRate);
+// See SwitchLSFG_IsHighRateSource.
+void SwitchLSFGDeko_SetHighRateSource(bool highRate);

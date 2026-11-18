@@ -21,6 +21,7 @@ std::atomic_bool s_prepared{false};
 std::atomic_bool s_available{false};
 std::atomic_bool s_enabledRequested{false};
 std::atomic_bool s_highRatePassthrough{false};
+std::atomic_bool s_highRateSource{false};
 
 float s_flowScale = 0.25f;
 bool s_performanceMode = true;
@@ -169,6 +170,7 @@ void SwitchLSFG_Configure(bool prepared, float flowScale, bool performanceMode)
 	s_enabledRequested.store(false, std::memory_order_release);
 	s_available.store(false, std::memory_order_release);
 	s_highRatePassthrough.store(false, std::memory_order_release);
+	s_highRateSource.store(false, std::memory_order_release);
 }
 
 bool SwitchLSFG_PrepareDeviceFeatures(VkPhysicalDevice physicalDevice, void*& featureChain,
@@ -307,11 +309,18 @@ bool SwitchLSFG_Present(VkQueue queue, const VkPresentInfoKHR& presentInfo, VkRe
 		DestroyRuntime();
 		s_initAttempted = false;
 		s_highRatePassthrough.store(false, std::memory_order_release);
+		s_highRateSource.store(false, std::memory_order_release);
 		return false;
 	}
 
 	if (s_rateDecision < 0 && s_sourceSamples >= 8)
 		s_rateDecision = SourceIsHighRate() ? 1 : 0;
+#if defined(__SWITCH2__)
+	// (against 60 Hz whatever the display runs at, and kept while frame generation is on: a resized swapchain
+	// measures again from nothing)
+	if (s_sourceSamples >= 8 && s_sourceIntervalNs > 0.0 && s_sourceIntervalNs < 30'000'000.0)
+		s_highRateSource.store(true, std::memory_order_release);
+#endif
 	if (s_rateDecision == 1)
 	{
 		s_highRatePassthrough.store(true, std::memory_order_release);
@@ -365,6 +374,12 @@ bool SwitchLSFG_IsHighRatePassthrough()
 {
 	return s_enabledRequested.load(std::memory_order_acquire) &&
 		s_highRatePassthrough.load(std::memory_order_acquire);
+}
+
+bool SwitchLSFG_IsHighRateSource()
+{
+	return s_enabledRequested.load(std::memory_order_acquire) &&
+		s_highRateSource.load(std::memory_order_acquire);
 }
 
 void SwitchLSFG_RequestEnabled(bool enabled)

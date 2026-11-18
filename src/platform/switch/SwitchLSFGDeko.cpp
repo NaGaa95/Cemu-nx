@@ -10,6 +10,7 @@ namespace
 	std::atomic_bool s_available{false};
 	std::atomic_bool s_requested{false};
 	std::atomic_bool s_highRate{false};
+	std::atomic_bool s_highRateSource{false};
 	std::atomic_bool s_preparing{false};
 	SwitchLSFGDekoConfig s_config;
 } // namespace
@@ -24,6 +25,7 @@ void SwitchLSFG_Configure(bool prepared, float flowScale, bool performanceMode)
 	s_requested.store(false, std::memory_order_release);
 	s_available.store(file != nullptr, std::memory_order_release);
 	s_highRate.store(false, std::memory_order_release);
+	s_highRateSource.store(false, std::memory_order_release);
 	s_preparing.store(false, std::memory_order_release);
 }
 
@@ -42,6 +44,10 @@ bool SwitchLSFG_IsEnabled()
 bool SwitchLSFG_IsHighRatePassthrough()
 {
 	return s_highRate.load(std::memory_order_acquire);
+}
+bool SwitchLSFG_IsHighRateSource()
+{
+	return s_requested.load(std::memory_order_acquire) && s_highRateSource.load(std::memory_order_acquire);
 }
 
 void SwitchLSFG_RequestEnabled(bool enabled)
@@ -70,4 +76,8 @@ void SwitchLSFGDeko_SetAvailable(bool available)
 void SwitchLSFGDeko_SetHighRate(bool highRate)
 {
 	s_highRate.store(highRate, std::memory_order_release);
+}
+void SwitchLSFGDeko_SetHighRateSource(bool highRate)
+{
+	s_highRateSource.store(highRate, std::memory_order_release);
 }

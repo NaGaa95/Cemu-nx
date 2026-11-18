@@ -296,11 +296,15 @@ namespace WindowSystem
 	static constexpr int kDockedHeight = 1080;
 
 #if defined(__SWITCH2__)
-	// Switch 2: handheld 1920x1080, docked the TV's resolution (up to 2160p at 60 Hz, 1440p at 120 Hz with frame
-	// generation), from libounce's default window. The renderers follow the reported size.
+	// The launcher's "120 Hz Docked Mode" option (frame generation).
+	static bool s_lsfg120Hz = false;
+
+	// Switch 2: libounce's window size (1080p handheld, the TV's up to 2160p60 docked). Docked 120 Hz only while LSFG
+	// doubles a 50/60 FPS game with the option on.
 	static void UpdateOperationMode()
 	{
-		nx2DisplaySetFrameGeneration(SwitchLSFG_IsEnabled());
+		if (nx2DisplaySetFrameGeneration(s_lsfg120Hz && SwitchLSFG_IsEnabled() && SwitchLSFG_IsHighRateSource()))
+			nx2DisplayReapply();
 		nx2DisplayUpdate();
 		u32 width = 1920, height = 1080;
 		nx2DisplaySize(&width, &height);
@@ -525,6 +529,10 @@ namespace WindowSystem
 			(s_rendererBackend == "vk" || s_rendererBackend == "deko3d") && (lsfgEnabled == "true" || lsfgEnabled == "1"),
 			std::strtof(Handoff("lsfg_flow_scale", "0.25").c_str(), nullptr),
 			lsfgPerformance != "false" && lsfgPerformance != "0");
+#if defined(__SWITCH2__)
+		const std::string lsfg120Hz = Handoff("lsfg_120hz", "false");
+		s_lsfg120Hz = lsfg120Hz == "true" || lsfg120Hz == "1";
+#endif
 		if (int shift = atoi(Handoff("timer_shift", "3").c_str()); shift >= 0 && shift <= 7)
 			ActiveSettings::SetTimerShiftFactor((uint8)shift);
 		s_switchTripleBuffer = (Handoff("triple_buffer", "1") != "0");

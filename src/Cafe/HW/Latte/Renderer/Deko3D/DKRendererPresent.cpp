@@ -221,6 +221,10 @@ bool Deko3DRenderer::State::GenerateFrame()
 	if (!requested || !frameGenerator)
 	{
 		SwitchLSFGDeko_SetHighRate(false);
+#if defined(__SWITCH2__)
+		if (!requested)
+			SwitchLSFGDeko_SetHighRateSource(false);
+#endif
 		return false;
 	}
 	if (interval > 0.25)
@@ -230,6 +234,11 @@ bool Deko3DRenderer::State::GenerateFrame()
 	}
 	if (rateDecision < 0 && sourceSamples >= 8)
 		rateDecision = sourceInterval < 0.030 * rateScale ? 1 : 0;
+#if defined(__SWITCH2__)
+	// (against 60 Hz whatever the display runs at, and kept while frame generation is on)
+	if (sourceSamples >= 8 && sourceInterval > 0 && sourceInterval < 0.030)
+		SwitchLSFGDeko_SetHighRateSource(true);
+#endif
 	if (rateDecision == 1)
 	{
 		slowSamples = interval >= 0.0315 * rateScale ? slowSamples + 1 : interval > 0 ? 0
