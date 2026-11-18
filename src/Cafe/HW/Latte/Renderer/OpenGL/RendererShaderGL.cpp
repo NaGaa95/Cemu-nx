@@ -281,7 +281,12 @@ void RendererShaderGL::ShaderCacheLoading_begin(uint64 cacheTitleId)
 	if (usePrecompiled)
 	{
 		const uint32 cacheMagic = GeneratePrecompiledCacheId();
+#if defined(__SWITCH2__)
+		// (driver program binaries: the Switch 2's are kept apart from the Switch's)
+		const std::string cacheFilename = fmt::format("{:016x}_gl_nx2.bin", cacheTitleId);
+#else
 		const std::string cacheFilename = fmt::format("{:016x}_gl.bin", cacheTitleId);
+#endif
         s_programBinaryCache = FileCache::Open(ActiveSettings::GetCachePath("shaderCache/precompiled/{}", cacheFilename), true, cacheMagic);
 		if (s_programBinaryCache == nullptr)
 			cemuLog_log(LogType::Force, "Unable to open OpenGL precompiled cache {}", cacheFilename);

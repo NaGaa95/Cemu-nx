@@ -1,4 +1,7 @@
 #pragma once
+
+// The renderer the launcher boots when none is chosen: the native deko3d core (Drako3D on the Switch 2).
+#define LAUNCHER_DEFAULT_RENDERER "deko3d"
 #include <string>
 #include <vector>
 #include <cstdint>

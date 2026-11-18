@@ -1,7 +1,11 @@
 #include "SwitchStorage.h"
 
 #include <switch.h>
+#if defined(__SWITCH2__)
+#include "SwitchUsbHsFsStub.h"
+#else
 #include <usbhsfs.h>
+#endif
 #include <smb2/smb2.h>
 #include <smb2/libsmb2.h>
 

@@ -84,7 +84,11 @@ Deko3DRenderer::Deko3DRenderer() : Renderer(RendererAPI::Deko3D), m_state(std::m
 		state.viewport = {0, 0, static_cast<float>(state.swapchain->Width()),
 						  static_cast<float>(state.swapchain->Height()), 0, 1};
 		m_vendor = GfxVendor::Nvidia;
+#if defined(__SWITCH2__)
+		m_selectedDeviceName = "NVIDIA Tegra T239 (Drako3D)";
+#else
 		m_selectedDeviceName = "NVIDIA Tegra X1 (Deko3D)";
+#endif
 		RendererShaderDK::InitializeCompiler();
 	} catch (...)
 	{

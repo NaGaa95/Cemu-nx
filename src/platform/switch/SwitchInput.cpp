@@ -26,6 +26,9 @@ extern "C" {
 #include "platform/switch/SwitchInput.h"
 #include "platform/switch/SwitchOverlay.h"
 #include "platform/switch/SwitchPlatform.h"
+#if defined(__SWITCH2__)
+#include "WindowSystem.h"
+#endif
 
 namespace
 {
@@ -212,8 +215,18 @@ class SwitchGamepadController : public ControllerBase
 			{
 				auto& im = InputManager::instance();
 				std::scoped_lock lock(im.m_main_mouse.m_mutex);
+#if defined(__SWITCH2__)
+				// (touch arrives in 1280x720 coordinates; the window is 1920x1080 handheld and the TV's size docked)
+				if (m_touchDown)
+				{
+					int windowWidth = 1920, windowHeight = 1080;
+					WindowSystem::GetWindowPhysSize(windowWidth, windowHeight);
+					im.m_main_mouse.position = {(int)(m_touchPos.x * (float)windowWidth), (int)(m_touchPos.y * (float)windowHeight)};
+				}
+#else
 				if (m_touchDown)
 					im.m_main_mouse.position = {(int)(m_touchPos.x * 1280.0f), (int)(m_touchPos.y * 720.0f)};
+#endif
 				im.m_main_mouse.left_down = m_touchDown;
 				if (m_touchDown && !m_mainMouseWasDown)
 					im.m_main_mouse.left_down_toggle = true;

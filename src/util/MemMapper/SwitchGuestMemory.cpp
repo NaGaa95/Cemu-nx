@@ -129,6 +129,12 @@ namespace MemMapper::SwitchGuestMemory
 		if (s_attempted)
 			return;
 		s_attempted = true;
+#if defined(__SWITCH2__)
+		// The Switch 2 build backs the guest window with one flat block (MemMapperSwitch.cpp): no MEM2 window has to
+		// be found in the stack region before services start.
+		std::snprintf(s_note, sizeof(s_note), "Switch 2: flat guest window, no early reservation");
+		return;
+#endif
 		virtmemLock();
 		captureStack(s_beforeServices);
 		Range aslr{}, heap{}, alias{};

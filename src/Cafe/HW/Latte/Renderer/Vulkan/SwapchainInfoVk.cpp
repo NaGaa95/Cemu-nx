@@ -59,6 +59,11 @@ void SwapchainInfoVk::Create()
 	VkResult result = vkCreateSwapchainKHR(m_logicalDevice, &create_info, nullptr, &m_swapchain);
 	if (result != VK_SUCCESS)
 		UnrecoverableError("Error attempting to create a swapchain");
+#if defined(__SWITCH2__)
+	// (NVK set the window's swap interval, which withdraws the 120 Hz request)
+	if (mainWindow)
+		SwitchPlatform_ApplyDisplayPacing(lsfgCompatible || GetConfig().vsync.GetValue() != 0 ? 1 : 0, true);
+#endif
 
 	result = vkGetSwapchainImagesKHR(m_logicalDevice, m_swapchain, &image_count, nullptr);
 	if (result != VK_SUCCESS)

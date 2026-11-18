@@ -17,6 +17,10 @@ void SwitchPlatform_EndGameBootBoost();
 void SwitchPlatform_NotifyGameFrameSubmitted();
 void SwitchPlatform_PollGameBootState();
 void SwitchPlatform_ApplyWindowSurfaceSize(int width, int height);
+// The display's refresh rate: 60 on the Switch; on the Switch 2 120 handheld, and docked with frame generation.
+int SwitchPlatform_DisplayRefreshRate();
+// Switch 2 present pacing: per frame, with reapply after Mesa or drako3d set their own swap interval. No-op on Switch.
+void SwitchPlatform_ApplyDisplayPacing(int swapInterval, bool reapply);
 bool SwitchPlatform_ShouldReturnToLauncher();
 void SwitchPlatform_SetGamePadLayout(SwitchGamePadLayout layout);
 SwitchGamePadLayout SwitchPlatform_GetGamePadLayout();

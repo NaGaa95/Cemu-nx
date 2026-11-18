@@ -2,6 +2,9 @@
 
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 #include "platform/switch/lsfg/lsfg_bridge.h"
+#if defined(__SWITCH2__)
+#include "platform/switch/SwitchPlatform.h"
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -110,9 +113,21 @@ uint64_t ObserveSourcePresent()
 	return interval;
 }
 
+#if defined(__SWITCH2__)
+// Frame generation doubles sources up to half the display's rate: 30 -> 60 fps at 60 Hz, 60 -> 120 fps at 120 Hz.
+double RefreshScale()
+{
+	return 60.0 / static_cast<double>(SwitchPlatform_DisplayRefreshRate() > 60 ? 120 : 60);
+}
+#endif
+
 bool SourceIsHighRate()
 {
+#if defined(__SWITCH2__)
+	return s_sourceSamples >= 8 && s_sourceIntervalNs > 0.0 && s_sourceIntervalNs < 30'000'000.0 * RefreshScale();
+#else
 	return s_sourceSamples >= 8 && s_sourceIntervalNs > 0.0 && s_sourceIntervalNs < 30'000'000.0;
+#endif
 }
 
 bool TryCreateRuntime(VkQueue queue)
@@ -300,7 +315,11 @@ bool SwitchLSFG_Present(VkQueue queue, const VkPresentInfoKHR& presentInfo, VkRe
 	if (s_rateDecision == 1)
 	{
 		s_highRatePassthrough.store(true, std::memory_order_release);
+#if defined(__SWITCH2__)
+		if (static_cast<double>(sourceInterval) >= 31'500'000.0 * RefreshScale())
+#else
 		if (sourceInterval >= 31'500'000)
+#endif
 			++s_highRateSlowSamples;
 		else if (sourceInterval)
 			s_highRateSlowSamples = 0;

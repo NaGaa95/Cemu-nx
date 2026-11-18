@@ -30,6 +30,35 @@ function(cemu_deko_apply_patch source patch)
   endif()
 endfunction()
 
+if(NINTENDO_SWITCH2)
+  # Switch 2: drako3d (deko3d's API, from libounce; Deko3D/Switch2 maps <deko3d.hpp> to it). Shaders compile at run
+  # time with uam2rt from the Switch 2 Mesa SDK, behind UamBridge.h (UamBridgeSwitch2.cpp).
+  find_package(uam2rt CONFIG REQUIRED
+    PATHS "${SWITCH_MESA_SDK_ROOT}/lib/cmake/uam2rt"
+    NO_DEFAULT_PATH)
+  message(STATUS "Switch 2 shader compiler: uam2rt ${uam2rt_VERSION}")
+
+  add_library(uam STATIC "${CMAKE_SOURCE_DIR}/src/Cafe/HW/Latte/Renderer/Deko3D/UamBridgeSwitch2.cpp")
+  target_include_directories(uam PRIVATE "${CMAKE_SOURCE_DIR}/src")
+  target_link_libraries(uam PUBLIC uam2rt::uam2rt)
+  # lsfg-deko3d keys its shader cache with the compiler's revision (uam's commit on the Switch).
+  set(SWITCH_UAM2RT_REVISION "uam2rt-${uam2rt_VERSION}")
+  set(UAM_ROOT "" CACHE PATH "Root of the pinned uam checkout (unused on the Switch 2)" FORCE)
+
+  set(DEKO3D_INCLUDE_DIR "${DEVKITPRO}/libounce/include")
+  set(DEKO3D_LIBRARY "${DEVKITPRO}/libounce/lib/libdrako3d.a")
+  foreach(_drako3d_file "${DEKO3D_INCLUDE_DIR}/drako3d.h" "${DEKO3D_INCLUDE_DIR}/drako3d.hpp" "${DEKO3D_LIBRARY}")
+    if(NOT EXISTS "${_drako3d_file}")
+      message(FATAL_ERROR "drako3d not found: ${_drako3d_file} (install ouncebrew's ounce-devkit)")
+    endif()
+  endforeach()
+  add_library(deko3d INTERFACE)
+  target_include_directories(deko3d BEFORE INTERFACE
+    "${CMAKE_SOURCE_DIR}/src/Cafe/HW/Latte/Renderer/Deko3D/Switch2")
+  target_include_directories(deko3d INTERFACE "${DEKO3D_INCLUDE_DIR}")
+  target_compile_definitions(deko3d INTERFACE DK_HPP_SUPPORT_VECTOR)
+  target_link_libraries(deko3d INTERFACE "${DEKO3D_LIBRARY}")
+else()
 FetchContent_Declare(cemu_uam
   GIT_REPOSITORY https://github.com/PalindromicBreadLoaf/uam.git
   GIT_TAG c0d76aa9107d67edcd35a1b717ace87ee7939c68
@@ -360,6 +389,7 @@ add_library(deko3d INTERFACE)
 target_include_directories(deko3d INTERFACE "${DEKO3D_INCLUDE_DIR}")
 target_compile_definitions(deko3d INTERFACE DK_HPP_SUPPORT_VECTOR)
 target_link_libraries(deko3d INTERFACE "${DEKO3D_LIBRARY}")
+endif()
 
 FetchContent_Declare(deko_spirv_cross
   GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Cross.git

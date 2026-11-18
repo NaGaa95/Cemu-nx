@@ -44,6 +44,9 @@
 #include "localization.h"
 #include "SwitchStorage.h"
 #include "ui_audio.h"
+#if defined(__SWITCH2__)
+#include "nx2_platform.h"
+#endif
 
 static const char *tr(const char *text) {
   return LauncherLocalization::Translate(text ? text : "").data();
@@ -76,12 +79,27 @@ static const char *GAMEPROFILES_DIR = "sdmc:/switch/cemu/gameProfiles";
 static const char *GRAPHICPACKS_DIR = "sdmc:/switch/cemu/graphicPacks";
 static const char *LSFG_DIR = "sdmc:/switch/cemu/lsfg";
 static const char *LSFG_DLL_FILE = "sdmc:/switch/cemu/lsfg/Lossless.dll";
+#if defined(__SWITCH2__)
+// The Switch 2 launcher and its cores live beside the Switch's, so one SD card serves both consoles.
+static const char *LAUNCHER_NRO = "sdmc:/switch/cemu/cemu-nx2.nro";
+static std::string g_launcherNroPath = LAUNCHER_NRO;
+static const char *EMU_NRO_SRC = "romfs:/emu/cemu_core.nro";
+static const char *EMU_HASH_SRC = "romfs:/emu/cemu_core.sha256";
+static const char *EMU_NRO_DST = "sdmc:/switch/cemu/.emu/cemu_core_nx2.nro";
+#else
 static const char *LAUNCHER_NRO = "sdmc:/switch/cemu/cemu.nro";
 static std::string g_launcherNroPath = LAUNCHER_NRO;
 static const char *EMU_NRO_SRC = "romfs:/emu/cemu_core.nro";
 static const char *EMU_HASH_SRC = "romfs:/emu/cemu_core.sha256";
 static const char *EMU_NRO_DST = "sdmc:/switch/cemu/.emu/cemu_core.nro";
+#endif
 static const char *LAUNCH_HANDOFF = "sdmc:/switch/cemu/switch.ini";
+// The release each build last installed: the two consoles' builds can share one SD card.
+#if defined(__SWITCH2__)
+static const char *INSTALLED_RELEASE_TAG_KEY = "Wrapper/InstalledReleaseTagNX2";
+#else
+static const char *INSTALLED_RELEASE_TAG_KEY = "Wrapper/InstalledReleaseTag";
+#endif
 
 struct KV { std::string k, v; };
 struct Store {
@@ -290,8 +308,13 @@ static const Choice C_timer[]    = { {"1x (normal)","3"}, {"2x faster","2"}, {"4
                                      {"0.5x slower","4"}, {"0.25x slower","5"} };
 static const Choice C_bool[]     = { {"Off","false"}, {"On","true"} };
 static const Choice C_bool01[]   = { {"Off","0"}, {"On","1"} };
+#if defined(__SWITCH2__)
+static const Choice C_backend[]  = { {"Drako3D","deko3d"}, {"Vulkan (NVK)","vk"}, {"OpenGL (NVC0)","gl"},
+                                     {"OpenGL (Zink/NVK)","zink"} };
+#else
 static const Choice C_backend[]  = { {"Deko3D","deko3d"}, {"Vulkan (NVK)","vk"}, {"OpenGL (NVC0)","gl"},
                                      {"OpenGL (Zink/NVK)","zink"} };
+#endif
 static const Choice C_barriers[] = { {"Disabled","false"}, {"Enabled","true"} };
 static const Choice C_filter[]   = { {"Bilinear","0"}, {"Bicubic","1"}, {"Hermite","2"}, {"Nearest","3"} };
 static const Choice C_scaling[]  = { {"Keep aspect ratio","0"}, {"Stretch","1"} };
@@ -339,7 +362,7 @@ static const Opt S_cpu[] = {
   O_STATUS_KEY("CPU cores",    "cpu-cores"),
 };
 static const Opt S_graphics[] = {
-  O_CHOICE("Renderer",              "Wrapper/Renderer", C_backend, "vk"),
+  O_CHOICE("Renderer",              "Wrapper/Renderer", C_backend, LAUNCHER_DEFAULT_RENDERER),
   O_CHOICE("VSync",                 "VSync",             C_bool01,  "0"),
   O_CHOICE("Triple buffering",      "TripleBuffer",      C_bool01,  "1"),
   O_CHOICE("Async shader compile",  "AsyncCompile",      C_bool,    "true"),
@@ -418,7 +441,7 @@ static const SettingHelpEntry SETTING_HELP[] = {
    "Uses the Switch hardware video decoder for Wii U H.264 movies. Disable it only when troubleshooting broken or missing in-game video playback."},
 
   {"Wrapper/Renderer", "Display backend",
-   "Selects Vulkan, native Deko3D, or OpenGL. LSFG frame generation is available with Vulkan and Deko3D."},
+   "Selects Vulkan, native " DEKO3D_NAME ", or OpenGL. LSFG frame generation is available with Vulkan and " DEKO3D_NAME "."},
 
   {"VSync", "Presentation",
    "Synchronizes completed frames to the display refresh to reduce tearing. It can add latency or expose performance drops when a game cannot maintain its target frame rate."},
@@ -447,7 +470,7 @@ static const SettingHelpEntry SETTING_HELP[] = {
    "Controls Cemu's audio buffer target. Lower values reduce latency but can crackle when emulation is uneven; higher values are more stable but respond later."},
 
   {"Wrapper/LSFGEnabled", "Frame generation",
-   "Generates one intermediate display frame for each real frame to target a smoother 2x presentation. It does not increase emulation speed and may add artifacts or latency. Available with Vulkan and Deko3D."},
+   "Generates one intermediate display frame for each real frame to target a smoother 2x presentation. It does not increase emulation speed and may add artifacts or latency. Available with Vulkan and " DEKO3D_NAME "."},
   {"Wrapper/LSFGFlowScale", "Frame generation quality",
    "Sets the resolution used for optical-flow analysis. Half resolution can retain more motion detail but costs more GPU time and memory; Quarter is recommended on Switch."},
   {"Wrapper/LSFGPerformance", "Frame generation performance",
@@ -4330,8 +4353,8 @@ static bool resetOption(const Opt &option) {
 
 static bool optionEnabled(int screen,const Opt &option) {
   if(option.type==OT_STATUS) return false;
-  const bool nativeVulkan=!strcmp(iniGet("Wrapper/Renderer","vk"),"vk");
-  const bool nativeDeko=!strcmp(iniGet("Wrapper/Renderer","vk"),"deko3d");
+  const bool nativeVulkan=!strcmp(iniGet("Wrapper/Renderer",LAUNCHER_DEFAULT_RENDERER),"vk");
+  const bool nativeDeko=!strcmp(iniGet("Wrapper/Renderer",LAUNCHER_DEFAULT_RENDERER),"deko3d");
   if(!nativeVulkan && !nativeDeko && screen==SCR_FRAMEGEN) return false;
   if(!nativeVulkan && option.key && !strcmp(option.key,"vkAccurateBarriers")) return false;
   if(screen==SCR_FRAMEGEN&&option.key&&
@@ -4476,7 +4499,7 @@ static const char *settingsScreenDescription(int screen) {
   switch(screen){
     case SCR_CPU: return "Controls Cemu's CPU execution mode, emulated timer rate, and hardware video decoding. Compatibility overrides should normally be applied per game.";
     case SCR_GRAPHICS: return "Controls presentation, shader compilation, image scaling, and how the Wii U TV and GamePad screens are arranged.";
-    case SCR_FRAMEGEN: return "Configures LSFG 2x frame generation for Vulkan and Deko3D. It creates intermediate display frames but does not make Wii U emulation run faster.";
+    case SCR_FRAMEGEN: return "Configures LSFG 2x frame generation for Vulkan and " DEKO3D_NAME ". It creates intermediate display frames but does not make Wii U emulation run faster.";
     case SCR_AUDIO: return "Controls the Wii U TV and GamePad audio streams, their volume, and the balance between output latency and stability.";
     case SCR_OVERLAY: return "Controls Cemu's in-game FPS and shader-compilation status displays and where the performance overlay appears.";
     case SCR_INPUT: return "Selects the emulated Wii U controller, local player count, rumble, stick dead zone, press-to-bind controller mappings, and Cemu's virtual USB portals for Skylanders, Disney Infinity, and LEGO Dimensions.";
@@ -5810,7 +5833,7 @@ static void runSettingsRoot(const char *ctx) {
                             slot,colW,labelX,valX,cur,labelColor,valueColor,false,rowH);
       } else if(global && i==framegenRow){
         drawSettingsRowText(LauncherLocalization::Translate("Frame Generation").data(),
-                            LauncherLocalization::Translate("LSFG 2x / Vulkan / Deko3D").data(),
+                            LauncherLocalization::Translate("LSFG 2x / Vulkan / " DEKO3D_NAME).data(),
                             slot,colW,labelX,valX,cur,labelColor,valueColor,false,rowH);
       } else {
         drawSettingsRowText(LauncherLocalization::Translate(g_screens[order[global?i-screenStart:i]].title).data(),">",
@@ -5956,7 +5979,7 @@ static std::string installedReleaseTag() {
 #if defined(CEMU_SWITCH_UPDATE_TEST)
   return built;
 #else
-  const std::string stored=storeGet(g_global,"Wrapper/InstalledReleaseTag","");
+  const std::string stored=storeGet(g_global,INSTALLED_RELEASE_TAG_KEY,"");
   if(stored.empty()) return built;
   return LauncherUpdate_IsNewer(stored,built)?stored:built;
 #endif
@@ -6050,7 +6073,7 @@ static void runUpdateScreen() {
         g_romfsReady=true;
     }
     if(snapshot.state==LauncherUpdateState::Installed&&!installedSaved){
-      storeSet(g_global,"Wrapper/InstalledReleaseTag",snapshot.release.tag.c_str());
+      storeSet(g_global,INSTALLED_RELEASE_TAG_KEY,snapshot.release.tag.c_str());
       storeSave(g_global,LAUNCHER_INI);
       g_updateNoticeTag.clear();
       installedSaved=true;
@@ -6657,8 +6680,8 @@ static int downloadLatestGraphicPacks() {
 
 static int chooseShaderPackType(const char *name,const std::array<bool,2> &installed) {
   static int selected=0;
-  const char *labels[]={"Deko Shaders","CEMU Transferable shaders"};
-  const char *descriptions[]={"Precompiled for Deko3D, reducing first-time compilation.",
+  const char *labels[]={DEKO_NAME " Shaders","CEMU Transferable shaders"};
+  const char *descriptions[]={"Precompiled for " DEKO3D_NAME ", reducing first-time compilation.",
                               "For all renderers; needs compilation on your Switch."};
   const int width=std::min(SW-80,760),height=376;
   const int x=(SW-width)/2,y=(SH-height)/2,first=y+92,rowHeight=112;
@@ -6813,7 +6836,7 @@ static void shaderPacksScreen() {
       } else if(button==BTN_X){
         const std::string label=sel?packs[sel-1].name+" ("+packs[sel-1].region+")":tr("Full shader pack");
         showHelpCard(tr("Shader packs"),label.c_str(),tr("Shader cache download"),
-                     tr("Choose precompiled Deko shaders or Cemu transferable shaders."),
+                     tr("Choose precompiled " DEKO_NAME " shaders or Cemu transferable shaders."),
                      sel?packs[sel-1].titleId.c_str():nullptr,tr("Shader pack"));
         beginScreenFx();
       }
@@ -7260,6 +7283,12 @@ static bool pickIcon(Game &g, char *outPath, size_t outSize) {
 }
 
 static void forwarderWizard(Game &g) {
+#if defined(__SWITCH2__)
+  // No HOME Menu shortcuts on the Switch 2 (no ns, ncm or spl under kaiHEN): say so before asking for details.
+  (void)g;
+  modalMessageStatic("Shortcut unavailable",{"HOME Menu shortcuts are not available on the Switch 2."});
+  return;
+#endif
   const GameDetailLayout layout=gameDetailLayout();
   const int isz=260;
   const int ix=layout.preview.x+(layout.preview.w-isz)/2;
@@ -7732,9 +7761,16 @@ struct EmulatorPayload {
 };
 
 static const EmulatorPayload &emulatorPayload(const std::string &renderer) {
+#if defined(__SWITCH2__)
+  // (the drako3d core keeps the renderer's "deko3d" setting value)
+  static const EmulatorPayload unified{EMU_NRO_SRC,EMU_HASH_SRC,EMU_NRO_DST,".emu_core_nx2_build"};
+  static const EmulatorPayload deko{"romfs:/emu/cemu_deko3d.nro","romfs:/emu/cemu_deko3d.sha256",
+                                    "sdmc:/switch/cemu/.emu/cemu_drako3d_nx2.nro",".emu_drako3d_nx2_build"};
+#else
   static const EmulatorPayload unified{EMU_NRO_SRC,EMU_HASH_SRC,EMU_NRO_DST,".emu_core_build"};
   static const EmulatorPayload deko{"romfs:/emu/cemu_deko3d.nro","romfs:/emu/cemu_deko3d.sha256",
                                     "sdmc:/switch/cemu/.emu/cemu_deko3d.nro",".emu_deko3d_build"};
+#endif
   return renderer=="deko3d"?deko:unified;
 }
 
@@ -8358,9 +8394,9 @@ static void initializeLauncherDefaults() {
     storeSet(g_global,option.key,option.def);
   storeSet(g_global,"Wrapper/SteamGridDBKey","");
   storeSet(g_global,"Wrapper/Language","system");
-  storeSet(g_global,"Wrapper/Renderer","vk");
+  storeSet(g_global,"Wrapper/Renderer",LAUNCHER_DEFAULT_RENDERER);
   storeSet(g_global,"console_language","-1");
-  storeSet(g_global,"Wrapper/InstalledReleaseTag",LauncherUpdate_BuiltReleaseTag());
+  storeSet(g_global,INSTALLED_RELEASE_TAG_KEY,LauncherUpdate_BuiltReleaseTag());
   commitAll();
 }
 
@@ -8394,6 +8430,9 @@ static bool writeLaunchHandoff(const std::vector<CemuKV> &settings,const std::st
 }
 
 int main(int argc, char **argv){
+#if defined(__SWITCH2__)
+  nx2DisplayInit();
+#endif
   if(argc>=1 && argv[0] && argv[0][0]){
     g_forwarderSelfPath=argv[0];
     setLauncherPathFromArg(argv[0]);
@@ -8578,7 +8617,7 @@ int main(int argc, char **argv){
     }
 
     std::vector<CemuKV> effective=buildEffectiveSettings(directGame.key);
-    const char *configuredRenderer=cemuKVGet(effective,"Wrapper/Renderer","vk");
+    const char *configuredRenderer=cemuKVGet(effective,"Wrapper/Renderer",LAUNCHER_DEFAULT_RENDERER);
     const std::string renderer=!strcmp(configuredRenderer,"gl")?"gl":
                                !strcmp(configuredRenderer,"zink")?"zink":
                                !strcmp(configuredRenderer,"deko3d")?"deko3d":"vk";
@@ -9073,7 +9112,7 @@ int main(int argc, char **argv){
   const char *launchNro=EMU_NRO_DST;
   if(launch && envHasNextLoad()){
     std::vector<CemuKV> eff = buildEffectiveSettings(launchKey);
-    const char *configuredRenderer=cemuKVGet(eff,"Wrapper/Renderer","vk");
+    const char *configuredRenderer=cemuKVGet(eff,"Wrapper/Renderer",LAUNCHER_DEFAULT_RENDERER);
     const std::string renderer=!strcmp(configuredRenderer,"gl") ? "gl" :
                                !strcmp(configuredRenderer,"zink") ? "zink" :
                                !strcmp(configuredRenderer,"deko3d") ? "deko3d" : "vk";

@@ -13,6 +13,19 @@ namespace
 {
 	enum class CacheOperation { Clean, Flush, Invalidate };
 
+#if defined(__SWITCH2__)
+	// Switch 2: cache maintenance by VA at EL0 (no kernel cache SVCs under kaiHEN). dc ivac is privileged, so an
+	// invalidate is a clean+invalidate: harmless, since FlushForGpuWrite already wrote the lines back.
+	void synchronizeCache(CacheOperation operation, const void* address, size_t size)
+	{
+		if (size == 0)
+			return;
+		if (operation == CacheOperation::Clean)
+			armDCacheClean(const_cast<void*>(address), size);
+		else
+			armDCacheFlush(const_cast<void*>(address), size);
+	}
+#else
 	void synchronizeCache(CacheOperation operation, const void* address, size_t size)
 	{
 		if (size == 0)
@@ -53,11 +66,16 @@ namespace
 			name, address, size, rc, SwitchMemory_DescribeMapping(address));
 		throw std::runtime_error("Imported MEM2 cache synchronization failed");
 	}
+#endif
 }
 
 bool SwitchMemory_CanSynchronizeForGpu()
 {
+#if defined(__SWITCH2__)
+	return true;
+#else
 	return envGetOwnProcessHandle() != INVALID_HANDLE && envIsSyscallHinted(0x5D) && envIsSyscallHinted(0x2B);
+#endif
 }
 
 void SwitchMemory_CleanForGpu(const void* address, size_t size)

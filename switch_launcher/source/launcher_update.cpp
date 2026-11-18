@@ -279,30 +279,28 @@ namespace
 		if (release.notes.empty())
 			release.notes = "No release notes were provided.";
 
-		int bestAsset = -1;
-		const auto assets = JsonArrayObjects(json, "assets");
-		for (std::size_t index = 0; index < assets.size(); ++index)
+		// Each build installs only its own asset (a release carries both).
+#if defined(__SWITCH2__)
+		constexpr const char* kAssetName = "cemu-nx2.nro";
+#else
+		constexpr const char* kAssetName = "cemu.nro";
+#endif
+		for (const std::string& asset : JsonArrayObjects(json, "assets"))
 		{
 			std::string name;
 			std::string url;
 			std::uint64_t size = 0;
-			if (!JsonString(assets[index], "name", name) || !JsonString(assets[index], "browser_download_url", url) ||
-				!JsonUnsigned(assets[index], "size", size))
+			if (!JsonString(asset, "name", name) || !JsonString(asset, "browser_download_url", url) ||
+				!JsonUnsigned(asset, "size", size))
 				continue;
-			const std::string lowerName = Lower(name);
-			if (lowerName.size() < 4 || lowerName.substr(lowerName.size() - 4) != ".nro" ||
-				size < kMinimumNroSize || size > kMaximumNroSize || !StartsWith(url, kReleaseAssetPrefix))
+			if (Lower(name) != kAssetName || size < kMinimumNroSize || size > kMaximumNroSize ||
+				!StartsWith(url, kReleaseAssetPrefix))
 				continue;
-			if (bestAsset < 0 || lowerName == "cemu.nro")
-			{
-				bestAsset = static_cast<int>(index);
-				release.assetName = std::move(name);
-				release.assetUrl = std::move(url);
-				release.assetSize = size;
-				JsonString(assets[index], "digest", release.assetDigest);
-				if (lowerName == "cemu.nro")
-					break;
-			}
+			release.assetName = std::move(name);
+			release.assetUrl = std::move(url);
+			release.assetSize = size;
+			JsonString(asset, "digest", release.assetDigest);
+			break;
 		}
 		return true;
 	}
@@ -420,6 +418,42 @@ namespace
 		return true;
 	}
 
+	// Whether an NRO is built for this console: libounce programs carry an "OUN0" record after the MOD0 header naming
+	// their platform (1 Switch, 2 Switch 2); libnx programs have none.
+	bool TargetsThisConsole(FILE* file, const NroStart& start, const NroHeader& header)
+	{
+		constexpr u32 MOD0_MAGIC = 0x30444F4D;
+		constexpr u32 OUN0_MAGIC = 0x304E554F;
+		constexpr u32 LNY_PREFIX = 0x594E4C;
+		constexpr std::size_t RECORDS_OFFSET = 0x1C;
+		constexpr std::size_t RECORD_SIZE = 0xC;
+		std::array<u32, (RECORDS_OFFSET + 8 * RECORD_SIZE) / sizeof(u32)> mod0{};
+		u32 platform = 0;
+		if (start.mod_offset < header.size && std::fseek(file, start.mod_offset, SEEK_SET) == 0)
+		{
+			const std::size_t available = std::min<std::size_t>(sizeof(mod0), header.size - start.mod_offset);
+			const std::size_t words = std::fread(mod0.data(), 1, available, file) / sizeof(u32);
+			if (words > RECORDS_OFFSET / sizeof(u32) && mod0[0] == MOD0_MAGIC)
+			{
+				for (std::size_t word = RECORDS_OFFSET / sizeof(u32); word + 1 < words; word += RECORD_SIZE / sizeof(u32))
+				{
+					if (mod0[word] == OUN0_MAGIC)
+					{
+						platform = mod0[word + 1];
+						break;
+					}
+					if ((mod0[word] & 0xFFFFFF) != LNY_PREFIX)
+						break;
+				}
+			}
+		}
+#if defined(__SWITCH2__)
+		return platform == 2;
+#else
+		return platform != 2;
+#endif
+	}
+
 	bool ValidNro(const std::string& path, std::uint64_t expectedSize)
 	{
 		struct stat fileStat{};
@@ -433,9 +467,11 @@ namespace
 		NroHeader header{};
 		const bool read = std::fread(&start, 1, sizeof(start), file) == sizeof(start) &&
 			std::fread(&header, 1, sizeof(header), file) == sizeof(header);
+		const bool valid = read && header.magic == NROHEADER_MAGIC &&
+			header.size >= sizeof(start) + sizeof(header) && header.size <= static_cast<u64>(fileStat.st_size) &&
+			TargetsThisConsole(file, start, header);
 		std::fclose(file);
-		if (!read || header.magic != NROHEADER_MAGIC ||
-			header.size < sizeof(start) + sizeof(header) || header.size > static_cast<u64>(fileStat.st_size))
+		if (!valid)
 			return false;
 		for (const auto& segment : header.segments)
 			if (segment.file_off > header.size || segment.size > header.size - segment.file_off)

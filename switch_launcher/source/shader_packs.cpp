@@ -19,6 +19,17 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// The precompiled native shaders: uam's for deko3d on the Switch, UAM2's for drako3d on the Switch 2.
+#if defined(__SWITCH2__)
+#define NATIVE_CACHE_DIRECTORY "shaderCache/driver/drako3d/"
+#define NATIVE_PACK_DIRECTORY "drako/"
+#define NATIVE_FULL_PACK "UAM2-Drako-Shaders-Pack.zip"
+#else
+#define NATIVE_CACHE_DIRECTORY "shaderCache/driver/deko3d/"
+#define NATIVE_PACK_DIRECTORY "deko/"
+#define NATIVE_FULL_PACK "UAM-Deko-Shaders-Pack.zip"
+#endif
+
 namespace ShaderPacks {
 namespace {
 
@@ -237,7 +248,7 @@ bool CachePath(std::string name, Type type, Entry &entry) {
   constexpr std::string_view root = "switch/cemu/cache/";
   if (name.compare(0, root.size(), root) == 0) name.erase(0, root.size());
   constexpr std::string_view transferable = "shaderCache/transferable/";
-  constexpr std::string_view deko = "shaderCache/driver/deko3d/";
+  constexpr std::string_view deko = NATIVE_CACHE_DIRECTORY;
   if (name.compare(0, transferable.size(), transferable) == 0) {
     if (!CacheName(std::string_view(name).substr(transferable.size()), entry.title, entry.pipeline) ||
         (type == Type::Deko && entry.pipeline)) return false;
@@ -371,7 +382,7 @@ bool ExtractArchive(const std::string &path, Staging &staging, std::vector<Entry
     const std::string transferable = "shaderCache/transferable/" + std::string(title);
     bool complete = names.count(transferable + "_shaders.bin");
     if (type == Type::Deko)
-      complete = complete && names.count("shaderCache/driver/deko3d/" + std::string(title) + "/v1/shaders.bin");
+      complete = complete && names.count(NATIVE_CACHE_DIRECTORY + std::string(title) + "/v1/shaders.bin");
     else
       complete = complete && names.count(transferable + "_vkpipeline.bin");
     if (!complete) { error = "The shader archive contains an incomplete game pack."; return false; }
@@ -504,7 +515,7 @@ bool IsInstalled(const std::string &cacheDir, const Pack &pack, Type type) {
   const auto path = cacheDir + "/shaderCache/transferable/" + pack.titleId;
   if (!ValidCache(path + "_shaders.bin", title, false)) return false;
   if (type == Type::Deko)
-    return ValidFileCache(cacheDir + "/shaderCache/driver/deko3d/" + pack.titleId + "/v1/shaders.bin", 1, 1);
+    return ValidFileCache(cacheDir + "/" NATIVE_CACHE_DIRECTORY + pack.titleId + "/v1/shaders.bin", 1, 1);
   return ValidCache(path + "_vkpipeline.bin", title, true);
 }
 
@@ -536,8 +547,8 @@ bool Install(const std::string &cacheDir, const Pack *pack, Progress &progress,
     uint64_t title = 0;
     if (pack && !TitleId(pack->titleId, title)) { error = "Invalid shader-pack title."; return false; }
     const auto url = type == Type::Transferable ? std::string(fullArchive) :
-      pack ? std::string(repository) + "deko/" + pack->titleId + ".zip" :
-      std::string(nativeArchives) + "UAM-Deko-Shaders-Pack.zip";
+      pack ? std::string(repository) + NATIVE_PACK_DIRECTORY + pack->titleId + ".zip" :
+      std::string(nativeArchives) + NATIVE_FULL_PACK;
     if (!DownloadFile(url, path, maxArchive, progress, cancel, error)) return false;
     if (!ExtractArchive(path, staging, entries, progress, cancel, error, type, title)) {
       if (error.empty() && !cancel.load()) error = "Could not extract the shader pack.";

@@ -1,3 +1,6 @@
+// deko3d-on-libnx submission recovery (-Wl,--wrap=nvGpuChannelKickoff/AppendEntry in src/CMakeLists.txt). drako3d on
+// the Switch 2 does not submit through libnx's nvGpuChannel, and the Switch 2 build does not wrap it.
+#if !defined(__SWITCH2__)
 #include "DKCommon.h"
 #include "DKCommandBufferManager.h"
 #include "DKMemoryTracker.h"
@@ -78,3 +81,4 @@ extern "C" Result __wrap_nvGpuChannelAppendEntry(NvGpuChannel* channel, iova_t a
 	}
 	return __real_nvGpuChannelAppendEntry(channel, address, commands, flags, threshold);
 }
+#endif // !__SWITCH2__

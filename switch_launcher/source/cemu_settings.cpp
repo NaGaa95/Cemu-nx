@@ -455,7 +455,7 @@ bool cemu_writeSettingsXml(const char *path, const std::vector<CemuKV> &s,
     }
     gpk->InsertEndChild(entry);
   }
-  const char *renderer = cemuKVGet(s, "Wrapper/Renderer", "vk");
+  const char *renderer = cemuKVGet(s, "Wrapper/Renderer", LAUNCHER_DEFAULT_RENDERER);
   const bool nativeVulkan = !strcmp(renderer, "vk");
   const bool nativeDeko = !strcmp(renderer, "deko3d");
   XMLElement *g = upsertElement(doc, content, "Graphic");
@@ -543,7 +543,7 @@ bool cemu_writeGameProfile(const char *dir, uint64_t titleId, const char *gameNa
     setIniValue(lines, "CPU", "cpuMode", cpu);
   if (*tq)
     setIniValue(lines, "CPU", "threadQuantum", tq);
-  const char *renderer = cemuKVGet(s, "Wrapper/Renderer", "vk");
+  const char *renderer = cemuKVGet(s, "Wrapper/Renderer", LAUNCHER_DEFAULT_RENDERER);
   const bool nativeVulkan = !strcmp(renderer, "vk");
   const bool nativeDeko = !strcmp(renderer, "deko3d");
   setIniValue(lines, "Graphics", "graphics_api", nativeDeko ? "3" : nativeVulkan ? "1" : "0");

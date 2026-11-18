@@ -151,8 +151,12 @@ option(ENABLE_CUBEB "Enabled cubeb backend" ON)
 option(ENABLE_WXWIDGETS "Build with wxWidgets UI (Currently required)" ON)
 
 if (PLATFORM_SWITCH)
+	if (NINTENDO_SWITCH2)
+		# Nintendo Switch 2 (cmake/Toolchain-Switch2.cmake): libounce in place of libnx, drako3d with uam2rt in
+		# place of deko3d with uam, kaiHEN's JIT and the Switch 2 Mesa SDK. Everything else is the Switch build's.
+		message(STATUS "Targeting the Nintendo Switch 2 (libounce, drako3d, uam2rt, kaiHEN JIT)")
+	endif()
 	# Switch uses devkitPro dependencies and bundled NVK.
-	include(${CMAKE_SOURCE_DIR}/cmake/switch/SwitchPGO.cmake)
 	include(${CMAKE_SOURCE_DIR}/cmake/switch/SwitchDependencies.cmake)
 else()
 

@@ -9,6 +9,14 @@
 #include "config/CemuConfig.h"
 #include "platform/switch/SwitchPlatform.h"
 #include "platform/switch/SwitchSwkbd.h"
+#if defined(__SWITCH2__)
+// nx2_platform's GPU handover (not included: its <switch.h> Semaphore clashes with util/helpers/Semaphore.h).
+extern "C"
+{
+void nx2MesaGpuRecover(void);
+bool nx2GpuReleaseForDrako3d(void);
+}
+#endif
 
 #include <cstdlib>
 #include <memory>
@@ -66,6 +74,8 @@ public:
 			static_cast<EGLNativeWindowType>(nwindowGetDefault()), nullptr);
 		if (m_surface == EGL_NO_SURFACE)
 			return false;
+		// (Switch 2: Mesa set its own swap interval on the window, which withdraws the 120 Hz request)
+		SwitchPlatform_ApplyDisplayPacing(GetConfig().vsync.GetValue() > 0 ? 1 : 0, true);
 
 		const EGLint compatibility45[] = {
 			EGL_CONTEXT_MAJOR_VERSION, 4,
@@ -118,7 +128,10 @@ public:
 		}
 		const int interval = GetConfig().vsync.GetValue() > 0 ? 1 : 0;
 		if (interval != m_swapInterval && eglSwapInterval(m_display, interval) == EGL_TRUE)
+		{
 			m_swapInterval = interval;
+			SwitchPlatform_ApplyDisplayPacing(interval, true);
+		}
 		return true;
 	}
 
@@ -132,6 +145,7 @@ public:
 		if (!MakeCurrent(false))
 			return;
 
+		SwitchPlatform_ApplyDisplayPacing(m_swapInterval < 0 ? 1 : m_swapInterval, false);
 		if (eglSwapBuffers(m_display, m_surface) == EGL_TRUE)
 			SwitchPlatform_NotifyGameFrameSubmitted();
 	}
@@ -210,9 +224,16 @@ bool SwitchCreateRenderer(int width, int height, std::string_view backend)
 #if defined(ENABLE_DEKO3D)
 		if (backend == "deko3d")
 		{
+#if defined(__SWITCH2__)
+			// (drako3d opens the GPU on a GSV root of its own)
+			nx2GpuReleaseForDrako3d();
+#endif
 			g_renderer = std::make_unique<Deko3DRenderer>();
 			return true;
 		}
+#endif
+#if defined(__SWITCH2__)
+		nx2MesaGpuRecover();
 #endif
 		if (backend == "gl" || backend == "zink")
 		{

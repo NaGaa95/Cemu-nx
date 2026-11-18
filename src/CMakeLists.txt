@@ -111,7 +111,10 @@ if(PLATFORM_SWITCH)
 		platform/switch/common/SwitchStorage.cpp
 		platform/switch/switch_stubs.cpp
 	)
-	cemu_switch_configure_pgo(CemuBin)
+	if(NINTENDO_SWITCH2)
+		# The Switch 2 platform helpers (nx2_platform.h), shared with the other NX ports.
+		target_sources(CemuBin PRIVATE platform/switch/nx2_platform.c)
+	endif()
 else()
 	add_executable(CemuBin
 		main.cpp
@@ -302,15 +305,28 @@ if (PLATFORM_SWITCH)
 	# but before __appInit starts services. argvSetup is defined in a separate
 	# libnx object, so --wrap redirects the call from its runtime init object.
 	target_link_options(CemuBin PRIVATE "-Wl,--wrap=argvSetup")
-	if(ENABLE_DEKO3D)
+	if(ENABLE_DEKO3D AND NOT NINTENDO_SWITCH2)
+		# deko3d-on-libnx submission internals; drako3d on the Switch 2 does not use them.
 		target_link_options(CemuBin PRIVATE
 			"-Wl,--wrap=nvGpuChannelKickoff,--undefined=__wrap_nvGpuChannelKickoff"
 			"-Wl,--wrap=nvGpuChannelAppendEntry,--undefined=__wrap_nvGpuChannelAppendEntry")
 	endif()
+	if(NINTENDO_SWITCH2)
+		# nx2_platform.c and its link wraps (see nx2_platform.h); --wrap=atexit lets main_switch.cpp run drako3d's GPU
+		# release on the _Exit path. kaihen: kaiHEN's JIT provider. No libusbhsfs: usb:hs never answers under kaiHEN.
+		target_link_options(CemuBin PRIVATE
+			"-Wl,--wrap=hidInitializeKeyboard" "-Wl,--wrap=hidInitializeMouse"
+			"-Wl,--wrap=hidInitializeTouchScreen" "-Wl,--wrap=__syscall_thread_create"
+			"-Wl,--wrap=smGetServiceWrapper" "-Wl,--wrap=atexit")
+		target_link_libraries(CemuBin PRIVATE SwitchVulkanDriver imguiImpl
+			smb2 kaihen
+			"-Wl,--whole-archive" CemuResource "-Wl,--no-whole-archive")
+	else()
 	# The headless build still consumes fonts through imgui.
 	target_link_libraries(CemuBin PRIVATE SwitchVulkanDriver imguiImpl
 		smb2 libusbhsfs
 		"-Wl,--whole-archive" CemuResource "-Wl,--no-whole-archive")
+	endif()
 	if(ENABLE_VULKAN)
 		target_link_libraries(CemuBin PRIVATE SwitchLsfgBackend)
 	endif()

@@ -27,7 +27,7 @@ diff --git a/src/util_impl_switch.h b/src/util_impl_switch.h
 new file mode 100644
 --- /dev/null
 +++ b/src/util_impl_switch.h
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,80 @@
 +// SPDX-License-Identifier: Apache-2.0
 +#pragma once
 +
@@ -43,11 +43,16 @@ new file mode 100644
 +namespace Xbyak_aarch64 {
 +namespace util {
 +
++// EL0 cannot read the ID registers on Horizon: the features are those of the console's cores.
 +class CpuInfoSwitch : public CpuInfo {
 +public:
 +  CpuInfoSwitch() {
 +    init();
-+    cacheInfo_.midr_el1 = 0x411FD070;
++#if defined(__SWITCH2__)
++    cacheInfo_.midr_el1 = 0x414FD4B0; // Cortex-A78C
++#else
++    cacheInfo_.midr_el1 = 0x411FD070; // Cortex-A57
++#endif
 +    setNumCores();
 +    setHwCap();
 +    setCacheHierarchy();
@@ -56,16 +61,38 @@ new file mode 100644
 +
 +private:
 +  void setNumCores() {
++#if defined(__SWITCH2__)
++    numCores_[0] = numCores_[1] = 6;
++#else
 +    numCores_[0] = numCores_[1] = 4;
++#endif
 +  }
 +
 +  void setHwCap() {
 +    type_ |= (Type)XBYAK_AARCH64_HWCAP_FP;
 +    type_ |= (Type)XBYAK_AARCH64_HWCAP_ADVSIMD;
 +    type_ |= (Type)XBYAK_AARCH64_HWCAP_CRC;
++#if defined(__SWITCH2__)
++    // Armv8.2-A: LSE atomics (Armv8.1).
++    type_ |= (Type)XBYAK_AARCH64_HWCAP_ATOMIC;
++#endif
 +  }
 +
 +  void setCacheHierarchy() {
++#if defined(__SWITCH2__)
++    cacheInfo_.levelCache[0].type = SeparateCache;
++    cacheInfo_.levelCache[0].size[0] = 64 * 1024;
++    cacheInfo_.levelCache[0].size[1] = 64 * 1024;
++    cacheInfo_.levelCache[0].sharingCores[0] = 1;
++    cacheInfo_.levelCache[0].sharingCores[1] = 1;
++    cacheInfo_.levelCache[1].type = UnifiedCache;
++    cacheInfo_.levelCache[1].size[2] = 512 * 1024;
++    cacheInfo_.levelCache[1].sharingCores[2] = 1;
++    cacheInfo_.levelCache[2].type = UnifiedCache;
++    cacheInfo_.levelCache[2].size[2] = 4 * 1024 * 1024;
++    cacheInfo_.levelCache[2].sharingCores[2] = 6;
++    lastDataCacheLevel_ = 3;
++#else
 +    cacheInfo_.levelCache[0].type = SeparateCache;
 +    cacheInfo_.levelCache[0].size[0] = 48 * 1024;
 +    cacheInfo_.levelCache[0].size[1] = 32 * 1024;
@@ -75,6 +102,7 @@ new file mode 100644
 +    cacheInfo_.levelCache[1].size[2] = 2 * 1024 * 1024;
 +    cacheInfo_.levelCache[1].sharingCores[2] = 4;
 +    lastDataCacheLevel_ = 2;
++#endif
 +  }
 +};
 +

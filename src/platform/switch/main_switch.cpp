@@ -19,6 +19,10 @@
 #include "platform/switch/SwitchSaltyNX.h"
 #include "util/MemMapper/MemMapper.h"
 #include "util/MemMapper/SwitchGuestMemory.h"
+#if defined(__SWITCH2__)
+#include "platform/switch/nx2_platform.h"
+#include <sys/stat.h>
+#endif
 
 std::atomic_bool g_isGPUInitFinished = false;
 
@@ -244,6 +248,59 @@ static void SwitchPlatformExit()
 		romfsExit();
 }
 
+#if defined(__SWITCH2__)
+// drako3d releases its process-wide GPU client only in an atexit handler, which _Exit skips, leaving the launcher's GL
+// without a GPU. -Wl,--wrap=atexit records that one handler (registered from nvLibInit, the branch target of
+// dk::detail::nvdev::initialize) so ExitCore can run it; the C++ static destructors stay skipped.
+extern "C" int __real_atexit(void (*function)(void));
+extern "C" void CemuDrako3dNvInitialize(void) __asm__("_ZN2dk6detail5nvdev10initializeEv") __attribute__((weak));
+static void (*s_drako3dAtexit)(void);
+
+static bool IsDrako3dGpuRegistration(uintptr_t caller)
+{
+	const uintptr_t entry = reinterpret_cast<uintptr_t>(&CemuDrako3dNvInitialize);
+	if (!entry)
+		return false;
+	const uint32_t instruction = *reinterpret_cast<const uint32_t*>(entry);
+	if ((instruction & 0xFC000000u) != 0x14000000u) // b <nvLibInit>
+		return false;
+	int32_t offset = static_cast<int32_t>(instruction & 0x03FFFFFFu);
+	if (offset & 0x02000000)
+		offset -= 0x04000000;
+	const uintptr_t nvLibInit = entry + static_cast<intptr_t>(offset) * 4;
+	return caller >= nvLibInit && caller - nvLibInit < 0x800; // (nvLibInit is 0x660 bytes, its atexit call at +0x4ac)
+}
+
+extern "C" int __wrap_atexit(void (*function)(void));
+extern "C" int __wrap_atexit(void (*function)(void))
+{
+	if (IsDrako3dGpuRegistration(reinterpret_cast<uintptr_t>(__builtin_return_address(0))))
+		s_drako3dAtexit = function;
+	return __real_atexit(function);
+}
+
+static void ReleaseDrako3dGpu()
+{
+	if (!s_drako3dAtexit)
+		return;
+	void (*release)(void) = s_drako3dAtexit;
+	s_drako3dAtexit = nullptr;
+	release();
+}
+
+[[noreturn]] static void ExitCore(int status)
+{
+	SwitchPlatformExit();
+	cemuLog_shutdown();
+	// The launcher runs next in this process: stop leftover threads, free their stacks and drako3d's GPU client.
+	nx2ExitCleanupNow();
+	ReleaseDrako3dGpu();
+	std::_Exit(status);
+}
+
+// The Switch 2 launcher (switch_launcher/Makefile.switch2). There are no HOME Menu forwarders on the Switch 2.
+static constexpr const char* kLauncherPath = "sdmc:/switch/cemu/cemu-nx2.nro";
+#else
 [[noreturn]] static void ExitCore(int status)
 {
 	SwitchPlatformExit();
@@ -254,7 +311,18 @@ static void SwitchPlatformExit()
 // Matches EXIT_DETECTION_STR in switch_launcher/fwd/main.c.
 static constexpr const char* kForwarderExitSentinel = "__CEMU_FORWARDER_EXIT__";
 static constexpr const char* kLauncherPath = "sdmc:/switch/cemu/cemu.nro";
+#endif
 
+#if defined(__SWITCH2__)
+static void ReturnToLauncher()
+{
+	// No forwarder restart on the Switch 2: appletRestartProgram would relaunch the game kaiHEN runs in, and there
+	// are no HOME Menu forwarders. Chainload the launcher in place when it is installed.
+	struct stat info{};
+	if (envHasNextLoad() && stat(kLauncherPath, &info) == 0)
+		envSetNextLoad(kLauncherPath, kLauncherPath);
+}
+#else
 static std::string ForwarderLauncherPath()
 {
 	u64 programId = 0;
@@ -300,9 +368,13 @@ static void ReturnToLauncher()
 	if (envHasNextLoad())
 		envSetNextLoad(kLauncherPath, kLauncherPath);
 }
+#endif
 
 int main(int argc, char* argv[])
 {
+#if defined(__SWITCH2__)
+	nx2DisplayInit();
+#endif
 	const bool platformInitialized = SwitchPlatformInit();
 	if (!platformInitialized)
 	{

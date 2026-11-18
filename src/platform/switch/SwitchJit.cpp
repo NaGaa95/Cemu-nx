@@ -6,6 +6,9 @@
 
 #include "platform/switch/SwitchJit.h"
 #include "Cemu/Logging/CemuLogging.h"
+#if defined(__SWITCH2__)
+#include "platform/switch/nx2_platform.h"
+#endif
 
 namespace
 {
@@ -51,6 +54,15 @@ namespace
 		JitArena& arena = s_arenas[s_arenaCount];
 		arena = {};
 		Result rc = jitCreate(&arena.jit, size);
+#if defined(__SWITCH2__)
+		// kaiHEN: the RX view is mapped from the start and each finished block is published (SwitchJit_FlushCode);
+		// jitTransitionToExecutable would publish the whole arena.
+		if (R_FAILED(rc))
+		{
+			arena = {};
+			return false;
+		}
+#else
 		if (R_FAILED(rc))
 		{
 			arena = {};
@@ -69,6 +81,7 @@ namespace
 			arena = {};
 			return false;
 		}
+#endif
 
 		arena.rwBase = static_cast<uint8_t*>(jitGetRwAddr(&arena.jit));
 		arena.rxBase = static_cast<uint8_t*>(jitGetRxAddr(&arena.jit));
@@ -82,6 +95,10 @@ namespace
 		arena.size = size;
 		arena.cursor = 0;
 		arena.freeBlocks.clear();
+#if defined(__SWITCH2__)
+		// (s_arenas is a static array: the Jit stays at this address until SwitchJit_Shutdown unregisters it)
+		nx2JitRegister(&arena.jit);
+#endif
 		++s_arenaCount;
 		return true;
 	}
@@ -121,7 +138,12 @@ namespace
 
 bool SwitchJit_SyscallsAvailable()
 {
+#if defined(__SWITCH2__)
+	// No CodeMemory on the Switch 2 (a syscall outside the mask ends the process): jitCreate goes through kaiHEN.
+	return true;
+#else
 	return envIsSyscallHinted(0x4B) && envIsSyscallHinted(0x4C);
+#endif
 }
 
 bool SwitchJit_InitCodeArena(size_t size)
@@ -150,6 +172,9 @@ void SwitchJit_Shutdown()
 
 	for (size_t i = 0; i < s_arenaCount; ++i)
 	{
+#if defined(__SWITCH2__)
+		nx2JitUnregister(&s_arenas[i].jit);
+#endif
 		jitClose(&s_arenas[i].jit);
 		s_arenas[i] = {};
 	}
@@ -239,10 +264,15 @@ void SwitchJit_FlushCode(void* rwAddr, size_t size)
 {
 	if (!rwAddr || size == 0)
 		return;
+#if defined(__SWITCH2__)
+	// Copies the staged bytes to the RX view (published code is never written again).
+	nx2JitPublish(rwAddr, size);
+#else
 	armDCacheClean(rwAddr, size);
 	void* rxAddr = SwitchJit_RwToRx(rwAddr);
 	if (rxAddr)
 		armICacheInvalidate(rxAddr, size);
+#endif
 }
 
 void* SwitchJit_RwToRx(void* rw)
@@ -263,8 +293,13 @@ void* SwitchJit_RwToRx(void* rw)
 
 void SwitchJit_PinThreadToCore(int coreIndex)
 {
+#if defined(__SWITCH2__)
+	if (coreIndex < 0 || coreIndex >= nx2CoreCount() || !(nx2CoreMask() & (UINT64_C(1) << coreIndex)))
+		return;
+#else
 	if (coreIndex < 0 || coreIndex > 3)
 		return;
+#endif
 	const Result result = svcSetThreadCoreMask(CUR_THREAD_HANDLE, coreIndex, 1u << coreIndex);
 	if (R_FAILED(result))
 		cemuLog_log(LogType::Force, "Switch: could not pin a thread to core {} (rc=0x{:08x})", coreIndex, result);

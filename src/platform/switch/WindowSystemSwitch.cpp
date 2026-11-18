@@ -36,6 +36,9 @@
 #include "util/MemMapper/SwitchGuestMemory.h"
 #include "Cemu/FileCache/FileCache.h"
 #include "Cemu/ncrypto/ncrypto.h"
+#if defined(__SWITCH2__)
+#include "platform/switch/nx2_platform.h"
+#endif
 
 #include <thread>
 #include <chrono>
@@ -78,6 +81,7 @@ namespace
 		if (!s_gameBootBoostActive.exchange(false, std::memory_order_acq_rel))
 			return;
 
+		// (Normal, never CancelCpuBoostMode: on the Switch 2 that leaves the boost on)
 		appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 	}
 
@@ -90,8 +94,36 @@ namespace
 
 void SwitchPlatform_ApplyWindowSurfaceSize(int width, int height)
 {
+#if defined(__SWITCH2__)
+	// libounce sizes the default window for the operation mode (nx2DisplayInit): it is never resized here.
+	(void)width;
+	(void)height;
+#else
 	if (NWindow* window = nwindowGetDefault())
 		nwindowSetDimensions(window, static_cast<u32>(width), static_cast<u32>(height));
+#endif
+}
+
+int SwitchPlatform_DisplayRefreshRate()
+{
+#if defined(__SWITCH2__)
+	return nx2DisplayRefreshRate();
+#else
+	return 60;
+#endif
+}
+
+void SwitchPlatform_ApplyDisplayPacing(int swapInterval, bool reapply)
+{
+#if defined(__SWITCH2__)
+	// (Mesa and drako3d set their own swap interval, which withdraws the 120 Hz request: reapply after those)
+	if (reapply)
+		nx2DisplayReapply();
+	nx2DisplayApply(swapInterval);
+#else
+	(void)swapInterval;
+	(void)reapply;
+#endif
 }
 
 bool SwitchPlatform_ShouldReturnToLauncher()
@@ -263,12 +295,30 @@ namespace WindowSystem
 	static constexpr int kDockedWidth = 1920;
 	static constexpr int kDockedHeight = 1080;
 
+#if defined(__SWITCH2__)
+	// Switch 2: handheld 1920x1080, docked the TV's resolution (up to 2160p at 60 Hz, 1440p at 120 Hz with frame
+	// generation), from libounce's default window. The renderers follow the reported size.
+	static void UpdateOperationMode()
+	{
+		nx2DisplaySetFrameGeneration(SwitchLSFG_IsEnabled());
+		nx2DisplayUpdate();
+		u32 width = 1920, height = 1080;
+		nx2DisplaySize(&width, &height);
+		if (!width || !height)
+			width = 1920, height = 1080;
+		s_surfaceWidth.store(static_cast<int>(width), std::memory_order_release);
+		s_surfaceHeight.store(static_cast<int>(height), std::memory_order_release);
+		s_windowInfo.width = s_windowInfo.phys_width = static_cast<int>(width);
+		s_windowInfo.height = s_windowInfo.phys_height = static_cast<int>(height);
+	}
+#else
 	static void UpdateOperationMode()
 	{
 		const bool docked = appletGetOperationMode() == AppletOperationMode_Console;
 		s_surfaceWidth.store(docked ? kDockedWidth : kHandheldWidth, std::memory_order_release);
 		s_surfaceHeight.store(docked ? kDockedHeight : kHandheldHeight, std::memory_order_release);
 	}
+#endif
 
 	static void AppletHook(AppletHookType hook, void*)
 	{
@@ -453,6 +503,9 @@ namespace WindowSystem
 			n_config.Load();
 
 		LoadHandoff();
+#if defined(__SWITCH2__)
+		UpdateOperationMode();
+#endif
 #if defined(ENABLE_DEKO3D)
 		s_rendererBackend = "deko3d";
 		GetConfig().graphic_api = kDeko3D;
@@ -759,6 +812,10 @@ namespace WindowSystem
 			if (s_exitRequested.load(std::memory_order_acquire))
 				break;
 			SwitchPlatform_PollGameBootState();
+#if defined(__SWITCH2__)
+			// Docking, the TV's resolution and frame generation.
+			UpdateOperationMode();
+#endif
 			SwitchAmiibo_Update();
 			if (SwitchSwkbd_IsAppletActive())
 			{

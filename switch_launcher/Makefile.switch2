@@ -1,0 +1,179 @@
+# Cemu launcher for the Switch 2 (kaiHEN): cemu-nx2.nro, built with libounce and the Switch 2 Mesa SDK's EGL/GL.
+#
+#   make -f Makefile.switch2 [SWITCH2_CORE_BUILD=../build_switch2] [SWITCH2_MESA_SDK=../dependencies/switch2_mesa_sdk]
+#
+# Needs the Switch 2 core build (storage and archive libraries) and the cores in romfs_nx2/emu: build_switch2_all.sh
+# does both.
+.SUFFIXES:
+.DEFAULT_GOAL := all
+
+ifeq ($(strip $(DEVKITPRO)),)
+$(error "Please set DEVKITPRO in your environment. export DEVKITPRO=<path to>/devkitpro")
+endif
+ifeq ($(wildcard $(DEVKITPRO)/libounce/switch2_rules),)
+$(error "No Switch 2 devkit (libounce) in $(DEVKITPRO): install https://github.com/ouncebrew/ounce-devkit")
+endif
+
+APP_TITLE	:=	Cemu
+APP_AUTHOR	:=	naga
+RELEASE_VERSION	?=	1.3.2
+APP_VERSION	?=	$(RELEASE_VERSION)
+
+TOPDIR ?= $(CURDIR)
+include $(DEVKITPRO)/libounce/switch2_rules
+
+TARGET		:=	cemu-nx2
+BUILD		:=	build_nx2
+SOURCES		:=	source source_switch2 ../src/platform/switch/common
+DATA		:=	data
+SWITCH2_CORE_BUILD	?=	$(TOPDIR)/../build_switch2
+SWITCH2_MESA_SDK	?=	$(TOPDIR)/../dependencies/switch2_mesa_sdk
+INCLUDES	:=	../src/platform/switch/common \
+			../src/platform/switch \
+			../dependencies/ZArchive/include \
+			source
+EXTRA_INCLUDES	:=	$(SWITCH2_CORE_BUILD)/_deps/rapidjson-src/include \
+			$(SWITCH2_CORE_BUILD)/_deps/libsmb2-src/include
+ROMFS		:=	romfs_nx2	# the Switch 2 cores
+ICON		:=	Cemu.jpg
+
+ARCH	:=	$(SWITCH2_CPU) -mtp=soft -fPIE
+
+# SDL 2 and curl come from the Switch portlibs; their pkg-config files name switch-mesa's EGL and libnx's headers,
+# so their flags are given here. EGL and GL come from the Switch 2 Mesa SDK.
+SDL_CFLAGS	:=	-I$(PORTLIBS)/include/SDL2 -D_REENTRANT -DCURL_STATICLIB
+
+CFLAGS	:=	$(SDL_CFLAGS) -Wall -Wextra -O2 -DNDEBUG -ffunction-sections \
+			-fno-ident -ffile-prefix-map=$(CURDIR)=. -fmacro-prefix-map=$(CURDIR)=. \
+			-DCEMU_SWITCH_VERSION='"$(APP_VERSION)"' \
+			-DCEMU_SWITCH_RELEASE_VERSION='"$(RELEASE_VERSION)"' $(ARCH) $(DEFINES)
+CFLAGS	+=	$(INCLUDE) -D__SWITCH__ -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
+
+ifeq ($(UPDATE_TEST),1)
+CFLAGS	+=	-DCEMU_SWITCH_UPDATE_TEST
+endif
+
+CXXFLAGS	:= $(CFLAGS) -std=gnu++17
+
+ASFLAGS	:=	$(ARCH)
+# nx2_platform.c and the link wraps it needs (see nx2_platform.h).
+LDFLAGS	=	-specs=$(DEVKITPRO)/libounce/switch.specs $(ARCH) -Wl,-Map,$(notdir $*.map) \
+			-Wl,--gc-sections -Wl,--build-id=none \
+			-Wl,--wrap=hidInitializeKeyboard -Wl,--wrap=hidInitializeMouse \
+			-Wl,--wrap=hidInitializeTouchScreen -Wl,--wrap=__syscall_thread_create \
+			-Wl,--wrap=smGetServiceWrapper
+
+STORAGE_LIBS := $(SWITCH2_CORE_BUILD)/_deps/libsmb2-build/lib/libsmb2.a
+ARCHIVE_LIBS := $(SWITCH2_CORE_BUILD)/dependencies/ZArchive/libzarchive.a
+# (the SDK's libEGL.a is a linker script for its merged EGL/GL/NVK archive, -lmesa_local)
+MESA_LIBS := $(SWITCH2_MESA_SDK)/lib/libEGL.a
+LIBS	:=	$(STORAGE_LIBS) $(ARCHIVE_LIBS) \
+			-lSDL2_ttf -lharfbuzz -lfreetype -lbz2 -lSDL2_image -lpng16 -ljpeg -lwebp -lSDL2 \
+			$(MESA_LIBS) -lcurl -lturbojpeg -lzstd -lexpat -lz -lstdc++ -lm -lpthread -lkaihen -lnx
+
+LIBDIRS	:= $(SWITCH2_MESA_SDK) $(PORTLIBS) $(LIBNX)
+
+ifneq ($(BUILD),$(notdir $(CURDIR)))
+
+export OUTPUT	:=	$(CURDIR)/$(TARGET)
+export TOPDIR	:=	$(CURDIR)
+
+export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
+			$(foreach dir,$(DATA),$(CURDIR)/$(dir)) \
+			$(CURDIR)/../src/platform/switch
+
+export DEPSDIR	:=	$(CURDIR)/$(BUILD)
+
+# forwarder.cpp needs ns, ncm and spl: forwarder_switch2.cpp refuses shortcuts instead.
+CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c))) nx2_platform.c
+CPPFILES	:=	$(filter-out forwarder.cpp,$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp))))
+SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
+
+# Link with the C++ driver.
+export LD	:=	$(CXX)
+
+export OFILES_BIN	:=	$(addsuffix .o,$(BINFILES))
+export OFILES_SRC	:=	$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
+export OFILES 	:=	$(OFILES_BIN) $(OFILES_SRC)
+export HFILES_BIN	:=	$(addsuffix .h,$(subst .,_,$(BINFILES)))
+
+export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
+			$(foreach dir,$(EXTRA_INCLUDES),-I$(dir)) \
+			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+			-I$(CURDIR)/$(BUILD)
+
+export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
+
+ifeq ($(strip $(ICON)),)
+	icons := $(wildcard *.jpg)
+	ifneq (,$(findstring $(TARGET).jpg,$(icons)))
+		export APP_ICON := $(TOPDIR)/$(TARGET).jpg
+	else
+		ifneq (,$(findstring icon.jpg,$(icons)))
+			export APP_ICON := $(TOPDIR)/icon.jpg
+		endif
+	endif
+else
+	export APP_ICON := $(TOPDIR)/$(ICON)
+endif
+
+ifeq ($(strip $(NO_ICON)),)
+	export NROFLAGS += --icon=$(APP_ICON)
+endif
+
+ifeq ($(strip $(NO_NACP)),)
+	export NROFLAGS += --nacp=$(CURDIR)/$(TARGET).nacp
+endif
+
+ifneq ($(strip $(ROMFS)),)
+	export NROFLAGS += --romfsdir=$(CURDIR)/$(ROMFS)
+endif
+
+ifneq ($(APP_TITLEID),)
+	export NACPFLAGS += --titleid=$(APP_TITLEID)
+endif
+
+.PHONY: $(BUILD) clean all
+
+all: $(BUILD)
+
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+	@[ -d $(ROMFS) ] || { echo "Missing $(ROMFS): stage the Switch 2 cores first (build_switch2_all.sh)" >&2; exit 1; }
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile.switch2
+
+clean:
+	@echo clean ...
+	@rm -fr $(BUILD) $(TARGET).nro $(TARGET).nacp $(TARGET).elf
+
+else
+.PHONY:	all
+
+DEPENDS	:=	$(OFILES:.o=.d)
+
+all	:	$(OUTPUT).nro
+
+ifeq ($(strip $(NO_NACP)),)
+$(OUTPUT).nro	:	$(OUTPUT).elf $(OUTPUT).nacp
+else
+$(OUTPUT).nro	:	$(OUTPUT).elf
+endif
+
+ROMFS_FILES := $(shell find $(TOPDIR)/$(ROMFS) -type f)
+$(OUTPUT).nro : $(APP_ICON) $(ROMFS_FILES)
+
+$(ROMFS_FILES) $(STORAGE_LIBS) $(ARCHIVE_LIBS) $(MESA_LIBS):
+	@test -f "$@" || { echo "Missing build input: $@" >&2; exit 1; }
+
+$(OUTPUT).elf	:	$(OFILES) $(STORAGE_LIBS) $(ARCHIVE_LIBS)
+
+$(OFILES_SRC)	: $(HFILES_BIN)
+
+%.bin.o	%_bin.h :	%.bin
+	@echo $(notdir $<)
+	@$(bin2o)
+
+-include $(DEPENDS)
+
+endif

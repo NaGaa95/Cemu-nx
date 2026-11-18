@@ -8,6 +8,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <signal.h>
+#if defined(__SWITCH2__)
+#include "platform/switch/nx2_platform.h"
+#endif
 
 extern "C"
 {
@@ -17,7 +20,11 @@ extern "C"
 			return 0x1000;
 #ifdef _SC_NPROCESSORS_ONLN
 		if (name == _SC_NPROCESSORS_ONLN)
+#if defined(__SWITCH2__)
+			return nx2CoreCount();
+#else
 			return 4;
+#endif
 #endif
 #ifdef _SC_LEVEL1_ICACHE_SIZE
 		if (name == _SC_LEVEL1_ICACHE_SIZE)
@@ -101,6 +108,7 @@ extern "C"
 			sigemptyset(oldset);
 		return 0;
 	}
+#if !defined(__SWITCH2__) // libounce's allocator (mimalloc) provides posix_memalign
 	int posix_memalign(void** memptr, size_t alignment, size_t size)
 	{
 		if (!memptr || alignment < sizeof(void*) || (alignment & (alignment - 1)) != 0)
@@ -111,6 +119,7 @@ extern "C"
 		*memptr = p;
 		return 0;
 	}
+#endif
 
 	unsigned int if_nametoindex(const char* /*ifname*/)
 	{

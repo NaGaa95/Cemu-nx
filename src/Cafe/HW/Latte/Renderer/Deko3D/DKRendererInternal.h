@@ -138,6 +138,9 @@ struct Deko3DRenderer::State
 		return stateCache.Changed(slot, value);
 	}
 	void Submit(bool wait, Deko3D::DKSwapChain* present = nullptr, int slot = -1);
+#if defined(__SWITCH2__)
+	void FollowWindowSize();
+#endif
 	void PollGuestCompletions();
 	bool IsImportedRange(MPTR address, uint64 size) const;
 	DkBufExtents GuestBuffer(MPTR address, uint32 size, bool uniform);

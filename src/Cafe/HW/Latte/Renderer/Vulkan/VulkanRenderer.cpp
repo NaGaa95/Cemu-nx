@@ -2520,7 +2520,12 @@ bool VulkanRenderer::SavePipelineCache(bool startup)
 		return false;
 	}
 
+#if defined(__SWITCH2__)
+	// (the Switch 2's Ampere pipelines, apart from the Switch's)
+	const auto dir = ActiveSettings::GetCachePath("shaderCache/driver/vk-nx2");
+#else
 	const auto dir = ActiveSettings::GetCachePath("shaderCache/driver/vk");
+#endif
 	std::error_code ec;
 	fs::create_directories(dir, ec);
 	if (ec)
@@ -2617,7 +2622,12 @@ void VulkanRenderer::PipelineCacheSaveThread()
 void VulkanRenderer::CreatePipelineCache()
 {
 	std::vector<uint8_t> cacheData;
+#if defined(__SWITCH2__)
+	// (the Switch 2's Ampere pipelines, apart from the Switch's)
+	const auto dir = ActiveSettings::GetCachePath("shaderCache/driver/vk-nx2");
+#else
 	const auto dir = ActiveSettings::GetCachePath("shaderCache/driver/vk");
+#endif
 	if (fs::exists(dir))
 	{
 		auto filename = dir / fmt::format("{:016x}.bin", CafeSystem::GetForegroundTitleId());
@@ -3367,6 +3377,11 @@ void VulkanRenderer::SwapBuffer(bool mainWindow)
 	}
 
 	VkResult result = VK_SUCCESS;
+#if defined(__SWITCH2__)
+	// The display's pacing (cheap when nothing changed).
+	if (mainWindow)
+		SwitchPlatform_ApplyDisplayPacing(SwitchLSFG_IsEnabled() || GetConfig().vsync.GetValue() != 0 ? 1 : 0, false);
+#endif
 #if defined(__SWITCH__)
 	const bool lsfgPresented = mainWindow && SwitchLSFG_Present(m_presentQueue, presentInfo, result);
 	if (!lsfgPresented)

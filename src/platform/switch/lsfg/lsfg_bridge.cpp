@@ -85,8 +85,13 @@ struct LsfgNxRuntime {
             .queueFamilyIndex = info.queue_family_index,
             .queue = info.queue,
             .getInstanceProcAddr = info.get_instance_proc_addr,
+#if defined(__SWITCH2__)
+            .pipelineCachePath = std::filesystem::path(
+                "/switch/cemu/cache/lsfg-vk-pipeline-cache-nx2.bin")
+#else
             .pipelineCachePath = std::filesystem::path(
                 "/switch/cemu/cache/lsfg-vk-pipeline-cache.bin")
+#endif
         };
 
         backend = std::make_unique<lsfgvk::backend::Instance>(

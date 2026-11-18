@@ -12,7 +12,12 @@ namespace Deko3D::FrameGeneration
 {
 	std::string GetCacheDirectory(bool performance)
 	{
+#if defined(__SWITCH2__)
+		// (uam2rt's Ampere code, apart from the Switch's)
+		return std::string("sdmc:/switch/cemu/lsfg/Cache/Drako3D/") + (performance ? "Performance" : "Quality");
+#else
 		return std::string("sdmc:/switch/cemu/lsfg/Cache/Deko3D/") + (performance ? "Performance" : "Quality");
+#endif
 	}
 
 	bool PrepareShaders(bool performance, std::string& error)

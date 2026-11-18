@@ -15,10 +15,17 @@ def digest(path):
     return result.hexdigest()
 
 
-def cache_paths(title):
+# The precompiled native shaders of each console: uam's for deko3d (Switch), UAM2's for drako3d (Switch 2).
+TARGETS = {
+    "deko": {"driver": "deko3d", "archive": "UAM-Deko-Shaders-Pack.zip"},
+    "drako": {"driver": "drako3d", "archive": "UAM2-Drako-Shaders-Pack.zip"},
+}
+
+
+def cache_paths(title, target):
     root = "switch/cemu/cache/shaderCache/"
     return {root + f"transferable/{title}_shaders.bin",
-            root + f"driver/deko3d/{title}/v1/shaders.bin"}
+            root + f"driver/{TARGETS[target]['driver']}/{title}/v1/shaders.bin"}
 
 
 def assemble(source, metadata, destination):
@@ -35,7 +42,7 @@ def assemble(source, metadata, destination):
         raise ValueError("Incomplete shader archive")
 
 
-def package(source, output, manifest, titles, name):
+def package(source, output, manifest, titles, name, target):
     destination = output / name
     games = manifest["games"]
     with tempfile.TemporaryDirectory(prefix="cemu-shaders-") as temporary:
@@ -43,9 +50,9 @@ def package(source, output, manifest, titles, name):
         with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED,
                              allowZip64=False) as combined:
             for game in titles:
-                assemble(source, games[game]["deko"], archive)
+                assemble(source, games[game][target], archive)
                 with zipfile.ZipFile(archive) as individual:
-                    expected = cache_paths(game)
+                    expected = cache_paths(game, target)
                     if set(individual.namelist()) != expected or len(individual.infolist()) != len(expected):
                         raise ValueError(f"Unexpected cache files: {game}")
                     for entry in sorted(individual.namelist()):
@@ -63,19 +70,25 @@ def main():
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[2] / "shader_packs")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--game")
+    parser.add_argument("--target", choices=sorted(TARGETS), action="append",
+                        help="deko (Switch) and/or drako (Switch 2); default: every target the manifest has")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = json.loads((args.source / "manifest.json").read_text(encoding="utf-8"))
-    titles = sorted(manifest["games"])
-    if args.game:
-        if args.game not in manifest["games"]:
-            raise ValueError(f"Unknown game: {args.game}")
-        titles = [args.game]
-    name = f"deko-{args.game}.zip" if args.game else "UAM-Deko-Shaders-Pack.zip"
-    result = package(args.source, args.output, manifest, titles, name)
+    targets = args.target or [t for t in sorted(TARGETS)
+                              if any(t in game for game in manifest["games"].values())]
+    results = []
+    for target in targets:
+        titles = sorted(title for title, game in manifest["games"].items() if target in game)
+        if args.game:
+            if args.game not in titles:
+                raise ValueError(f"No {target} pack for {args.game}")
+            titles = [args.game]
+        name = f"{target}-{args.game}.zip" if args.game else TARGETS[target]["archive"]
+        results.append(package(args.source, args.output, manifest, titles, name, target))
     (args.output / "SHA256SUMS").write_text(
-        f'{result["sha256"]}  {result["file"]}\n', encoding="ascii")
-    print(json.dumps(result, indent=2))
+        "".join(f'{result["sha256"]}  {result["file"]}\n' for result in results), encoding="ascii")
+    print(json.dumps(results, indent=2))
 
 
 if __name__ == "__main__":

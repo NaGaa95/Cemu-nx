@@ -11,7 +11,12 @@ namespace
 	constexpr size_t MiB = 1024 * 1024;
 	constexpr size_t kHeapAlignment = 2 * MiB;
 	constexpr size_t kBudgetAlignment = 32 * MiB;
+#if defined(__SWITCH2__)
+	// Switch 2: the 4 GiB guest window is one flat block (MemMapperSwitch.cpp); the flexible pool comes on top.
+	constexpr size_t kMandatoryGuestBacking = 0x100000000ull;
+#else
 	constexpr size_t kMandatoryGuestBacking = 0x563F0000ull;
+#endif
 	constexpr size_t kMinimumFlexiblePool = 224 * MiB;
 	constexpr size_t kMaximumFlexiblePool = 640 * MiB;
 	constexpr size_t kMinimumNewlibHeap = 768 * MiB;

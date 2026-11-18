@@ -27,6 +27,12 @@ namespace Deko3D
 {
 	namespace
 	{
+#if defined(__SWITCH2__)
+		// uam2rt: binding N is constant buffer N + 3, and graphics stages take bindings 0-14 only (15 faults the GPU).
+		constexpr int kMaxUniformBindings = 15;
+#else
+		constexpr int kMaxUniformBindings = DK_NUM_UNIFORM_BUFS;
+#endif
 		constexpr u32 CACHE_VERSION = 1;
 		constexpr u32 DKSH_MAGIC = 0x48534b44;
 		struct DkshHeader
@@ -192,8 +198,8 @@ namespace Deko3D
 			auto valid = [](const auto& slots, int count) {
 				return std::ranges::all_of(slots, [count](int slot) { return slot >= -1 && slot < count; });
 			};
-			return valid(bindings.uniforms, DK_NUM_UNIFORM_BUFS) && valid(bindings.textures, DK_NUM_TEXTURE_BINDINGS) &&
-				   valid(bindings.storage, DK_NUM_STORAGE_BUFS) && bindings.pushConstants >= -1 && bindings.pushConstants < DK_NUM_UNIFORM_BUFS;
+			return valid(bindings.uniforms, kMaxUniformBindings) && valid(bindings.textures, DK_NUM_TEXTURE_BINDINGS) &&
+				   valid(bindings.storage, DK_NUM_STORAGE_BUFS) && bindings.pushConstants >= -1 && bindings.pushConstants < kMaxUniformBindings;
 		}
 
 		bool LoadCachedBinary(std::span<const u8> data, u64 hash, int stage, DKShaderProgram& result)
@@ -253,8 +259,14 @@ namespace Deko3D
 
 		void OpenDiskCache()
 		{
+#if defined(__SWITCH2__)
+			// (uam2rt's Ampere code, apart from the Switch's)
+			s_diskDirectory = ActiveSettings::GetCachePath(fmt::format("shaderCache/driver/drako3d/{:016x}/v{}",
+				CafeSystem::GetForegroundTitleId(), CACHE_VERSION));
+#else
 			s_diskDirectory = ActiveSettings::GetCachePath(fmt::format("shaderCache/driver/deko3d/{:016x}/v{}",
 				CafeSystem::GetForegroundTitleId(), CACHE_VERSION));
+#endif
 			const fs::path path = s_diskDirectory / "shaders.bin";
 			s_diskCache.reset(FileCache::Open(path, false, CACHE_VERSION));
 			if (!s_diskCache)
@@ -312,12 +324,12 @@ namespace Deko3D
 				}
 				return slot;
 			};
-			const u32 uniforms = remap(resources.uniform_buffers, bindings.uniforms, DK_NUM_UNIFORM_BUFS);
+			const u32 uniforms = remap(resources.uniform_buffers, bindings.uniforms, kMaxUniformBindings);
 			remap(resources.sampled_images, bindings.textures, DK_NUM_TEXTURE_BINDINGS);
 			remap(resources.storage_buffers, bindings.storage, DK_NUM_STORAGE_BUFS);
 			if (!resources.push_constant_buffers.empty())
 			{
-				if (resources.push_constant_buffers.size() != 1 || uniforms >= DK_NUM_UNIFORM_BUFS)
+				if (resources.push_constant_buffers.size() != 1 || uniforms >= kMaxUniformBindings)
 					throw std::runtime_error("Shader has too many constant buffers");
 				cross.set_decoration(resources.push_constant_buffers.front().id, spv::DecorationBinding, uniforms);
 				bindings.pushConstants = uniforms;

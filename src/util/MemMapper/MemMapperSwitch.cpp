@@ -17,6 +17,322 @@
 extern void* g_switchGuestPoolBase;
 extern size_t g_switchGuestPoolSize;
 
+#if defined(__SWITCH2__)
+#include "platform/switch/nx2_platform.h"
+
+// Switch 2: no CodeMemory, and svcMapMemory only targets the stack region, so the 4 GiB guest window is one flat block
+// of heap memory (the guest pool __libnx_initheap carves, else a heap allocation), which the GPU imports directly.
+// Commits zero the range; releases leave it in place.
+namespace MemMapper
+{
+	static constexpr size_t kPageSize = 0x1000;
+	static constexpr size_t kWindowAlignment = 0x200000;
+
+	size_t GetPageSize() { return kPageSize; }
+
+	namespace
+	{
+		std::mutex s_mutex;
+
+		bool alignToPage(size_t size, size_t& alignedSize)
+		{
+			if (size == 0 || size > SIZE_MAX - (kPageSize - 1))
+				return false;
+			alignedSize = (size + kPageSize - 1) & ~(kPageSize - 1);
+			return true;
+		}
+
+		bool s_poolInit = false;
+		uintptr_t s_poolCursor = 0;
+		uintptr_t s_poolEnd = 0;
+		std::map<uintptr_t, size_t> s_freePoolBlocks;
+
+		struct DirectAllocation
+		{
+			size_t size;
+			bool heapSource;
+		};
+		std::map<uintptr_t, DirectAllocation> s_directAllocations;
+
+		// Reservations other than the guest window (unused by the Switch build today) are backed in full as well.
+		struct Reservation
+		{
+			uintptr_t base;
+			size_t size;
+			bool heapSource;
+		};
+		std::vector<Reservation> s_reservations;
+
+		uintptr_t s_reserveBase = 0;
+		size_t s_reserveSize = 0;
+		char s_guestBackingNote[256] = "guest window not reserved yet";
+
+		void ensurePool()
+		{
+			if (s_poolInit)
+				return;
+			s_poolInit = true;
+			const uintptr_t poolBase = reinterpret_cast<uintptr_t>(g_switchGuestPoolBase);
+			if (!poolBase || g_switchGuestPoolSize > UINTPTR_MAX - poolBase || poolBase > UINTPTR_MAX - (kWindowAlignment - 1))
+				return;
+			s_poolCursor = (poolBase + kPageSize - 1) & ~(uintptr_t)(kPageSize - 1);
+			s_poolEnd = poolBase + g_switchGuestPoolSize;
+			if (s_poolCursor > s_poolEnd)
+				s_poolCursor = s_poolEnd = 0;
+		}
+
+		bool takePoolSource(size_t size, void*& source, size_t alignment = kPageSize)
+		{
+			ensurePool();
+			if (alignment == kPageSize)
+			{
+				for (auto it = s_freePoolBlocks.begin(); it != s_freePoolBlocks.end(); ++it)
+				{
+					if (it->second < size)
+						continue;
+					const uintptr_t address = it->first;
+					const size_t blockSize = it->second;
+					s_freePoolBlocks.erase(it);
+					if (blockSize > size)
+						s_freePoolBlocks.emplace(address + size, blockSize - size);
+					source = reinterpret_cast<void*>(address);
+					return true;
+				}
+			}
+			if (s_poolCursor == 0 || s_poolCursor > s_poolEnd)
+				return false;
+			const uintptr_t aligned = (s_poolCursor + alignment - 1) & ~(uintptr_t)(alignment - 1);
+			if (aligned < s_poolCursor || aligned > s_poolEnd || size > s_poolEnd - aligned)
+				return false;
+			if (aligned != s_poolCursor)
+				s_freePoolBlocks.emplace(s_poolCursor, aligned - s_poolCursor);
+			source = reinterpret_cast<void*>(aligned);
+			s_poolCursor = aligned + size;
+			return true;
+		}
+
+		void releasePoolSource(void* source, size_t size)
+		{
+			uintptr_t begin = reinterpret_cast<uintptr_t>(source);
+			uintptr_t end = begin + size;
+			auto next = s_freePoolBlocks.lower_bound(begin);
+			if (next != s_freePoolBlocks.begin())
+			{
+				auto previous = std::prev(next);
+				if (previous->first + previous->second == begin)
+				{
+					begin = previous->first;
+					s_freePoolBlocks.erase(previous);
+				}
+			}
+			next = s_freePoolBlocks.lower_bound(begin);
+			if (next != s_freePoolBlocks.end() && end == next->first)
+			{
+				end += next->second;
+				s_freePoolBlocks.erase(next);
+			}
+			if (end == s_poolCursor)
+			{
+				s_poolCursor = begin;
+				return;
+			}
+			s_freePoolBlocks.emplace(begin, end - begin);
+		}
+
+		// Real memory for a block that is used as a whole: the pool, else the heap.
+		void* backingAllocate(size_t size, size_t alignment, bool& heapSource)
+		{
+			void* allocation = nullptr;
+			heapSource = false;
+			if (takePoolSource(size, allocation, alignment))
+				return allocation;
+			allocation = aligned_alloc(alignment, size);
+			heapSource = allocation != nullptr;
+			return allocation;
+		}
+
+		void backingRelease(void* allocation, size_t size, bool heapSource)
+		{
+			if (heapSource)
+				free(allocation);
+			else
+				releasePoolSource(allocation, size);
+		}
+
+		void* directAllocate(size_t size)
+		{
+			if (!alignToPage(size, size))
+				return nullptr;
+			bool heapSource = false;
+			void* allocation = backingAllocate(size, kPageSize, heapSource);
+			if (!allocation)
+				return nullptr;
+			s_directAllocations.emplace(reinterpret_cast<uintptr_t>(allocation), DirectAllocation{size, heapSource});
+			return allocation;
+		}
+
+		void directRelease(void* allocation)
+		{
+			auto it = s_directAllocations.find(reinterpret_cast<uintptr_t>(allocation));
+			if (it == s_directAllocations.end())
+			{
+				free(allocation);
+				return;
+			}
+			const DirectAllocation metadata = it->second;
+			s_directAllocations.erase(it);
+			backingRelease(allocation, metadata.size, metadata.heapSource);
+		}
+
+		const Reservation* findReservation(uintptr_t address)
+		{
+			for (const Reservation& reservation : s_reservations)
+				if (address >= reservation.base && address - reservation.base < reservation.size)
+					return &reservation;
+			return nullptr;
+		}
+	} // namespace
+
+	void* ReserveMemory(void* baseAddr, size_t size, PAGE_PERMISSION)
+	{
+		std::lock_guard<std::mutex> lock(s_mutex);
+		size_t alignedSize = 0;
+		if (!alignToPage(size, alignedSize))
+			return nullptr;
+		if (baseAddr)
+		{
+			// A fixed address can only be honoured inside memory this mapper already backs.
+			const uintptr_t address = reinterpret_cast<uintptr_t>(baseAddr);
+			const Reservation* reservation = findReservation(address);
+			if (reservation && alignedSize <= reservation->size - (address - reservation->base))
+				return baseAddr;
+			return nullptr;
+		}
+		const bool isGuest = alignedSize == SwitchGuestMemoryLayout::GuestSize;
+		if (isGuest && s_reserveBase)
+			return nullptr;
+
+		bool heapSource = false;
+		void* block = backingAllocate(alignedSize, isGuest ? kWindowAlignment : kPageSize, heapSource);
+		if (!block)
+		{
+			if (isGuest)
+			{
+				std::snprintf(s_guestBackingNote, sizeof(s_guestBackingNote),
+					"no 4096MB guest window: guest pool %lluMB at %p, heap allocation failed",
+					(unsigned long long)(g_switchGuestPoolSize >> 20), g_switchGuestPoolBase);
+				cemuLog_log(LogType::Force, "Switch 2: {}", s_guestBackingNote);
+				throw SwitchLaunch::Failure(SwitchLaunch::Error::HostMemoryUnavailable, s_guestBackingNote);
+			}
+			return nullptr;
+		}
+		try
+		{
+			s_reservations.push_back({reinterpret_cast<uintptr_t>(block), alignedSize, heapSource});
+		}
+		catch (...)
+		{
+			backingRelease(block, alignedSize, heapSource);
+			throw;
+		}
+		if (isGuest)
+		{
+			s_reserveBase = reinterpret_cast<uintptr_t>(block);
+			s_reserveSize = alignedSize;
+			std::snprintf(s_guestBackingNote, sizeof(s_guestBackingNote),
+				"flat 4096MB window at %p from the %s (MEM2 at %p; guest pool %lluMB at %p)",
+				block, heapSource ? "heap" : "guest pool", static_cast<u8*>(block) + SwitchGuestMemoryLayout::Mem2Begin,
+				(unsigned long long)(g_switchGuestPoolSize >> 20), g_switchGuestPoolBase);
+			cemuLog_log(LogType::Force, "Switch 2: guest memory is a {}", s_guestBackingNote);
+		}
+		return block;
+	}
+
+	void FreeReservation(void* baseAddr, size_t size)
+	{
+		std::lock_guard<std::mutex> lock(s_mutex);
+		size_t alignedSize = 0;
+		if (!baseAddr || !alignToPage(size, alignedSize))
+			return;
+		const uintptr_t begin = reinterpret_cast<uintptr_t>(baseAddr);
+		for (auto it = s_reservations.begin(); it != s_reservations.end(); ++it)
+		{
+			if (it->base != begin || it->size != alignedSize)
+				continue;
+			backingRelease(baseAddr, it->size, it->heapSource);
+			if (begin == s_reserveBase)
+			{
+				s_reserveBase = s_reserveSize = 0;
+				std::snprintf(s_guestBackingNote, sizeof(s_guestBackingNote), "guest window released");
+			}
+			s_reservations.erase(it);
+			return;
+		}
+	}
+
+	void* AllocateMemory(void* baseAddr, size_t size, PAGE_PERMISSION, bool fromReservation)
+	{
+		std::lock_guard<std::mutex> lock(s_mutex);
+		if (fromReservation && baseAddr)
+		{
+			const uintptr_t address = reinterpret_cast<uintptr_t>(baseAddr);
+			if (const Reservation* reservation = findReservation(address))
+			{
+				if (size > reservation->size - (address - reservation->base))
+					return nullptr;
+				std::memset(baseAddr, 0, size);
+			}
+			return baseAddr;
+		}
+		if (baseAddr)
+			return baseAddr;
+		return directAllocate(size);
+	}
+
+	void FreeMemory(void* baseAddr, size_t, bool fromReservation)
+	{
+		std::lock_guard<std::mutex> lock(s_mutex);
+		// (a released range of a reservation stays backed: the next commit zeroes it)
+		if (!fromReservation && baseAddr)
+			directRelease(baseAddr);
+	}
+
+	const char* DescribeGuestBacking()
+	{
+		return s_guestBackingNote;
+	}
+
+	void SetGuestMemoryImportRequired(bool)
+	{
+		// The flat window is heap memory: every renderer can import MEM2 from it.
+	}
+
+	void Shutdown()
+	{
+		SwitchGuestMemory::DiscardEarly("mapper shutdown");
+		std::lock_guard<std::mutex> lock(s_mutex);
+		for (const auto& [address, allocation] : s_directAllocations)
+		{
+			if (allocation.heapSource)
+				free(reinterpret_cast<void*>(address));
+		}
+		s_directAllocations.clear();
+		for (const Reservation& reservation : s_reservations)
+		{
+			if (reservation.heapSource)
+				free(reinterpret_cast<void*>(reservation.base));
+		}
+		s_reservations.clear();
+		s_reserveBase = 0;
+		s_reserveSize = 0;
+		std::snprintf(s_guestBackingNote, sizeof(s_guestBackingNote), "guest window not reserved yet");
+		s_poolInit = false;
+		s_poolCursor = 0;
+		s_poolEnd = 0;
+		s_freePoolBlocks.clear();
+	}
+}; // namespace MemMapper
+#else
 namespace MemMapper
 {
 	static constexpr size_t kPageSize = 0x1000;
@@ -601,3 +917,4 @@ namespace MemMapper
 		s_instEnd = 0;
 	}
 }; // namespace MemMapper
+#endif // __SWITCH2__

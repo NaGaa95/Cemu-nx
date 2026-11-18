@@ -24,7 +24,12 @@ endfunction()
 set(_spirv_cross_root "${DEKO_SPIRV_CROSS_ROOT}")
 
 lsfg_revision("${_spirv_cross_root}" LSFG_SPIRV_CROSS_COMMIT)
-lsfg_revision("${UAM_ROOT}" LSFG_UAM_COMMIT)
+if(DEFINED SWITCH_UAM2RT_REVISION)
+  # (Switch 2: uam2rt's version keys the shader cache)
+  set(LSFG_UAM_COMMIT "${SWITCH_UAM2RT_REVISION}")
+else()
+  lsfg_revision("${UAM_ROOT}" LSFG_UAM_COMMIT)
+endif()
 configure_file(version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/include/lsfg/common/version.hpp" @ONLY)
 
 add_library(lsfg_spirv_cross STATIC

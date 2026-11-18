@@ -11,6 +11,9 @@ extern "C"
 {
 #include <switch/display/native_window.h>
 }
+#if defined(__SWITCH2__)
+#include "platform/switch/SwitchPlatform.h"
+#endif
 
 namespace Deko3D
 {
@@ -28,7 +31,12 @@ namespace Deko3D
 			return false;
 		dk::ImageLayout layout;
 		dk::ImageLayoutMaker{g_dk_context->GetDevice()}
+#if defined(__SWITCH2__)
+			// (VI2 presents uncompressed images)
+			.setFlags(DkImageFlags_UsageRender | DkImageFlags_UsagePresent | DkImageFlags_Usage2DEngine)
+#else
 			.setFlags(DkImageFlags_UsageRender | DkImageFlags_UsagePresent | DkImageFlags_Usage2DEngine | DkImageFlags_HwCompression)
+#endif
 			.setFormat(DkImageFormat_RGBA8_Unorm)
 			.setDimensions(m_width, m_height)
 			.initialize(layout);
@@ -49,6 +57,10 @@ namespace Deko3D
 			images[i] = &m_images[i];
 		}
 		m_swapchain = dk::SwapchainMaker{g_dk_context->GetDevice(), window, images.data(), m_imageCount}.create();
+#if defined(__SWITCH2__)
+		if (m_swapchain)
+			SwitchPlatform_ApplyDisplayPacing(1, true);
+#endif
 		return !!m_swapchain;
 	}
 
@@ -72,10 +84,16 @@ namespace Deko3D
 
 	void DKSwapChain::SetVSync(bool enabled)
 	{
+#if defined(__SWITCH2__)
+		// (not the swapchain's interval, which would withdraw the 120 Hz request; cheap when nothing changed)
+		SwitchPlatform_ApplyDisplayPacing(enabled ? 1 : 0, false);
+		m_vsync = enabled;
+#else
 		if (m_vsync != enabled)
 		{
 			m_swapchain.setSwapInterval(enabled ? 1 : 0);
 			m_vsync = enabled;
 		}
+#endif
 	}
 } // namespace Deko3D

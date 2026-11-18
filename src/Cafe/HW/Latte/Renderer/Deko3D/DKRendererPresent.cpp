@@ -6,6 +6,12 @@
 #include "platform/switch/SwitchPlatform.h"
 #include "platform/switch/SwitchSwkbd.h"
 #include "platform/switch/SwitchThread.h"
+#if defined(__SWITCH2__)
+extern "C"
+{
+#include <switch/display/native_window.h>
+}
+#endif
 
 using namespace Deko3D;
 
@@ -186,6 +192,12 @@ void Deko3DRenderer::State::PollFrameGeneration()
 
 bool Deko3DRenderer::State::GenerateFrame()
 {
+#if defined(__SWITCH2__)
+	// Frame generation doubles sources up to half the display's rate: 30 -> 60 fps at 60 Hz, 60 -> 120 fps at 120 Hz.
+	const double rateScale = SwitchPlatform_DisplayRefreshRate() > 60 ? 0.5 : 1.0;
+#else
+	constexpr double rateScale = 1.0;
+#endif
 	const bool requested = SwitchLSFG_IsEnabled();
 	const auto now = std::chrono::steady_clock::now();
 	const double interval = lastSource.time_since_epoch().count() ? std::chrono::duration<double>(now - lastSource).count() : 0;
@@ -201,7 +213,7 @@ bool Deko3DRenderer::State::GenerateFrame()
 	if (requested != frameRequested)
 	{
 		frameRequested = requested;
-		rateDecision = requested && sourceSamples >= 8 ? (sourceInterval < 0.030 ? 1 : 0) : -1;
+		rateDecision = requested && sourceSamples >= 8 ? (sourceInterval < 0.030 * rateScale ? 1 : 0) : -1;
 		slowSamples = 0;
 		if (frameGenerator)
 			frameGenerator->Reset();
@@ -217,10 +229,10 @@ bool Deko3DRenderer::State::GenerateFrame()
 		return false;
 	}
 	if (rateDecision < 0 && sourceSamples >= 8)
-		rateDecision = sourceInterval < 0.030 ? 1 : 0;
+		rateDecision = sourceInterval < 0.030 * rateScale ? 1 : 0;
 	if (rateDecision == 1)
 	{
-		slowSamples = interval >= 0.0315 ? slowSamples + 1 : interval > 0 ? 0
+		slowSamples = interval >= 0.0315 * rateScale ? slowSamples + 1 : interval > 0 ? 0
 																		  : slowSamples;
 		if (slowSamples < 16)
 		{
@@ -264,6 +276,34 @@ void Deko3DRenderer::State::PresentImage(const DKImage& image)
 	Submit(false, swapchain.get(), slot);
 }
 
+#if defined(__SWITCH2__)
+void Deko3DRenderer::State::FollowWindowSize()
+{
+	// Docking, the TV's resolution or frame generation (1440 lines at 120 Hz docked) resized libounce's default window:
+	// a new swapchain and display image of its size.
+	u32 width = 0, height = 0;
+	if (R_FAILED(nwindowGetDimensions(nwindowGetDefault(), &width, &height)) || !width || !height ||
+		(width == swapchain->Width() && height == swapchain->Height()))
+		return;
+	Submit(true);
+	g_dk_context->WaitIdle();
+	swapchain.reset();
+	swapchain = DKSwapChain::Create();
+	if (!swapchain)
+		throw std::runtime_error("Deko3D could not recreate the swapchain");
+	display = DKImage::Create(swapchain->Width(), swapchain->Height(), DkImageFormat_RGBA8_Unorm,
+							  DkImageFlags_UsageRender | DkImageFlags_Usage2DEngine);
+	if (!display)
+		throw std::bad_alloc();
+	if (frameGenerator)
+		frameGenerator->Reset();
+	lastSource = {};
+	sourceSamples = 0;
+	rateDecision = -1;
+	Invalidate();
+}
+#endif
+
 void Deko3DRenderer::SwapBuffers(bool tv, bool drc)
 {
 	auto& state = *m_state;
@@ -286,6 +326,9 @@ void Deko3DRenderer::SwapBuffers(bool tv, bool drc)
 	state.PresentImage(*state.display);
 	state.compositeStarted = false;
 	state.gameFrame = false;
+#if defined(__SWITCH2__)
+	state.FollowWindowSize();
+#endif
 	if (ActiveSettings::FlushGPUCacheOnSwap())
 		++state.snapshotEpoch;
 	SwitchPlatform_NotifyGameFrameSubmitted();

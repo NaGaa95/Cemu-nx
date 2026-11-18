@@ -2,6 +2,14 @@
 
 #include <switch.h>
 
+#if defined(__SWITCH2__)
+// No SaltyNX on the Switch 2 (and its syscalls may be outside kaiHEN's mask, which ends the process).
+void saltynx_start(void) {}
+void saltynx_stop(void) {}
+void saltynx_set_resolution(uint32_t, uint32_t) {}
+void saltynx_frame(uint8_t) {}
+#else
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -246,3 +254,4 @@ void saltynx_frame(uint8_t api) {
     }
     graphics_api.store(api, std::memory_order_relaxed);
 }
+#endif // __SWITCH2__

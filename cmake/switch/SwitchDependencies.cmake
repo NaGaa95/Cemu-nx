@@ -2,7 +2,17 @@
 include(FetchContent)
 
 set(SWITCH_PORTLIBS "${DEVKITPRO}/portlibs/switch")
-set(SWITCH_LIBNX    "${DEVKITPRO}/libnx")
+if(NINTENDO_SWITCH2)
+	# libounce (libnx's API for the Switch 2). The Switch portlibs (boost, curl, mbedtls, png, ffmpeg, zstd...)
+	# only use the C library and are reused as they are.
+	if(NX_ROOT)
+		set(SWITCH_LIBNX "${NX_ROOT}")
+	else()
+		set(SWITCH_LIBNX "${DEVKITPRO}/libounce")
+	endif()
+else()
+	set(SWITCH_LIBNX    "${DEVKITPRO}/libnx")
+endif()
 include_directories(SYSTEM "${SWITCH_PORTLIBS}/include")
 
 # Threads
@@ -166,7 +176,45 @@ set(glslang_VERSION "15.1.0")
 
 # The top-level build adds ZArchive after package discovery fails.
 
+if(NINTENDO_SWITCH2)
+# Switch 2 Mesa SDK (dist/switch/deps/prepare_mesa_sdk_switch2.sh): EGL, GL and NVK in one archive, libmesa_local.a,
+# which the SDK's libEGL.a and libvulkan.a name, so it links once; never portlibs/switch2's OunceVK libraries. The
+# drako3d core needs none of it (uam2rt carries its own Mesa compiler).
+set(SWITCH_MESA_SDK_ROOT "${CMAKE_SOURCE_DIR}/dependencies/switch2_mesa_sdk"
+	CACHE PATH "Path to the Switch 2 Mesa SDK prepared by dist/switch/deps/prepare_mesa_sdk_switch2.sh")
+set(SWITCH2_MESA_OBJECT "${SWITCH_MESA_SDK_ROOT}/libvulkan_local.o")
+foreach(_switch2_mesa_file IN ITEMS
+		"${SWITCH2_MESA_OBJECT}"
+		"${SWITCH_MESA_SDK_ROOT}/lib/libmesa_local.a"
+		"${SWITCH_MESA_SDK_ROOT}/lib/libEGL.a"
+		"${SWITCH_MESA_SDK_ROOT}/lib/cmake/OpenGL/OpenGLConfig.cmake")
+	if(NOT EXISTS "${_switch2_mesa_file}")
+		message(FATAL_ERROR
+			"Switch 2 Mesa SDK file not found: ${_switch2_mesa_file}\n"
+			"Run dist/switch/deps/prepare_mesa_sdk_switch2.sh (dist/switch/build-switch2.sh does).")
+	endif()
+endforeach()
+link_directories(BEFORE "${SWITCH_MESA_SDK_ROOT}/lib")
+link_directories("${SWITCH_PORTLIBS}/lib")
+list(PREPEND CMAKE_PREFIX_PATH "${SWITCH_MESA_SDK_ROOT}")
+
+add_library(SwitchVulkanDriver INTERFACE)
+target_include_directories(SwitchVulkanDriver INTERFACE
+	"${CMAKE_SOURCE_DIR}/dependencies/Vulkan-Headers/include")
+if(ENABLE_VULKAN OR ENABLE_OPENGL)
+	target_link_libraries(SwitchVulkanDriver INTERFACE
+		"${SWITCH_MESA_SDK_ROOT}/lib/libmesa_local.a"
+		"${SWITCH_PORTLIBS}/lib/libexpat.a"
+		"${SWITCH_PORTLIBS}/lib/libzstd.a"
+		"${SWITCH_PORTLIBS}/lib/libz.a"
+		stdc++
+		m)
+endif()
 if(ENABLE_VULKAN)
+	add_compile_definitions(VK_USE_PLATFORM_VI_NN)
+endif()
+
+elseif(ENABLE_VULKAN)
 # Mesa NVK Vulkan driver.  Accept both the historical NVK-only package and the
 # unified Horizon Mesa SDK.  The latter is intentionally selected explicitly so
 # a developer's system portlibs can never silently change a release build.
@@ -250,6 +298,12 @@ FetchContent_Declare(libsmb2
 FetchContent_MakeAvailable(libsmb2)
 target_compile_options(smb2 PRIVATE -UNEED_READV -UNEED_WRITEV)
 target_compile_definitions(smb2 PRIVATE AES128_ECB_encrypt=smb2_AES128_ECB_encrypt)
+
+# USB drives (libusbhsfs) are Switch-only: on the Switch 2, kaiHEN's usb:hs never answers and every later program's
+# service lookups then hang until a reboot, so the Switch 2 build never opens it (SwitchUsbHsFsStub.h).
+if(NINTENDO_SWITCH2)
+	return()
+endif()
 
 # Enable NTFS independently: USBHSFS_GPL would also pull in EXT2/3/4.
 set(USBHSFS_GPL OFF CACHE BOOL "" FORCE)

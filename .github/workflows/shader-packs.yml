@@ -32,6 +32,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if ! gh release view shader-packs --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release create shader-packs --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Switch shader packs" --notes "Precompiled Deko3D shader caches." --latest=false
+            gh release create shader-packs --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Switch shader packs" --notes "Precompiled shader caches: Deko3D (Switch) and Drako3D (Switch 2)." --latest=false
           fi
           gh release upload shader-packs shader-release/*.zip shader-release/SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber

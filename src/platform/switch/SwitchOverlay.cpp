@@ -63,7 +63,11 @@ constexpr std::uint64_t kAllowedButtons = HidNpadButton_A | HidNpadButton_B | Hi
 	HidNpadButton_Plus | HidNpadButton_Minus | HidNpadButton_StickL | HidNpadButton_StickR |
 	HidNpadButton_Up | HidNpadButton_Down | HidNpadButton_Left | HidNpadButton_Right;
 constexpr size_t kHotkeyCount = static_cast<size_t>(HotkeyAction::Count);
+#if defined(__SWITCH2__)
+constexpr int kMainMenuItems = 11; // (no "Close quick menu" row: B closes it)
+#else
 constexpr int kMainMenuItems = 12;
+#endif
 constexpr float kMainRowHeight = 38.0f;
 constexpr int kAccessoryMenuItems = 4;
 constexpr int kPositionCount = 7;
@@ -81,6 +85,8 @@ constexpr std::array<HotkeyInfo, kHotkeyCount> kHotkeys{{
 }};
 
 std::atomic_bool s_visible{false};
+// The menu is laid out for 1080 lines; the Switch 2 scales it up with its docked output (1440p, 4K). Render thread only.
+float s_scale = 1.0f;
 std::atomic_bool s_captureUntilRelease{false};
 std::atomic<Page> s_page{Page::Main};
 std::atomic_int s_selection{0};
@@ -429,7 +435,7 @@ void CenteredText(const char* text)
 void SelectableRow(const std::string& label, int index, float height = 48.0f)
 {
 	const bool selected = s_selection.load(std::memory_order_relaxed) == index;
-	ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_None, {0.0f, height});
+	ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_None, {0.0f, height * s_scale});
 	if (selected && (s_page.load(std::memory_order_relaxed) == Page::ToySlots ||
 		s_page.load(std::memory_order_relaxed) == Page::ToyFiles))
 		ImGui::SetScrollHereY(0.5f);
@@ -468,7 +474,9 @@ void RenderMainPage()
 	std::snprintf(row, sizeof(row), "Scan Amiibo         %s", amiiboStatus);
 	SelectableRow(row, 9, kMainRowHeight);
 	SelectableRow("Exit to launcher", 10, kMainRowHeight);
+#if !defined(__SWITCH2__)
 	SelectableRow("Close quick menu", 11, kMainRowHeight);
+#endif
 	ImGui::Separator();
 	CenteredText("D-Pad  Navigate     A  Select     B  Close");
 }
@@ -516,7 +524,7 @@ void RenderToySlotsPage()
 {
 	const SwitchToyType type = s_toyType.load(std::memory_order_acquire);
 	const int slotCount = SwitchToys_GetSlotCount(type);
-	ImGui::BeginChild("toy slots", {0.0f, 500.0f}, false, ImGuiWindowFlags_NoInputs);
+	ImGui::BeginChild("toy slots", {0.0f, 500.0f * s_scale}, false, ImGuiWindowFlags_NoInputs);
 	for (int slot = 0; slot < slotCount; ++slot)
 	{
 		std::string row = SwitchToys_GetSlotTitle(type, slot) + "    <  " +
@@ -535,7 +543,7 @@ void RenderToyFilesPage()
 {
 	const SwitchToyType type = s_toyType.load(std::memory_order_acquire);
 	const int fileCount = SwitchToys_GetFileCount(type);
-	ImGui::BeginChild("toy files", {0.0f, 500.0f}, false, ImGuiWindowFlags_NoInputs);
+	ImGui::BeginChild("toy files", {0.0f, 500.0f * s_scale}, false, ImGuiWindowFlags_NoInputs);
 	for (int index = 0; index < fileCount; ++index)
 	{
 		std::string row = Shorten(SwitchToys_GetFileName(type, index), 64) + "##file" + std::to_string(index);
@@ -680,8 +688,10 @@ void SwitchOverlay_UpdateInput(std::uint64_t down, std::uint64_t held)
 			s_exitRequests.fetch_add(1, std::memory_order_release);
 			CloseMenu();
 		}
+#if !defined(__SWITCH2__)
 		else if (selection == 11 && confirm)
 			CloseMenu();
+#endif
 		return;
 	}
 	if (page == Page::Hotkeys)
@@ -777,18 +787,21 @@ void SwitchOverlay_Render()
 	if (!s_visible.load(std::memory_order_acquire))
 		return;
 
-	ImFont* font = ImGui_GetFont(24.0f);
+	const ImGuiIO& io = ImGui::GetIO();
+#if defined(__SWITCH2__)
+	s_scale = std::max(1.0f, io.DisplaySize.y / 1080.0f);
+#endif
+	ImFont* font = ImGui_GetFont(24.0f * s_scale);
 	if (!font)
 		return;
-	const ImGuiIO& io = ImGui::GetIO();
 	ImGui::GetBackgroundDrawList()->AddRectFilled({0.0f, 0.0f}, io.DisplaySize, IM_COL32(0, 0, 0, 120));
 	ImGui::SetNextWindowPos({io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
-	ImGui::SetNextWindowSize({840.0f, 680.0f}, ImGuiCond_Always);
+	ImGui::SetNextWindowSize({840.0f * s_scale, 680.0f * s_scale}, ImGuiCond_Always);
 	ImGui::SetNextWindowBgAlpha(0.94f);
 
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 14.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {28.0f, 20.0f});
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {10.0f, 8.0f});
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 14.0f * s_scale);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {28.0f * s_scale, 20.0f * s_scale});
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {10.0f * s_scale, 8.0f * s_scale});
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(12, 20, 34, 245));
 	ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(94, 201, 255, 255));
 	ImGui::PushStyleColor(ImGuiCol_Header, IM_COL32(31, 82, 112, 235));
