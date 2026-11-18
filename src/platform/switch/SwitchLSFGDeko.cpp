@@ -20,7 +20,7 @@ void SwitchLSFG_Configure(bool prepared, float flowScale, bool performanceMode)
 	s_prepared.store(file != nullptr, std::memory_order_release);
 	if (file)
 		std::fclose(file);
-	s_config = {flowScale == 0.5f ? 2U : 4U, performanceMode};
+	s_config = {flowScale == 1.0f ? 1U : flowScale == 0.5f ? 2U : 4U, performanceMode};
 	s_requested.store(false, std::memory_order_release);
 	s_available.store(file != nullptr, std::memory_order_release);
 	s_highRate.store(false, std::memory_order_release);

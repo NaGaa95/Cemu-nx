@@ -329,7 +329,13 @@ static const Choice C_secondaryCtype[] = { {"Pro Controller","Pro"}, {"Classic C
                                            {"Wii Remote + MotionPlus","Wiimote"}, {"Wii Remote + MotionPlus + Nunchuk","WiimoteNunchuk"} };
 static const Choice C_gamepadLayout[] = { {"TV only","off"}, {"PAD only","pad"}, {"PAD on right","right"}, {"PAD on left","left"},
                                            {"PAD below TV","below"}, {"PAD above TV","above"} };
-static const Choice C_lsfgFlowScale[] = { {"Quarter resolution","0.25"}, {"Half resolution","0.5"} };
+static const Choice C_lsfgFlowScale[] = { {"Quarter resolution","0.25"}, {"Half resolution","0.5"},
+                                           {"Full resolution","1"} };
+#if defined(__SWITCH2__)
+#define LSFG_DEFAULT_FLOW_SCALE "0.5"
+#else
+#define LSFG_DEFAULT_FLOW_SCALE "0.25"
+#endif
 static const Choice C_players[]  = { {"1","1"}, {"2","2"}, {"3","3"}, {"4","4"},
                                      {"5","5"}, {"6","6"}, {"7","7"}, {"8","8"} };
 struct InputMapping { const char *label, *emu, *key, *def; };
@@ -380,7 +386,7 @@ static const Opt S_audio[] = {
 };
 static const Opt S_framegen[] = {
   O_CHOICE("LSFG 2x", "Wrapper/LSFGEnabled", C_bool, "false"),
-  O_CHOICE("Flow resolution", "Wrapper/LSFGFlowScale", C_lsfgFlowScale, "0.25"),
+  O_CHOICE("Flow resolution", "Wrapper/LSFGFlowScale", C_lsfgFlowScale, LSFG_DEFAULT_FLOW_SCALE),
   O_CHOICE("Performance mode", "Wrapper/LSFGPerformance", C_bool, "true"),
   O_STATUS("Lossless.dll"),
 };
@@ -472,7 +478,7 @@ static const SettingHelpEntry SETTING_HELP[] = {
   {"Wrapper/LSFGEnabled", "Frame generation",
    "Generates one intermediate display frame for each real frame to target a smoother 2x presentation. It does not increase emulation speed and may add artifacts or latency. Available with Vulkan and " DEKO3D_NAME "."},
   {"Wrapper/LSFGFlowScale", "Frame generation quality",
-   "Sets the resolution used for optical-flow analysis. Half resolution can retain more motion detail but costs more GPU time and memory; Quarter is recommended on Switch."},
+   "Sets the resolution used for optical-flow analysis. Quarter resolution uses the least GPU time and memory and suits the Switch; Half resolution keeps more motion detail and is the Switch 2 default; Full resolution keeps the most and costs the most."},
   {"Wrapper/LSFGPerformance", "Frame generation performance",
    "Uses LSFG's lighter performance-oriented processing path. Disable it only when you prefer image quality and have enough GPU headroom."},
 
@@ -580,6 +586,8 @@ static void commitAll() {
     for (int i = 0; i < g_screens[s].n; i++) {
       const Opt &o = g_screens[s].opts[i];
       if (o.type == OT_STATUS || !o.key || !o.def) continue;
+      // Both consoles share launcher.ini and default to different LSFG flows: keep it unset until chosen.
+      if (!strcmp(o.key, "Wrapper/LSFGFlowScale") && !storeGet(*g_active, o.key, nullptr)) continue;
       std::string v = iniGet(o.key, o.def);
       iniSet(o.key, v.c_str());
     }
@@ -8409,7 +8417,7 @@ static bool writeLaunchHandoff(const std::vector<CemuKV> &settings,const std::st
      !appendHandoffValue(handoff,"renderer",renderer) ||
      !appendHandoffValue(handoff,"gamepad_layout",cemuKVGet(settings,"GamePadLayout","off")) ||
      !appendHandoffValue(handoff,"lsfg_enabled",lsfgPrepared?"true":"false") ||
-     !appendHandoffValue(handoff,"lsfg_flow_scale",cemuKVGet(settings,"Wrapper/LSFGFlowScale","0.25")) ||
+     !appendHandoffValue(handoff,"lsfg_flow_scale",cemuKVGet(settings,"Wrapper/LSFGFlowScale",LSFG_DEFAULT_FLOW_SCALE)) ||
      !appendHandoffValue(handoff,"lsfg_performance",cemuKVGet(settings,"Wrapper/LSFGPerformance","true")) ||
      !appendHandoffValue(handoff,"usb_skylanders",cemuKVGet(settings,"UsbSkylanders","false")) ||
      !appendHandoffValue(handoff,"usb_infinity",cemuKVGet(settings,"UsbInfinity","false")) ||

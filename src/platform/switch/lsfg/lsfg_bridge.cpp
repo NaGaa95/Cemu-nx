@@ -75,7 +75,7 @@ struct LsfgNxRuntime {
             info.swapchain_images + info.swapchain_image_count);
 
         float flowScale = info.flow_scale;
-        if (!std::isfinite(flowScale) || flowScale < 0.125F || flowScale > 0.5F)
+        if (!std::isfinite(flowScale) || flowScale < 0.125F || flowScale > 1.0F)
             flowScale = 0.25F;
 
         const lsfgvk::backend::BorrowedDevice borrowed{

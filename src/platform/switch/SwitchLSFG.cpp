@@ -162,7 +162,7 @@ bool TryCreateRuntime(VkQueue queue)
 
 void SwitchLSFG_Configure(bool prepared, float flowScale, bool performanceMode)
 {
-	s_flowScale = std::isfinite(flowScale) && flowScale == 0.5f ? 0.5f : 0.25f;
+	s_flowScale = flowScale == 1.0f ? 1.0f : flowScale == 0.5f ? 0.5f : 0.25f;
 	s_performanceMode = performanceMode;
 	prepared = prepared && FileReadable(kShaderDllPath);
 	s_prepared.store(prepared, std::memory_order_release);
