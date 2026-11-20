@@ -18,8 +18,10 @@ namespace Deko3D
 											  : 0;
 		while (tile && rows <= (8u << (tile - 1)))
 			--tile;
+		// The tile size above is a tile height. deko3d applies a custom tile size of a 3D image to its tile depth, where
+		// the layout shrinks it to the depth but a view of mip 0 does not: let deko3d pick 3D tile depths itself.
 		auto maker = dk::ImageLayoutMaker{g_dk_context->GetDevice()}
-			.setFlags(flags | DkImageFlags_CustomTileSize)
+			.setFlags(type == DkImageType_3D ? flags : flags | DkImageFlags_CustomTileSize)
 			.setType(type)
 			.setFormat(format)
 			.setTileSize(static_cast<DkTileSize>(tile))
