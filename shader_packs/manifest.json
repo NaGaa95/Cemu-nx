@@ -20,6 +20,25 @@
     },
     "indexed_cache": true
   },
+  "drako": {
+    "name": "UAM2 Drako Shaders Pack",
+    "cache_version": 1,
+    "uam2_commit": "7db77e720184d7de389f4fd5c0dd761f7b8b8f90",
+    "uam2_version": "uam2 0.1.0",
+    "uam2rt_changes": [
+      "xfb buffer limits",
+      "graphics uniform block bindings 0-14",
+      "32 vertex attributes"
+    ],
+    "mesa_version": "26.3.0",
+    "mesa_commit": "0a6fa60abb737d26ac8a316a4aad7c9ddf64f9e4",
+    "glslang_commit": "1062752a891c95b2bfeed9e356562d88f9df84ac",
+    "spirv_cross_commit": "ebe2aa0cd80f5eb5cd8a605da604cacf72205f3b",
+    "compiler_patches": {
+      "spirv-cross-shadow1d.patch": "9e49fb64f3dbca851b0a01454b2e1a90fb7a2b478205fec1e23d12b121a0152f"
+    },
+    "indexed_cache": true
+  },
   "games": {
     "0005000010100600": {
       "name": "Tekken Tag Tournament 2 (鉄拳タッグ2)",
@@ -36,6 +55,20 @@
             "path": "deko/0005000010100600.zip",
             "size": 2993820,
             "sha256": "76d9705a65868067334d5b64bcd1b39e3ff7108b2374ae017d9cbe3cce563e32"
+          }
+        ],
+        "transferable_shaders": 1074,
+        "native_shaders": 1074,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 3201294,
+        "sha256": "41557167aebd79f6b2ec49f3f6bf207c5cb451b7f0a077771c4a0af4455b13f9",
+        "files": [
+          {
+            "path": "drako/0005000010100600.zip",
+            "size": 3201294,
+            "sha256": "41557167aebd79f6b2ec49f3f6bf207c5cb451b7f0a077771c4a0af4455b13f9"
           }
         ],
         "transferable_shaders": 1074,
@@ -63,6 +96,20 @@
         "transferable_shaders": 1586,
         "native_shaders": 1586,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 4669305,
+        "sha256": "348365917be48cd9aeeac1d2a8ce9c95b64f9ffd45a0354596d5f3de71da48fe",
+        "files": [
+          {
+            "path": "drako/0005000010101a00.zip",
+            "size": 4669305,
+            "sha256": "348365917be48cd9aeeac1d2a8ce9c95b64f9ffd45a0354596d5f3de71da48fe"
+          }
+        ],
+        "transferable_shaders": 1586,
+        "native_shaders": 1586,
+        "excluded_shaders": 0
       }
     },
     "0005000010101d00": {
@@ -80,6 +127,20 @@
             "path": "deko/0005000010101d00.zip",
             "size": 4178990,
             "sha256": "a401a09c90658b589cd7c68125bb5dac443aad1d816a20e272796dbb382e7a54"
+          }
+        ],
+        "transferable_shaders": 1163,
+        "native_shaders": 1163,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 3684187,
+        "sha256": "2cf847287ed51b0eec771aa303fcec6b495671a975d14e2286be67f62f0ef2b5",
+        "files": [
+          {
+            "path": "drako/0005000010101d00.zip",
+            "size": 3684187,
+            "sha256": "2cf847287ed51b0eec771aa303fcec6b495671a975d14e2286be67f62f0ef2b5"
           }
         ],
         "transferable_shaders": 1163,
@@ -107,6 +168,20 @@
         "transferable_shaders": 601,
         "native_shaders": 601,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 1712196,
+        "sha256": "3682493760d03965bbeefb03d75e2f4ac8178b69ac69fbdceecaa4e37b2718ba",
+        "files": [
+          {
+            "path": "drako/0005000010101e00.zip",
+            "size": 1712196,
+            "sha256": "3682493760d03965bbeefb03d75e2f4ac8178b69ac69fbdceecaa4e37b2718ba"
+          }
+        ],
+        "transferable_shaders": 601,
+        "native_shaders": 601,
+        "excluded_shaders": 0
       }
     },
     "0005000010102000": {
@@ -124,6 +199,20 @@
             "path": "deko/0005000010102000.zip",
             "size": 2489881,
             "sha256": "0e7bb5f8cb6f506cdedd1f2ef876e105b186d04e3c174fd1a3dcb76c6817a205"
+          }
+        ],
+        "transferable_shaders": 1092,
+        "native_shaders": 1092,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2754167,
+        "sha256": "d6dd82fbc80ec89f7d17369fb11d431540303f861db866681dcc4cdc5c0c9053",
+        "files": [
+          {
+            "path": "drako/0005000010102000.zip",
+            "size": 2754167,
+            "sha256": "d6dd82fbc80ec89f7d17369fb11d431540303f861db866681dcc4cdc5c0c9053"
           }
         ],
         "transferable_shaders": 1092,
@@ -151,6 +240,20 @@
         "transferable_shaders": 3760,
         "native_shaders": 3760,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 15655579,
+        "sha256": "3e9e3b8c3e5545d1cc4c98753b534ca09c85d03b27a942b9f8872f788e9dd765",
+        "files": [
+          {
+            "path": "drako/0005000010106100.zip",
+            "size": 15655579,
+            "sha256": "3e9e3b8c3e5545d1cc4c98753b534ca09c85d03b27a942b9f8872f788e9dd765"
+          }
+        ],
+        "transferable_shaders": 3760,
+        "native_shaders": 3760,
+        "excluded_shaders": 0
       }
     },
     "000500001010ab00": {
@@ -168,6 +271,20 @@
             "path": "deko/000500001010ab00.zip",
             "size": 2619281,
             "sha256": "492209bb55aef4692e91368382c17816375569b8779a3f5a2058788729ccc9e7"
+          }
+        ],
+        "transferable_shaders": 1211,
+        "native_shaders": 1211,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2641240,
+        "sha256": "067c519e0a0bca1735850f0447aa7eee0f5561cc8d4ff27526b0181de27ccf34",
+        "files": [
+          {
+            "path": "drako/000500001010ab00.zip",
+            "size": 2641240,
+            "sha256": "067c519e0a0bca1735850f0447aa7eee0f5561cc8d4ff27526b0181de27ccf34"
           }
         ],
         "transferable_shaders": 1211,
@@ -195,6 +312,20 @@
         "transferable_shaders": 418,
         "native_shaders": 418,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 728258,
+        "sha256": "3b5a1f9e28bf2169cf297c3351c4cc30d4270697a42e027b258467b16216a8df",
+        "files": [
+          {
+            "path": "drako/000500001010ad00.zip",
+            "size": 728258,
+            "sha256": "3b5a1f9e28bf2169cf297c3351c4cc30d4270697a42e027b258467b16216a8df"
+          }
+        ],
+        "transferable_shaders": 418,
+        "native_shaders": 418,
+        "excluded_shaders": 0
       }
     },
     "000500001010cf00": {
@@ -217,6 +348,20 @@
         "transferable_shaders": 3402,
         "native_shaders": 3402,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 16749716,
+        "sha256": "bbae3064c3bc8e1b7f4eb8a5b1964bbfb6f03b9dd98910d8c2e4ee8e37a5ad9e",
+        "files": [
+          {
+            "path": "drako/000500001010cf00.zip",
+            "size": 16749716,
+            "sha256": "bbae3064c3bc8e1b7f4eb8a5b1964bbfb6f03b9dd98910d8c2e4ee8e37a5ad9e"
+          }
+        ],
+        "transferable_shaders": 3402,
+        "native_shaders": 3402,
+        "excluded_shaders": 0
       }
     },
     "000500001010eb00": {
@@ -234,6 +379,20 @@
             "path": "deko/000500001010eb00.zip",
             "size": 23063130,
             "sha256": "1626320a97e6a6bee653d4be7020394e7dfbc62ab2c94a2f7de0026de50141f0"
+          }
+        ],
+        "transferable_shaders": 11127,
+        "native_shaders": 11127,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 24849319,
+        "sha256": "d034f6cb5850a7649bafd7a6cdcce243d96605157d450be0bc477b5995621688",
+        "files": [
+          {
+            "path": "drako/000500001010eb00.zip",
+            "size": 24849319,
+            "sha256": "d034f6cb5850a7649bafd7a6cdcce243d96605157d450be0bc477b5995621688"
           }
         ],
         "transferable_shaders": 11127,
@@ -265,6 +424,20 @@
         "transferable_shaders": 11884,
         "native_shaders": 11884,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 26919357,
+        "sha256": "e6ef61c1ed9af0ac54bea2c1e0175135d7dfdcd1ec8d7dcae7ae082c4d7a7059",
+        "files": [
+          {
+            "path": "drako/000500001010ec00.zip",
+            "size": 26919357,
+            "sha256": "e6ef61c1ed9af0ac54bea2c1e0175135d7dfdcd1ec8d7dcae7ae082c4d7a7059"
+          }
+        ],
+        "transferable_shaders": 11884,
+        "native_shaders": 11884,
+        "excluded_shaders": 0
       }
     },
     "000500001010ed00": {
@@ -285,6 +458,20 @@
             "path": "deko/000500001010ed00.zip",
             "size": 23672563,
             "sha256": "54b7acdc29951f7aaec6ac8516a60b33d7e66bf31f73ba922c187b8a759a146a"
+          }
+        ],
+        "transferable_shaders": 11391,
+        "native_shaders": 11391,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 25588458,
+        "sha256": "68e26270709b7cded173099e27fa78b913d8394d79619ff30917cfa060ad523e",
+        "files": [
+          {
+            "path": "drako/000500001010ed00.zip",
+            "size": 25588458,
+            "sha256": "68e26270709b7cded173099e27fa78b913d8394d79619ff30917cfa060ad523e"
           }
         ],
         "transferable_shaders": 11391,
@@ -312,6 +499,20 @@
         "transferable_shaders": 910,
         "native_shaders": 910,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2620276,
+        "sha256": "dcbe4744af99a4b755135e18f9681dd6dfb1bb2a2325d67ab9171dca6f561da7",
+        "files": [
+          {
+            "path": "drako/000500001010f800.zip",
+            "size": 2620276,
+            "sha256": "dcbe4744af99a4b755135e18f9681dd6dfb1bb2a2325d67ab9171dca6f561da7"
+          }
+        ],
+        "transferable_shaders": 910,
+        "native_shaders": 910,
+        "excluded_shaders": 0
       }
     },
     "0005000010110000": {
@@ -329,6 +530,20 @@
             "path": "deko/0005000010110000.zip",
             "size": 2771843,
             "sha256": "278a15d92068005bd4cb17053563085eb881548bfe5b896336944cf599b769a8"
+          }
+        ],
+        "transferable_shaders": 1029,
+        "native_shaders": 1029,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2953386,
+        "sha256": "daa29376ce2d9341c2caa7f00ca47787ad7f9e5ae8941110cea425b58d9fdaba",
+        "files": [
+          {
+            "path": "drako/0005000010110000.zip",
+            "size": 2953386,
+            "sha256": "daa29376ce2d9341c2caa7f00ca47787ad7f9e5ae8941110cea425b58d9fdaba"
           }
         ],
         "transferable_shaders": 1029,
@@ -356,6 +571,20 @@
         "transferable_shaders": 237,
         "native_shaders": 237,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 1117343,
+        "sha256": "cd865d521a1680ef658590beda716b8a2cc3bbe52af2f2c6202aaa4d50fc81bb",
+        "files": [
+          {
+            "path": "drako/0005000010110a00.zip",
+            "size": 1117343,
+            "sha256": "cd865d521a1680ef658590beda716b8a2cc3bbe52af2f2c6202aaa4d50fc81bb"
+          }
+        ],
+        "transferable_shaders": 237,
+        "native_shaders": 237,
+        "excluded_shaders": 0
       }
     },
     "0005000010110e00": {
@@ -373,6 +602,20 @@
             "path": "deko/0005000010110e00.zip",
             "size": 13346752,
             "sha256": "0f15a65678803bb1ef6980e23ef89642eeffaac83b16efcaa859a07b02fb10dc"
+          }
+        ],
+        "transferable_shaders": 3252,
+        "native_shaders": 3252,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 13514207,
+        "sha256": "57ddac5579cfdc445d0b887667a9f52a34b2c649161d43f033b49273702ec5c9",
+        "files": [
+          {
+            "path": "drako/0005000010110e00.zip",
+            "size": 13514207,
+            "sha256": "57ddac5579cfdc445d0b887667a9f52a34b2c649161d43f033b49273702ec5c9"
           }
         ],
         "transferable_shaders": 3252,
@@ -400,6 +643,20 @@
         "transferable_shaders": 728,
         "native_shaders": 728,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 1061622,
+        "sha256": "fd56f68f99bccf5259ed96c8a181d4e7208b2df178336a3f0b6b931a8ea8c965",
+        "files": [
+          {
+            "path": "drako/000500001011c300.zip",
+            "size": 1061622,
+            "sha256": "fd56f68f99bccf5259ed96c8a181d4e7208b2df178336a3f0b6b931a8ea8c965"
+          }
+        ],
+        "transferable_shaders": 728,
+        "native_shaders": 728,
+        "excluded_shaders": 0
       }
     },
     "000500001012ba00": {
@@ -417,6 +674,20 @@
             "path": "deko/000500001012ba00.zip",
             "size": 5007657,
             "sha256": "71bf41801fb76d3c92da7378520b81c684eff060b93652f09f221f43f2eab1f6"
+          }
+        ],
+        "transferable_shaders": 718,
+        "native_shaders": 718,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 4607165,
+        "sha256": "537830ff20024d649e5268068d1fd1dd37eb8ea4a867fd92d346cbada71960d2",
+        "files": [
+          {
+            "path": "drako/000500001012ba00.zip",
+            "size": 4607165,
+            "sha256": "537830ff20024d649e5268068d1fd1dd37eb8ea4a867fd92d346cbada71960d2"
           }
         ],
         "transferable_shaders": 718,
@@ -444,6 +715,20 @@
         "transferable_shaders": 1153,
         "native_shaders": 1153,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 3246437,
+        "sha256": "c07e59ad529fbea94d6ed0c38f310558324bdd904d9e7397902446455719cdd6",
+        "files": [
+          {
+            "path": "drako/000500001012be00.zip",
+            "size": 3246437,
+            "sha256": "c07e59ad529fbea94d6ed0c38f310558324bdd904d9e7397902446455719cdd6"
+          }
+        ],
+        "transferable_shaders": 1153,
+        "native_shaders": 1153,
+        "excluded_shaders": 0
       }
     },
     "000500001012f000": {
@@ -461,6 +746,20 @@
             "path": "deko/000500001012f000.zip",
             "size": 3062285,
             "sha256": "72197b5e5c5225e914746fde28caa05bf3b30af166783b21ae1a16966772acde"
+          }
+        ],
+        "transferable_shaders": 1765,
+        "native_shaders": 1765,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2691782,
+        "sha256": "b047b648a64c45e99ce46e4aee0af93232a4d763430a5bd7b302de374407ea31",
+        "files": [
+          {
+            "path": "drako/000500001012f000.zip",
+            "size": 2691782,
+            "sha256": "b047b648a64c45e99ce46e4aee0af93232a4d763430a5bd7b302de374407ea31"
           }
         ],
         "transferable_shaders": 1765,
@@ -488,6 +787,20 @@
         "transferable_shaders": 1856,
         "native_shaders": 1856,
         "excluded_shaders": 1
+      },
+      "drako": {
+        "size": 12654101,
+        "sha256": "4154e4de5a4cdb56d27f2c8980a0557a866a9c3eab94008534834d778a845712",
+        "files": [
+          {
+            "path": "drako/0005000010131f00.zip",
+            "size": 12654101,
+            "sha256": "4154e4de5a4cdb56d27f2c8980a0557a866a9c3eab94008534834d778a845712"
+          }
+        ],
+        "transferable_shaders": 1857,
+        "native_shaders": 1857,
+        "excluded_shaders": 0
       }
     },
     "0005000010132b00": {
@@ -510,6 +823,20 @@
         "transferable_shaders": 1017,
         "native_shaders": 1017,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 3132843,
+        "sha256": "3d9c715dc87520059f5813169ad801095e49a2572b3de31a62213b030ba6f2e7",
+        "files": [
+          {
+            "path": "drako/0005000010132b00.zip",
+            "size": 3132843,
+            "sha256": "3d9c715dc87520059f5813169ad801095e49a2572b3de31a62213b030ba6f2e7"
+          }
+        ],
+        "transferable_shaders": 1017,
+        "native_shaders": 1017,
+        "excluded_shaders": 0
       }
     },
     "0005000010135e00": {
@@ -527,6 +854,20 @@
             "path": "deko/0005000010135e00.zip",
             "size": 1815627,
             "sha256": "2aff6512ae9f8ff3ae7115d1fc6ac5e5ee2b2fa4deb7d623ffc53e507be995cf"
+          }
+        ],
+        "transferable_shaders": 741,
+        "native_shaders": 741,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 1998970,
+        "sha256": "9ff6728f5e18eaa026e93ac0400767e7c7fc5f36ea168c8bf8c483e9e0c888a2",
+        "files": [
+          {
+            "path": "drako/0005000010135e00.zip",
+            "size": 1998970,
+            "sha256": "9ff6728f5e18eaa026e93ac0400767e7c7fc5f36ea168c8bf8c483e9e0c888a2"
           }
         ],
         "transferable_shaders": 741,
@@ -557,6 +898,20 @@
         "transferable_shaders": 1224,
         "native_shaders": 1224,
         "excluded_shaders": 2
+      },
+      "drako": {
+        "size": 4078562,
+        "sha256": "92cd2c6cd117ab9348485280f24183b6de52579e9972f61043e89542a0bf7c67",
+        "files": [
+          {
+            "path": "drako/0005000010137f00.zip",
+            "size": 4078562,
+            "sha256": "92cd2c6cd117ab9348485280f24183b6de52579e9972f61043e89542a0bf7c67"
+          }
+        ],
+        "transferable_shaders": 1224,
+        "native_shaders": 1224,
+        "excluded_shaders": 2
       }
     },
     "0005000010138300": {
@@ -574,6 +929,20 @@
             "path": "deko/0005000010138300.zip",
             "size": 5260370,
             "sha256": "fc0dd2c3b498ed8ace1e07795da7748074bbd00000bdcc30b74115521b1e6e7e"
+          }
+        ],
+        "transferable_shaders": 1665,
+        "native_shaders": 1665,
+        "excluded_shaders": 2
+      },
+      "drako": {
+        "size": 5654827,
+        "sha256": "c0a500914f547a601bc4425b7f55b8ad8c5a0748e4d2916c9c93f962b1f0aef8",
+        "files": [
+          {
+            "path": "drako/0005000010138300.zip",
+            "size": 5654827,
+            "sha256": "c0a500914f547a601bc4425b7f55b8ad8c5a0748e4d2916c9c93f962b1f0aef8"
           }
         ],
         "transferable_shaders": 1665,
@@ -601,6 +970,20 @@
         "transferable_shaders": 422,
         "native_shaders": 422,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 996599,
+        "sha256": "26b8bde25b365aebcf00c660b5ce3c9e23c5b6d1fd7ac22de6b03d02cd2f693a",
+        "files": [
+          {
+            "path": "drako/0005000010138b00.zip",
+            "size": 996599,
+            "sha256": "26b8bde25b365aebcf00c660b5ce3c9e23c5b6d1fd7ac22de6b03d02cd2f693a"
+          }
+        ],
+        "transferable_shaders": 422,
+        "native_shaders": 422,
+        "excluded_shaders": 0
       }
     },
     "0005000010143400": {
@@ -618,6 +1001,20 @@
             "path": "deko/0005000010143400.zip",
             "size": 6035771,
             "sha256": "4e59beccb542212833dedc9fad931d1a2f7cc095e9dec4105ada22c044fda83d"
+          }
+        ],
+        "transferable_shaders": 8446,
+        "native_shaders": 8446,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 6363054,
+        "sha256": "9d9de1a38d6195e9e67dd80075b89e1b9116124c1303f20d11a48052f33267a8",
+        "files": [
+          {
+            "path": "drako/0005000010143400.zip",
+            "size": 6363054,
+            "sha256": "9d9de1a38d6195e9e67dd80075b89e1b9116124c1303f20d11a48052f33267a8"
           }
         ],
         "transferable_shaders": 8446,
@@ -648,6 +1045,20 @@
         "transferable_shaders": 14106,
         "native_shaders": 14106,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 9841509,
+        "sha256": "33aecf87a66abef1fe1c5846ed2d5c4d895a4468b377661ae499865f6fcb44c3",
+        "files": [
+          {
+            "path": "drako/0005000010143500.zip",
+            "size": 9841509,
+            "sha256": "33aecf87a66abef1fe1c5846ed2d5c4d895a4468b377661ae499865f6fcb44c3"
+          }
+        ],
+        "transferable_shaders": 14106,
+        "native_shaders": 14106,
+        "excluded_shaders": 0
       }
     },
     "0005000010143600": {
@@ -668,6 +1079,20 @@
             "path": "deko/0005000010143600.zip",
             "size": 7924882,
             "sha256": "da2a54c3310ce11b74e0b3c246ffa6ca0848e19e9d9b056cc601441d70a66cb9"
+          }
+        ],
+        "transferable_shaders": 11702,
+        "native_shaders": 11702,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 8177856,
+        "sha256": "7072e612075aa76afee4cd7907a02266504527a5a6c88780f109b5a86291bfd0",
+        "files": [
+          {
+            "path": "drako/0005000010143600.zip",
+            "size": 8177856,
+            "sha256": "7072e612075aa76afee4cd7907a02266504527a5a6c88780f109b5a86291bfd0"
           }
         ],
         "transferable_shaders": 11702,
@@ -699,6 +1124,20 @@
         "transferable_shaders": 4160,
         "native_shaders": 4160,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 17697034,
+        "sha256": "099804cf27a7c99d8bff732316d7a0250cd6d021122633b206d235f82a7266d1",
+        "files": [
+          {
+            "path": "drako/0005000010144f00.zip",
+            "size": 17697034,
+            "sha256": "099804cf27a7c99d8bff732316d7a0250cd6d021122633b206d235f82a7266d1"
+          }
+        ],
+        "transferable_shaders": 4160,
+        "native_shaders": 4160,
+        "excluded_shaders": 0
       }
     },
     "0005000010145000": {
@@ -716,6 +1155,20 @@
             "path": "deko/0005000010145000.zip",
             "size": 12215428,
             "sha256": "ebd526f95c152439fa10095c473291f2a88a6066f96321f9dc9158b89525bad7"
+          }
+        ],
+        "transferable_shaders": 2914,
+        "native_shaders": 2914,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 12304501,
+        "sha256": "d3018c9d67995219b23fdfcf7522587a77bc292d63fce3fd70f361a24c86f4dc",
+        "files": [
+          {
+            "path": "drako/0005000010145000.zip",
+            "size": 12304501,
+            "sha256": "d3018c9d67995219b23fdfcf7522587a77bc292d63fce3fd70f361a24c86f4dc"
           }
         ],
         "transferable_shaders": 2914,
@@ -746,6 +1199,20 @@
         "transferable_shaders": 3929,
         "native_shaders": 3929,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 16166396,
+        "sha256": "5d99abbbe0fcd7cc249712f2ff74227769907fea289a50dc77baf93b786e0a50",
+        "files": [
+          {
+            "path": "drako/0005000010145c00.zip",
+            "size": 16166396,
+            "sha256": "5d99abbbe0fcd7cc249712f2ff74227769907fea289a50dc77baf93b786e0a50"
+          }
+        ],
+        "transferable_shaders": 3929,
+        "native_shaders": 3929,
+        "excluded_shaders": 0
       }
     },
     "0005000010145d00": {
@@ -763,6 +1230,20 @@
             "path": "deko/0005000010145d00.zip",
             "size": 15731630,
             "sha256": "93d7c8c9ae6fdcc987241e74bee944aeb30c296f4f3657b08402e10db38fb694"
+          }
+        ],
+        "transferable_shaders": 4058,
+        "native_shaders": 4058,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 17067315,
+        "sha256": "33b176ee4eeab6dd53c9dde23df8c0c21ad3efa7be54184e4b4d6250fac7c069",
+        "files": [
+          {
+            "path": "drako/0005000010145d00.zip",
+            "size": 17067315,
+            "sha256": "33b176ee4eeab6dd53c9dde23df8c0c21ad3efa7be54184e4b4d6250fac7c069"
           }
         ],
         "transferable_shaders": 4058,
@@ -790,6 +1271,20 @@
         "transferable_shaders": 2985,
         "native_shaders": 2985,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 10500557,
+        "sha256": "42708e8a0e17492b25c7745b9cc09c254c946ddbe871a094fbe1b605d5885aff",
+        "files": [
+          {
+            "path": "drako/0005000010146800.zip",
+            "size": 10500557,
+            "sha256": "42708e8a0e17492b25c7745b9cc09c254c946ddbe871a094fbe1b605d5885aff"
+          }
+        ],
+        "transferable_shaders": 2985,
+        "native_shaders": 2985,
+        "excluded_shaders": 0
       }
     },
     "0005000010146a00": {
@@ -807,6 +1302,20 @@
             "path": "deko/0005000010146a00.zip",
             "size": 3465550,
             "sha256": "36bda374632448e6a81dc0061ebb0201d19b774557b0b75dddb965da9c2f3947"
+          }
+        ],
+        "transferable_shaders": 2094,
+        "native_shaders": 2094,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 3560772,
+        "sha256": "855bb3817b8081b45a0d99421c31b1e79eb4260f905fe97f710ca9498487b95f",
+        "files": [
+          {
+            "path": "drako/0005000010146a00.zip",
+            "size": 3560772,
+            "sha256": "855bb3817b8081b45a0d99421c31b1e79eb4260f905fe97f710ca9498487b95f"
           }
         ],
         "transferable_shaders": 2094,
@@ -834,6 +1343,20 @@
         "transferable_shaders": 645,
         "native_shaders": 645,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2089254,
+        "sha256": "69fe5aaf253e1ae6016a40f3804cc298590cecac398ef2e44fad8e1366d79fab",
+        "files": [
+          {
+            "path": "drako/000500001014c100.zip",
+            "size": 2089254,
+            "sha256": "69fe5aaf253e1ae6016a40f3804cc298590cecac398ef2e44fad8e1366d79fab"
+          }
+        ],
+        "transferable_shaders": 645,
+        "native_shaders": 645,
+        "excluded_shaders": 0
       }
     },
     "000500001014d200": {
@@ -851,6 +1374,20 @@
             "path": "deko/000500001014d200.zip",
             "size": 3268730,
             "sha256": "92a1d8d9982e26adc7dd43779156b1d9b6469ca7c55cd48b8da90a7ba61f612a"
+          }
+        ],
+        "transferable_shaders": 836,
+        "native_shaders": 836,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 3226898,
+        "sha256": "97556aef92d83cddd0f1d5680496f3636e875c30f12d34fc1f03719f9f1b30c6",
+        "files": [
+          {
+            "path": "drako/000500001014d200.zip",
+            "size": 3226898,
+            "sha256": "97556aef92d83cddd0f1d5680496f3636e875c30f12d34fc1f03719f9f1b30c6"
           }
         ],
         "transferable_shaders": 836,
@@ -878,6 +1415,20 @@
         "transferable_shaders": 656,
         "native_shaders": 656,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 1679250,
+        "sha256": "8867af661246911d032b86c8e312ec042a2af9ec33101bc155e6bba31b2b0dbb",
+        "files": [
+          {
+            "path": "drako/000500001014de00.zip",
+            "size": 1679250,
+            "sha256": "8867af661246911d032b86c8e312ec042a2af9ec33101bc155e6bba31b2b0dbb"
+          }
+        ],
+        "transferable_shaders": 656,
+        "native_shaders": 656,
+        "excluded_shaders": 0
       }
     },
     "000500001016a700": {
@@ -900,6 +1451,20 @@
         "transferable_shaders": 858,
         "native_shaders": 858,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2534499,
+        "sha256": "1ac4402636e8a13e47393e66726ea21da00dc5910048b2d29d2a9b5b27a64b8b",
+        "files": [
+          {
+            "path": "drako/000500001016a700.zip",
+            "size": 2534499,
+            "sha256": "1ac4402636e8a13e47393e66726ea21da00dc5910048b2d29d2a9b5b27a64b8b"
+          }
+        ],
+        "transferable_shaders": 858,
+        "native_shaders": 858,
+        "excluded_shaders": 0
       }
     },
     "000500001016ad00": {
@@ -917,6 +1482,20 @@
             "path": "deko/000500001016ad00.zip",
             "size": 2264607,
             "sha256": "086adb88ec707f37e74b28553e11acbd739f999dfffea6b4489c43c5e7fdc09b"
+          }
+        ],
+        "transferable_shaders": 906,
+        "native_shaders": 906,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2426903,
+        "sha256": "4f0ca51c8db53337f6e8e12b517176a429340a7b7c3c6749b2aa7c31436c8fba",
+        "files": [
+          {
+            "path": "drako/000500001016ad00.zip",
+            "size": 2426903,
+            "sha256": "4f0ca51c8db53337f6e8e12b517176a429340a7b7c3c6749b2aa7c31436c8fba"
           }
         ],
         "transferable_shaders": 906,
@@ -947,6 +1526,20 @@
         "transferable_shaders": 1183,
         "native_shaders": 1183,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 4609144,
+        "sha256": "bb41c81a03eb79f055df6d966908d3d9b576cd1c6e6fa056e36a177f4aaebf5e",
+        "files": [
+          {
+            "path": "drako/0005000010172600.zip",
+            "size": 4609144,
+            "sha256": "bb41c81a03eb79f055df6d966908d3d9b576cd1c6e6fa056e36a177f4aaebf5e"
+          }
+        ],
+        "transferable_shaders": 1183,
+        "native_shaders": 1183,
+        "excluded_shaders": 0
       }
     },
     "0005000010172700": {
@@ -964,6 +1557,20 @@
             "path": "deko/0005000010172700.zip",
             "size": 3224074,
             "sha256": "dff6fcfb0421860ce5c8d5992c0fae297d82255a726997e24bfcbf29721dcdf7"
+          }
+        ],
+        "transferable_shaders": 838,
+        "native_shaders": 838,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 3308207,
+        "sha256": "fc1ccd96d5f85b81ca416ab3ceae0e0577b756f32f30e558d2f7d4cdb10e5f91",
+        "files": [
+          {
+            "path": "drako/0005000010172700.zip",
+            "size": 3308207,
+            "sha256": "fc1ccd96d5f85b81ca416ab3ceae0e0577b756f32f30e558d2f7d4cdb10e5f91"
           }
         ],
         "transferable_shaders": 838,
@@ -995,6 +1602,20 @@
         "transferable_shaders": 6096,
         "native_shaders": 6096,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 25040816,
+        "sha256": "3a14100d9805a9aed2b4119deac6cbbefc0913665060f49e83b68749f0523aa1",
+        "files": [
+          {
+            "path": "drako/0005000010176900.zip",
+            "size": 25040816,
+            "sha256": "3a14100d9805a9aed2b4119deac6cbbefc0913665060f49e83b68749f0523aa1"
+          }
+        ],
+        "transferable_shaders": 6096,
+        "native_shaders": 6096,
+        "excluded_shaders": 0
       }
     },
     "0005000010176a00": {
@@ -1015,6 +1636,20 @@
             "path": "deko/0005000010176a00.zip",
             "size": 26394288,
             "sha256": "83fe49be11f096d3dc2e115e8475e792c8ce612298605990b0c5d8bc4d475366"
+          }
+        ],
+        "transferable_shaders": 6642,
+        "native_shaders": 6642,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 27510963,
+        "sha256": "84c6d2e4e2caa987662b66fb6d2130ba898ab04e67b202120cad5ed5bdcbd309",
+        "files": [
+          {
+            "path": "drako/0005000010176a00.zip",
+            "size": 27510963,
+            "sha256": "84c6d2e4e2caa987662b66fb6d2130ba898ab04e67b202120cad5ed5bdcbd309"
           }
         ],
         "transferable_shaders": 6642,
@@ -1045,6 +1680,20 @@
         "transferable_shaders": 1130,
         "native_shaders": 1130,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 4814026,
+        "sha256": "7616ebc8cca289cd0d97cf07fdb5f26bca852931150197112379b6952a2f78c9",
+        "files": [
+          {
+            "path": "drako/0005000010180600.zip",
+            "size": 4814026,
+            "sha256": "7616ebc8cca289cd0d97cf07fdb5f26bca852931150197112379b6952a2f78c9"
+          }
+        ],
+        "transferable_shaders": 1130,
+        "native_shaders": 1130,
+        "excluded_shaders": 0
       }
     },
     "0005000010180700": {
@@ -1062,6 +1711,20 @@
             "path": "deko/0005000010180700.zip",
             "size": 8665398,
             "sha256": "9d841ce0118529901d2c114cd5cc512424ccc24e3cc525eff90cb435ce30d2f3"
+          }
+        ],
+        "transferable_shaders": 1975,
+        "native_shaders": 1975,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 9144121,
+        "sha256": "b0fc9066e7042c9da7beae0b1dd1961b2a2a67a132552dfdb65e0a28a9f79c06",
+        "files": [
+          {
+            "path": "drako/0005000010180700.zip",
+            "size": 9144121,
+            "sha256": "b0fc9066e7042c9da7beae0b1dd1961b2a2a67a132552dfdb65e0a28a9f79c06"
           }
         ],
         "transferable_shaders": 1975,
@@ -1092,6 +1755,20 @@
         "transferable_shaders": 4323,
         "native_shaders": 4323,
         "excluded_shaders": 1
+      },
+      "drako": {
+        "size": 31858731,
+        "sha256": "21a43d0a4c32e40736addbcf9fd1a45761070b6bda6d9193b5629492aede1582",
+        "files": [
+          {
+            "path": "drako/0005000010184d00.zip",
+            "size": 31858731,
+            "sha256": "21a43d0a4c32e40736addbcf9fd1a45761070b6bda6d9193b5629492aede1582"
+          }
+        ],
+        "transferable_shaders": 4324,
+        "native_shaders": 4324,
+        "excluded_shaders": 0
       }
     },
     "0005000010184e00": {
@@ -1118,6 +1795,20 @@
         "transferable_shaders": 4128,
         "native_shaders": 4128,
         "excluded_shaders": 1
+      },
+      "drako": {
+        "size": 30546314,
+        "sha256": "db9a953f618de79b124a26b9fa225bf8746442d01cd8f72f888edc1dfa4a1c00",
+        "files": [
+          {
+            "path": "drako/0005000010184e00.zip",
+            "size": 30546314,
+            "sha256": "db9a953f618de79b124a26b9fa225bf8746442d01cd8f72f888edc1dfa4a1c00"
+          }
+        ],
+        "transferable_shaders": 4129,
+        "native_shaders": 4129,
+        "excluded_shaders": 0
       }
     },
     "000500001019e500": {
@@ -1135,6 +1826,20 @@
             "path": "deko/000500001019e500.zip",
             "size": 4588771,
             "sha256": "0761ed4ae01741c49268dbbddc68a883284358ba34204ffe2567d053d5e2cdc6"
+          }
+        ],
+        "transferable_shaders": 2537,
+        "native_shaders": 2537,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 4529133,
+        "sha256": "e6883ef79b45fff8751db5390e130ddd8bbb45fb706ec6b3ea19f22fcb9bfd12",
+        "files": [
+          {
+            "path": "drako/000500001019e500.zip",
+            "size": 4529133,
+            "sha256": "e6883ef79b45fff8751db5390e130ddd8bbb45fb706ec6b3ea19f22fcb9bfd12"
           }
         ],
         "transferable_shaders": 2537,
@@ -1165,6 +1870,20 @@
         "transferable_shaders": 2628,
         "native_shaders": 2628,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 4751810,
+        "sha256": "478bced740285398cfdd0febb8726ede32b75103dde90a94dc75c2d584b0d06c",
+        "files": [
+          {
+            "path": "drako/000500001019e600.zip",
+            "size": 4751810,
+            "sha256": "478bced740285398cfdd0febb8726ede32b75103dde90a94dc75c2d584b0d06c"
+          }
+        ],
+        "transferable_shaders": 2628,
+        "native_shaders": 2628,
+        "excluded_shaders": 0
       }
     },
     "00050000101a3500": {
@@ -1185,6 +1904,20 @@
             "path": "deko/00050000101a3500.zip",
             "size": 3304091,
             "sha256": "bb6c02bb68e0c585b0c854a1d813e3035f3dad52a92c5e9f40e320d5480aaf97"
+          }
+        ],
+        "transferable_shaders": 1183,
+        "native_shaders": 1183,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 3391999,
+        "sha256": "25b9a2ea768a47b808fa7c88c821955baa8c42f487d207ebcbcdc3ccd389a1fe",
+        "files": [
+          {
+            "path": "drako/00050000101a3500.zip",
+            "size": 3391999,
+            "sha256": "25b9a2ea768a47b808fa7c88c821955baa8c42f487d207ebcbcdc3ccd389a1fe"
           }
         ],
         "transferable_shaders": 1183,
@@ -1212,6 +1945,20 @@
         "transferable_shaders": 111,
         "native_shaders": 111,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 206900,
+        "sha256": "daf2a3da8dead39a76ca10cd119fff302cebb84aa3403ad23f9ea00d2a290beb",
+        "files": [
+          {
+            "path": "drako/00050000101a4800.zip",
+            "size": 206900,
+            "sha256": "daf2a3da8dead39a76ca10cd119fff302cebb84aa3403ad23f9ea00d2a290beb"
+          }
+        ],
+        "transferable_shaders": 111,
+        "native_shaders": 111,
+        "excluded_shaders": 0
       }
     },
     "00050000101a4f01": {
@@ -1229,6 +1976,20 @@
             "path": "deko/00050000101a4f01.zip",
             "size": 41853,
             "sha256": "9b97ddb5d828556df6e7e07a049ee0b5a69a4a5676904fc5e7d14e82609f0055"
+          }
+        ],
+        "transferable_shaders": 49,
+        "native_shaders": 49,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 43854,
+        "sha256": "1752db84236c7209c20338ce1c28888fe0f0c730fcaab0322264501c8a994ce3",
+        "files": [
+          {
+            "path": "drako/00050000101a4f01.zip",
+            "size": 43854,
+            "sha256": "1752db84236c7209c20338ce1c28888fe0f0c730fcaab0322264501c8a994ce3"
           }
         ],
         "transferable_shaders": 49,
@@ -1256,6 +2017,20 @@
         "transferable_shaders": 858,
         "native_shaders": 858,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2113423,
+        "sha256": "79f8b657ac0b29acc9821f39635cef02d84f9eba3003072044c03e456b11ee5d",
+        "files": [
+          {
+            "path": "drako/00050000101a6200.zip",
+            "size": 2113423,
+            "sha256": "79f8b657ac0b29acc9821f39635cef02d84f9eba3003072044c03e456b11ee5d"
+          }
+        ],
+        "transferable_shaders": 858,
+        "native_shaders": 858,
+        "excluded_shaders": 0
       }
     },
     "00050000101a6500": {
@@ -1273,6 +2048,20 @@
             "path": "deko/00050000101a6500.zip",
             "size": 301078,
             "sha256": "5dd943f2dd37d65766e24f635169aaf33e04e43c1a2a300f9d435bb891735479"
+          }
+        ],
+        "transferable_shaders": 94,
+        "native_shaders": 94,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 336030,
+        "sha256": "61c9a0083fa6f453d1b949fd1892ab78f2749b665112887cff37db1f94c98703",
+        "files": [
+          {
+            "path": "drako/00050000101a6500.zip",
+            "size": 336030,
+            "sha256": "61c9a0083fa6f453d1b949fd1892ab78f2749b665112887cff37db1f94c98703"
           }
         ],
         "transferable_shaders": 94,
@@ -1303,6 +2092,20 @@
         "transferable_shaders": 2824,
         "native_shaders": 2824,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 5031769,
+        "sha256": "6dbae10de804bcd309840dc6e943c968edc7de29a1a8cc7f0f14c937829cbd3d",
+        "files": [
+          {
+            "path": "drako/00050000101abc00.zip",
+            "size": 5031769,
+            "sha256": "6dbae10de804bcd309840dc6e943c968edc7de29a1a8cc7f0f14c937829cbd3d"
+          }
+        ],
+        "transferable_shaders": 2824,
+        "native_shaders": 2824,
+        "excluded_shaders": 0
       }
     },
     "00050000101b0400": {
@@ -1320,6 +2123,20 @@
             "path": "deko/00050000101b0400.zip",
             "size": 23926,
             "sha256": "880d76cf29c80debef68384eb8556fde1164470bcd57cb05cf8c3ba1f3857c5f"
+          }
+        ],
+        "transferable_shaders": 29,
+        "native_shaders": 29,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 24154,
+        "sha256": "5219e799391154df8cd06f69925bf885e68f71377efb47520d5134b34f6859cc",
+        "files": [
+          {
+            "path": "drako/00050000101b0400.zip",
+            "size": 24154,
+            "sha256": "5219e799391154df8cd06f69925bf885e68f71377efb47520d5134b34f6859cc"
           }
         ],
         "transferable_shaders": 29,
@@ -1347,6 +2164,20 @@
         "transferable_shaders": 8,
         "native_shaders": 8,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 4420,
+        "sha256": "d44853c3fa50972050832bc52a5b3167aba61781df4f1900def189a0f5876aa9",
+        "files": [
+          {
+            "path": "drako/00050000101b9600.zip",
+            "size": 4420,
+            "sha256": "d44853c3fa50972050832bc52a5b3167aba61781df4f1900def189a0f5876aa9"
+          }
+        ],
+        "transferable_shaders": 8,
+        "native_shaders": 8,
+        "excluded_shaders": 0
       }
     },
     "00050000101bec00": {
@@ -1364,6 +2195,20 @@
             "path": "deko/00050000101bec00.zip",
             "size": 212161,
             "sha256": "da07926dfb2476ceb207dcf1a9117fc46c12f6ba5468e62bbaef7661699e4382"
+          }
+        ],
+        "transferable_shaders": 107,
+        "native_shaders": 107,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 213174,
+        "sha256": "5e5e80fa539ab5ad95b170362cdadafd5c72dd7191a653cd66cd18901f09987a",
+        "files": [
+          {
+            "path": "drako/00050000101bec00.zip",
+            "size": 213174,
+            "sha256": "5e5e80fa539ab5ad95b170362cdadafd5c72dd7191a653cd66cd18901f09987a"
           }
         ],
         "transferable_shaders": 107,
@@ -1391,6 +2236,20 @@
         "transferable_shaders": 668,
         "native_shaders": 668,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 1847877,
+        "sha256": "ae926c7b100ccc93cb94df7e3bcd0a0accbc272c578499094ba5d4697e9d6741",
+        "files": [
+          {
+            "path": "drako/00050000101bef00.zip",
+            "size": 1847877,
+            "sha256": "ae926c7b100ccc93cb94df7e3bcd0a0accbc272c578499094ba5d4697e9d6741"
+          }
+        ],
+        "transferable_shaders": 668,
+        "native_shaders": 668,
+        "excluded_shaders": 0
       }
     },
     "00050000101c4c00": {
@@ -1408,6 +2267,20 @@
             "path": "deko/00050000101c4c00.zip",
             "size": 17625300,
             "sha256": "f80d91d3cb93a5eb26a65fd61d8399377957c6db6ad83d4874a4897b19b387ae"
+          }
+        ],
+        "transferable_shaders": 7860,
+        "native_shaders": 7860,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 18607772,
+        "sha256": "a3f59659ccd671641b11172acc93c7e8aa3b561d39ab7a8ff72ad83f7ba63317",
+        "files": [
+          {
+            "path": "drako/00050000101c4c00.zip",
+            "size": 18607772,
+            "sha256": "a3f59659ccd671641b11172acc93c7e8aa3b561d39ab7a8ff72ad83f7ba63317"
           }
         ],
         "transferable_shaders": 7860,
@@ -1435,6 +2308,20 @@
         "transferable_shaders": 3315,
         "native_shaders": 3315,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 6755236,
+        "sha256": "946e36d84f3372b7b22ddf2bcb24816f7712a2b58d27ccd6db5befd7122e6cae",
+        "files": [
+          {
+            "path": "drako/00050000101c4d00.zip",
+            "size": 6755236,
+            "sha256": "946e36d84f3372b7b22ddf2bcb24816f7712a2b58d27ccd6db5befd7122e6cae"
+          }
+        ],
+        "transferable_shaders": 3315,
+        "native_shaders": 3315,
+        "excluded_shaders": 0
       }
     },
     "00050000101c9300": {
@@ -1456,6 +2343,20 @@
         "transferable_shaders": 9625,
         "native_shaders": 9625,
         "excluded_shaders": 2
+      },
+      "drako": {
+        "size": 53879789,
+        "sha256": "0d3d09aed6cd82f4a32284f6d28f3028e787ceb9ed64aa7675ba51f6c82c1d5c",
+        "files": [
+          {
+            "path": "drako/00050000101c9300.zip",
+            "size": 53879789,
+            "sha256": "0d3d09aed6cd82f4a32284f6d28f3028e787ceb9ed64aa7675ba51f6c82c1d5c"
+          }
+        ],
+        "transferable_shaders": 9623,
+        "native_shaders": 9623,
+        "excluded_shaders": 4
       }
     },
     "00050000101c9400": {
@@ -1483,6 +2384,20 @@
         "transferable_shaders": 8670,
         "native_shaders": 8670,
         "excluded_shaders": 1
+      },
+      "drako": {
+        "size": 47605084,
+        "sha256": "0d4f9960de8febd8fff6f73f4f11ea456817ac2b4a8827a7b763ed66f2a014da",
+        "files": [
+          {
+            "path": "drako/00050000101c9400.zip",
+            "size": 47605084,
+            "sha256": "0d4f9960de8febd8fff6f73f4f11ea456817ac2b4a8827a7b763ed66f2a014da"
+          }
+        ],
+        "transferable_shaders": 8667,
+        "native_shaders": 8667,
+        "excluded_shaders": 4
       }
     },
     "00050000101c9500": {
@@ -1508,6 +2423,20 @@
         "transferable_shaders": 9276,
         "native_shaders": 9276,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 51789292,
+        "sha256": "7cf8a80b14741854314e0b809e09b786b268966aa337b595abba18c004c406ca",
+        "files": [
+          {
+            "path": "drako/00050000101c9500.zip",
+            "size": 51789292,
+            "sha256": "7cf8a80b14741854314e0b809e09b786b268966aa337b595abba18c004c406ca"
+          }
+        ],
+        "transferable_shaders": 9272,
+        "native_shaders": 9272,
+        "excluded_shaders": 4
       }
     },
     "00050000101d0300": {
@@ -1525,6 +2454,20 @@
             "path": "deko/00050000101d0300.zip",
             "size": 2840728,
             "sha256": "9b3a9c15615ea5d6036ca1fe2617fa3e386ffc35a5e44c84558f2c61023b6a16"
+          }
+        ],
+        "transferable_shaders": 770,
+        "native_shaders": 770,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2842862,
+        "sha256": "fa6b7f03be03492b03e68f1dbb417c9f97f98ea39a7a0b84a0934aa21eb41afe",
+        "files": [
+          {
+            "path": "drako/00050000101d0300.zip",
+            "size": 2842862,
+            "sha256": "fa6b7f03be03492b03e68f1dbb417c9f97f98ea39a7a0b84a0934aa21eb41afe"
           }
         ],
         "transferable_shaders": 770,
@@ -1552,6 +2495,20 @@
         "transferable_shaders": 1695,
         "native_shaders": 1695,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2569419,
+        "sha256": "84a86871c6cdc2b12052bf5da2567c84f2dac74ddf335bbd03e5f0d47117ccdf",
+        "files": [
+          {
+            "path": "drako/00050000101d6000.zip",
+            "size": 2569419,
+            "sha256": "84a86871c6cdc2b12052bf5da2567c84f2dac74ddf335bbd03e5f0d47117ccdf"
+          }
+        ],
+        "transferable_shaders": 1695,
+        "native_shaders": 1695,
+        "excluded_shaders": 0
       }
     },
     "00050000101dab00": {
@@ -1569,6 +2526,20 @@
             "path": "deko/00050000101dab00.zip",
             "size": 3462399,
             "sha256": "184c5c2208bcf1a6109414039c3447e9ae27687d11957b2adf3274d1e816e891"
+          }
+        ],
+        "transferable_shaders": 1248,
+        "native_shaders": 1248,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 3730132,
+        "sha256": "b2a655c7b3922afeb2cc7d2919de2a846198b6f631f20c57e60a16ffbedf3ab8",
+        "files": [
+          {
+            "path": "drako/00050000101dab00.zip",
+            "size": 3730132,
+            "sha256": "b2a655c7b3922afeb2cc7d2919de2a846198b6f631f20c57e60a16ffbedf3ab8"
           }
         ],
         "transferable_shaders": 1248,
@@ -1596,6 +2567,20 @@
         "transferable_shaders": 343,
         "native_shaders": 343,
         "excluded_shaders": 4
+      },
+      "drako": {
+        "size": 1093138,
+        "sha256": "af41e05bdd4e3e18af1c291e11f1cb308a46483dec503f68a2a763ed1cb9891e",
+        "files": [
+          {
+            "path": "drako/00050000101e5300.zip",
+            "size": 1093138,
+            "sha256": "af41e05bdd4e3e18af1c291e11f1cb308a46483dec503f68a2a763ed1cb9891e"
+          }
+        ],
+        "transferable_shaders": 343,
+        "native_shaders": 343,
+        "excluded_shaders": 4
       }
     },
     "00050000101ed800": {
@@ -1613,6 +2598,20 @@
             "path": "deko/00050000101ed800.zip",
             "size": 4310766,
             "sha256": "01dd832405e1bffa0b6c8839aefec184509ca396d0f59cca05c408d7565458a1"
+          }
+        ],
+        "transferable_shaders": 1475,
+        "native_shaders": 1475,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 4150506,
+        "sha256": "091c0e986eb03b854d958d9ee2981305fd2f84640350bd26fae7731f94cea43e",
+        "files": [
+          {
+            "path": "drako/00050000101ed800.zip",
+            "size": 4150506,
+            "sha256": "091c0e986eb03b854d958d9ee2981305fd2f84640350bd26fae7731f94cea43e"
           }
         ],
         "transferable_shaders": 1475,
@@ -1640,6 +2639,20 @@
         "transferable_shaders": 979,
         "native_shaders": 979,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 2275552,
+        "sha256": "f5135875ae9576c3218f321d4487e5fa3d2d7bb8263d2e9ee5b24390454e281e",
+        "files": [
+          {
+            "path": "drako/00050000101fa600.zip",
+            "size": 2275552,
+            "sha256": "f5135875ae9576c3218f321d4487e5fa3d2d7bb8263d2e9ee5b24390454e281e"
+          }
+        ],
+        "transferable_shaders": 979,
+        "native_shaders": 979,
+        "excluded_shaders": 0
       }
     },
     "000500001f600a00": {
@@ -1662,6 +2675,20 @@
         "transferable_shaders": 200,
         "native_shaders": 200,
         "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 515411,
+        "sha256": "5e30868ffffd19ef9d18bb2f5d543dc21ec32f645a9916955a0a20d2dc19ac8b",
+        "files": [
+          {
+            "path": "drako/000500001f600a00.zip",
+            "size": 515411,
+            "sha256": "5e30868ffffd19ef9d18bb2f5d543dc21ec32f645a9916955a0a20d2dc19ac8b"
+          }
+        ],
+        "transferable_shaders": 200,
+        "native_shaders": 200,
+        "excluded_shaders": 0
       }
     },
     "000500001f600b00": {
@@ -1679,6 +2706,20 @@
             "path": "deko/000500001f600b00.zip",
             "size": 1879967,
             "sha256": "faf4e38bb19fbbb49ccca9a7fad5aab87d4790b0b76f6beec3ede0e82d098667"
+          }
+        ],
+        "transferable_shaders": 676,
+        "native_shaders": 676,
+        "excluded_shaders": 0
+      },
+      "drako": {
+        "size": 1904877,
+        "sha256": "092c33795fd4324bb51cef809ec034633667044fb44b2994bf74ebafba4b864f",
+        "files": [
+          {
+            "path": "drako/000500001f600b00.zip",
+            "size": 1904877,
+            "sha256": "092c33795fd4324bb51cef809ec034633667044fb44b2994bf74ebafba4b864f"
           }
         ],
         "transferable_shaders": 676,
