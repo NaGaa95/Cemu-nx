@@ -434,8 +434,12 @@ namespace Deko3D
 					break;
 				}
 
+				// deko3d lays out 6..8 rows with one-gob tiles but describes the image with two, which would
+				// reach into the next image of the block: ask for the tile of the layout.
 				dk::ImageLayoutMaker{g_dk_context->GetDevice()}
-					.setFlags(DkImageFlags_UsageLoadStore)
+					.setFlags(DkImageFlags_UsageLoadStore |
+							  (image.extent.height <= 8 ? DkImageFlags_CustomTileSize : 0))
+					.setTileSize(DkTileSize_OneGob)
 					.setFormat(GetImageFormat(image.format))
 					.setDimensions(image.extent.width, image.extent.height)
 					.initialize(layouts[i]);
