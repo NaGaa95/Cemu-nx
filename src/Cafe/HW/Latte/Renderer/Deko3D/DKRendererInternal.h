@@ -101,6 +101,8 @@ struct Deko3DRenderer::State
 	bool compositeStarted = false;
 	bool gameFrame = false;
 	bool imguiPad = false;
+	// The software keyboard applet has the GPU (see Deko3DRenderer::HandleAppletSuspension).
+	bool appletSuspended = false;
 	uint32 commandsSinceSubmit = 0;
 	uint32 sequencesSinceSubmit = 0;
 	Deko3D::UploadAllocation descriptorBatch;

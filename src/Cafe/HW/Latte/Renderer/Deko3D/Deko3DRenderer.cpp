@@ -326,8 +326,29 @@ void Deko3DRenderer::Flush(bool waitIdle)
 {
 	m_state->Submit(waitIdle);
 }
+// SwitchSwkbd_Show waits for the GPU to be idle before it shows the keyboard applet (its game thread is blocked
+// meanwhile, so this runs from the command processor's idle loop): no GPU work until the applet closes.
+bool Deko3DRenderer::HandleAppletSuspension()
+{
+	if (!SwitchSwkbd_IsAppletActive())
+	{
+		m_state->appletSuspended = false;
+		return false;
+	}
+	if (!m_state->appletSuspended)
+	{
+		m_state->Submit(true);
+		g_dk_context->WaitIdle();
+		m_state->appletSuspended = true;
+		SwitchSwkbd_NotifyGpuIdle();
+	}
+	return true;
+}
+
 void Deko3DRenderer::NotifyLatteCommandProcessorIdle()
 {
+	if (HandleAppletSuspension())
+		return;
 	if (m_state->pending && ((!m_state->guestCompletions.Empty() &&
 		m_state->guestReadbackFence == g_dk_command_buffer_mgr->GetCurrentFenceCounter()) ||
 		std::chrono::steady_clock::now() - m_state->lastSubmit >= std::chrono::milliseconds(1)))

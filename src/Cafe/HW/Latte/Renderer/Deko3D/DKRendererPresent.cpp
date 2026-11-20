@@ -61,7 +61,7 @@ void Deko3DRenderer::State::BindUtility(const DKShaderProgram* vertex, const DKS
 
 bool Deko3DRenderer::BeginFrame(bool mainWindow)
 {
-	if (SwitchSwkbd_IsAppletActive() || (!mainWindow && !SwitchPlatform_IsGamePadOutputActive()))
+	if (HandleAppletSuspension() || (!mainWindow && !SwitchPlatform_IsGamePadOutputActive()))
 		return false;
 	if (!m_state->compositeStarted)
 	{
@@ -316,7 +316,7 @@ void Deko3DRenderer::State::FollowWindowSize()
 void Deko3DRenderer::SwapBuffers(bool tv, bool drc)
 {
 	auto& state = *m_state;
-	if (SwitchSwkbd_IsAppletActive() || !(tv || (drc && SwitchPlatform_IsGamePadOutputActive())))
+	if (HandleAppletSuspension() || !(tv || (drc && SwitchPlatform_IsGamePadOutputActive())))
 		return;
 	if (SwitchPlatform_TakeGamePadLayoutChange())
 	{

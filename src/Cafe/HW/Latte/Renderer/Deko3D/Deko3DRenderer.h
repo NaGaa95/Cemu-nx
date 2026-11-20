@@ -25,6 +25,7 @@ class Deko3DRenderer final : public Renderer
 	bool BeginFrame(bool mainWindow) override;
 	void Flush(bool waitIdle = false) override;
 	void NotifyLatteCommandProcessorIdle() override;
+	bool HandleAppletSuspension();
 	void QueueGuestCompletion(std::function<void()> completion) override;
 	void ImguiEnd() override;
 	ImTextureID GenerateTexture(const std::vector<uint8>& data, const Vector2i& size) override;
