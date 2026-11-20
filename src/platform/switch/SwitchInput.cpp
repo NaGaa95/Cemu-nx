@@ -1,6 +1,10 @@
 extern "C" {
 #include <switch/runtime/pad.h>
 #include <switch/services/hid.h>
+#if defined(__SWITCH2__)
+#include <switch/arm/counter.h>
+#include <switch2/services/nmouse.h>
+#endif
 }
 
 #include <algorithm>
@@ -27,6 +31,7 @@ extern "C" {
 #include "platform/switch/SwitchOverlay.h"
 #include "platform/switch/SwitchPlatform.h"
 #if defined(__SWITCH2__)
+#include <imgui.h>
 #include "WindowSystem.h"
 #endif
 
@@ -49,6 +54,80 @@ constexpr std::array<HidNpadIdType, kSwitchControllerCount> kNpadIds = {
 	HidNpadIdType_No7,
 	HidNpadIdType_No8,
 };
+
+#if defined(__SWITCH2__)
+// The Joy-Con mouse (Switch 2): a Joy-Con moved on a surface (or a USB mouse) points at the GamePad's screen and ZL or
+// ZR touches it, as in Vita3K. The triggers leave the game only while the pointer is in use: moved by the sensor in the
+// last 2 s (bit 1 of the flags, clear for a Joy-Con in hand) or touching.
+struct JoyConMouse
+{
+	bool open = false;
+	bool touching = false;
+	u64 lastSample = 0;
+	u64 movedTick = 0;
+	// In the screen's 1280x720, read by the overlay that draws the pointer.
+	std::atomic<int> x{640}, y{360};
+	std::atomic<bool> inUse{false};
+};
+JoyConMouse s_joyConMouse;
+
+void OpenJoyConMouse()
+{
+	if (s_joyConMouse.open)
+		return;
+	if (R_FAILED(hidInitializeNmouse(nullptr, 0, 1280, 720, HidNmousePointerType_Default)))
+		return;
+	hidSetMergedNmouseSourceTypes(HidNmouseType_JoyLeft | HidNmouseType_JoyRight | HidNmouseType_StandardMouse);
+	s_joyConMouse.open = true;
+}
+
+// Out of use until the pointer moves on a surface again.
+void ReleaseJoyConMouse()
+{
+	s_joyConMouse.touching = false;
+	s_joyConMouse.movedTick = 0;
+	s_joyConMouse.inUse.store(false, std::memory_order_relaxed);
+}
+
+void CloseJoyConMouse()
+{
+	if (!s_joyConMouse.open)
+		return;
+	hidFinalizeNmouse();
+	s_joyConMouse.open = false;
+	s_joyConMouse.lastSample = 0;
+	ReleaseJoyConMouse();
+}
+
+// Whether the pointer touches the GamePad's screen. Takes ZL and ZR out of held while the pointer is in use.
+bool PollJoyConMouse(uint64_t& held)
+{
+	auto& mouse = s_joyConMouse;
+	HidNmouseHandle handle{};
+	HidNmouseState state{};
+	size_t total = 0;
+	if (R_SUCCEEDED(hidGetMergedNmouseHandle(&handle)) && R_SUCCEEDED(hidGetNmouseStates(handle, &state, 1, &total)) && total &&
+		state.sampling_number != mouse.lastSample)
+	{
+		const int x = std::clamp((int)state.x, 0, 1279), y = std::clamp((int)state.y, 0, 719);
+		if (mouse.lastSample && (state.flags & 2) &&
+			(x != mouse.x.load(std::memory_order_relaxed) || y != mouse.y.load(std::memory_order_relaxed)))
+			mouse.movedTick = armGetSystemTick();
+		mouse.lastSample = state.sampling_number;
+		mouse.x.store(x, std::memory_order_relaxed);
+		mouse.y.store(y, std::memory_order_relaxed);
+	}
+	constexpr u64 kInUseNs = 2'000'000'000ULL;
+	constexpr uint64_t kClick = HidNpadButton_ZL | HidNpadButton_ZR;
+	const bool moved = mouse.movedTick && armTicksToNs(armGetSystemTick() - mouse.movedTick) < kInUseNs;
+	mouse.touching = (held & kClick) && (moved || mouse.touching);
+	const bool inUse = moved || mouse.touching;
+	mouse.inUse.store(inUse, std::memory_order_relaxed);
+	if (inUse)
+		held &= ~kClick;
+	return mouse.touching;
+}
+#endif
 
 class SwitchGamepadController : public ControllerBase
 {
@@ -154,7 +233,7 @@ class SwitchGamepadController : public ControllerBase
 		padUpdate(&m_pad);
 		m_connected = padIsConnected(&m_pad);
 		updateMotion();
-		const uint64_t b = padGetButtons(&m_pad);
+		uint64_t b = padGetButtons(&m_pad);
 		if (SwitchOverlay_IsInputCaptured(b))
 		{
 			const bool clearMouse = m_touchDown || m_mainMouseWasDown;
@@ -170,24 +249,44 @@ class SwitchGamepadController : public ControllerBase
 			m_mainMouseWasDown = false;
 			return {};
 		}
+#if defined(__SWITCH2__)
+		// Only while the GamePad's screen shows: a TV-only layout keeps ZL and ZR for the game.
+		bool mouseTouch = false;
+		if (m_hasTouch && s_joyConMouse.open)
+		{
+			if (SwitchPlatform_IsGamePadOutputActive())
+				mouseTouch = PollJoyConMouse(b);
+			else
+				ReleaseJoyConMouse();
+		}
+#endif
 
 		if (m_hasTouch)
 		{
 			const bool previousTouchDown = m_touchDown;
 			const glm::vec2 previousTouchPos = m_touchPos;
+			// The screen's touch, else the Joy-Con mouse's, in the screen's 1280x720.
 			HidTouchScreenState ts{};
-			if (hidGetTouchScreenStates(&ts, 1) && ts.count > 0)
+			bool touching = hidGetTouchScreenStates(&ts, 1) && ts.count > 0;
+			int touchX = touching ? (int)ts.touches[0].x : 0, touchY = touching ? (int)ts.touches[0].y : 0;
+#if defined(__SWITCH2__)
+			if (!touching && mouseTouch)
 			{
-				const float nx = std::clamp((float)ts.touches[0].x / 1280.0f, 0.0f, 1.0f);
-				const float ny = std::clamp((float)ts.touches[0].y / 720.0f, 0.0f, 1.0f);
+				touching = true;
+				touchX = s_joyConMouse.x.load(std::memory_order_relaxed);
+				touchY = s_joyConMouse.y.load(std::memory_order_relaxed);
+			}
+#endif
+			if (touching)
+			{
+				const float nx = std::clamp((float)touchX / 1280.0f, 0.0f, 1.0f);
+				const float ny = std::clamp((float)touchY / 720.0f, 0.0f, 1.0f);
 				glm::vec2 nextTouch{nx, ny};
 				bool touchAccepted = true;
 				if (SwitchPlatform_IsGamePadCompositeActive())
 				{
 					int x, y, width, height;
 					SwitchPlatform_GetGamePadImageRect(true, 1280, 720, 854, 480, x, y, width, height);
-					const int touchX = ts.touches[0].x;
-					const int touchY = ts.touches[0].y;
 					touchAccepted = touchX >= x && touchX < x + width && touchY >= y && touchY < y + height;
 					if (touchAccepted)
 						nextTouch = {(float)(touchX - x) / width, (float)(touchY - y) / height};
@@ -542,6 +641,7 @@ struct InputConfig
 	std::string secondaryType = "Pro";
 	bool rumble = true;
 	int deadzone = 15;
+	bool joyConMouse = true;
 	int players = 1;
 	std::unordered_map<std::string, std::string> map;
 };
@@ -578,6 +678,7 @@ static InputConfig loadInputConfig(const char* path)
 				cfg.secondaryType = v;
 			else if (k == "rumble") cfg.rumble = (v == "on" || v == "true" || v == "1");
 			else if (k == "deadzone") cfg.deadzone = std::clamp(std::atoi(v.c_str()), 0, 50);
+			else if (k == "joycon_mouse") cfg.joyConMouse = (v == "on" || v == "true" || v == "1");
 			else if (k == "players") cfg.players = std::clamp(std::atoi(v.c_str()), 1, static_cast<int>(kSwitchControllerCount));
 		}
 		else if (section == "map")
@@ -806,6 +907,10 @@ void SwitchInput_Setup()
 	if (secondaryType == SwitchControllerType::GamePad)
 		secondaryType = SwitchControllerType::Pro;
 	s_secondaryControllerType.store(secondaryType, std::memory_order_release);
+#if defined(__SWITCH2__)
+	if (s_config.joyConMouse)
+		OpenJoyConMouse();
+#endif
 	ConfigureControllers(ParseControllerType(s_config.type, SwitchControllerType::GamePad));
 }
 
@@ -813,6 +918,24 @@ void SwitchInput_Shutdown()
 {
 	for (auto& controller : s_controllers)
 		controller.reset();
+#if defined(__SWITCH2__)
+	CloseJoyConMouse();
+#endif
+}
+
+void SwitchInput_DrawJoyConMouse()
+{
+#if defined(__SWITCH2__)
+	if (!s_joyConMouse.inUse.load(std::memory_order_relaxed))
+		return;
+	const ImGuiIO& io = ImGui::GetIO();
+	const ImVec2 position{s_joyConMouse.x.load(std::memory_order_relaxed) * io.DisplaySize.x / 1280.0f,
+						  s_joyConMouse.y.load(std::memory_order_relaxed) * io.DisplaySize.y / 720.0f};
+	const float radius = io.DisplaySize.y / 90.0f;
+	ImDrawList* draw = ImGui::GetForegroundDrawList();
+	draw->AddCircleFilled(position, radius, IM_COL32(255, 255, 255, 230));
+	draw->AddCircle(position, radius, IM_COL32(0, 0, 0, 200), 0, radius / 4.0f);
+#endif
 }
 
 bool SwitchInput_SetControllerType(SwitchControllerType type)

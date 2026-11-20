@@ -254,6 +254,7 @@ constexpr ChineseEntry CHINESE_ENTRIES[]={
  {"Sets how many active emulated controller slots Cemu creates for local multiplayer.","设置 Cemu 为本地多人游戏创建的活动模拟手柄插槽数量。","設定 Cemu 為本機多人遊戲建立的活動模擬手把插槽數量。"},
  {"Forwards supported Wii U controller vibration effects to the connected Switch controller.","将支持的 Wii U 手柄振动效果转发到已连接的 Switch 手柄。","將支援的 Wii U 手把震動效果轉發到已連接的 Switch 手把。"},
  {"Sets how far an analog stick must move before Cemu accepts input. Raise it to prevent drift; lower it for quicker response.","设置模拟摇杆在 Cemu 接受输入前必须移动的距离。提高以防止漂移；降低以获得更快响应。","設定類比搖桿在 Cemu 接受輸入前必須移動的距離。提高以防止漂移；降低以獲得更快回應。"},
+ {"Lets a Joy-Con set down on a surface move a pointer on the GamePad screen (Switch 2). ZL or ZR touches the screen while the pointer is in use.","让放在平面上的 Joy-Con 在 GamePad 屏幕上移动指针（Switch 2）。指针使用期间，ZL 或 ZR 用于触摸屏幕。","讓放在平面上的 Joy-Con 在 GamePad 螢幕上移動指標（Switch 2）。指標使用期間，ZL 或 ZR 用於觸控螢幕。"},
  {"Enables Cemu's virtual Skylanders Portal for games that communicate with that USB accessory.","为与该 USB 配件通信的游戏启用 Cemu 的虚拟 Skylanders 传送门。","為與該 USB 配件通訊的遊戲啟用 Cemu 的虛擬 Skylanders 傳送門。"},
  {"Enables Cemu's virtual Disney Infinity Base for games that communicate with that USB accessory.","为与该 USB 配件通信的游戏启用 Cemu 的虚拟迪士尼无限基座。","為與該 USB 配件通訊的遊戲啟用 Cemu 的虛擬迪士尼無限基座。"},
  {"Enables Cemu's virtual LEGO Dimensions Toy Pad for games that communicate with that USB accessory.","为与该 USB 配件通信的游戏启用 Cemu 的虚拟乐高次元玩具板。","為與該 USB 配件通訊的遊戲啟用 Cemu 的虛擬樂高次元玩具板。"},

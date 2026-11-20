@@ -20,6 +20,7 @@
 #include <cinttypes>
 
 #if defined(__SWITCH__)
+#include "platform/switch/SwitchInput.h"
 #include "platform/switch/SwitchOverlay.h"
 #endif
 
@@ -533,6 +534,8 @@ void LatteOverlay_render(bool pad_view)
 {
 #if defined(__SWITCH__)
 	SwitchOverlay_Render();
+	if (!pad_view)
+		SwitchInput_DrawJoyConMouse();
 #endif
 
 	const auto& config = GetConfig();

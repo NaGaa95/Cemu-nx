@@ -410,6 +410,9 @@ static const Opt S_input[] = {
   O_CHOICE("Active players",   "in_players", C_players, "1"),
   O_CHOICE("Rumble",           "in_rumble", C_bool,  "true"),
   O_RANGE ("Stick dead zone",  "in_deadzone", 0, 50, 1, "15"),
+#if defined(__SWITCH2__)
+  O_CHOICE("Joy-Con mouse",    "in_joycon_mouse", C_bool, "true"),
+#endif
   O_ACTION("Control mapping"),
   O_CHOICE("Skylanders Portal",      "UsbSkylanders", C_bool, "false"),
   O_CHOICE("Disney Infinity Base",   "UsbInfinity",   C_bool, "false"),
@@ -514,6 +517,10 @@ static const SettingHelpEntry SETTING_HELP[] = {
    "Forwards supported Wii U controller vibration effects to the connected Switch controller."},
   {"in_deadzone", "Analog input",
    "Sets how far an analog stick must move before Cemu accepts input. Raise it to prevent drift; lower it for quicker response."},
+#if defined(__SWITCH2__)
+  {"in_joycon_mouse", "Controller input",
+   "Lets a Joy-Con set down on a surface move a pointer on the GamePad screen (Switch 2). ZL or ZR touches the screen while the pointer is in use."},
+#endif
 
   {"UsbSkylanders", "Emulated USB accessory",
    "Enables Cemu's virtual Skylanders Portal for games that communicate with that USB accessory."},
@@ -651,6 +658,10 @@ static bool writeInputIni(const std::vector<CemuKV> &eff) {
   text += "rumble = ";
   text += (strcmp(cemuKVGet(eff, "in_rumble", "true"), "true") == 0 ? "on\n" : "off\n");
   text += "deadzone = " + std::string(cemuKVGet(eff, "in_deadzone", "15")) + "\n";
+#if defined(__SWITCH2__)
+  text += "joycon_mouse = ";
+  text += (strcmp(cemuKVGet(eff, "in_joycon_mouse", "true"), "true") == 0 ? "on\n" : "off\n");
+#endif
   text += "[map]\n";
   for (const auto &mapping : C_inputMappings)
     text += std::string(mapping.emu) + " = " + cemuKVGet(eff, mapping.key, mapping.def) + "\n";

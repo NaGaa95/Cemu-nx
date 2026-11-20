@@ -12,6 +12,8 @@ enum class SwitchControllerType
 
 void SwitchInput_Setup();
 void SwitchInput_Shutdown();
+// The Joy-Con mouse's pointer while it is in use (Switch 2), from the overlay's ImGui frame.
+void SwitchInput_DrawJoyConMouse();
 bool SwitchInput_SetControllerType(SwitchControllerType type);
 SwitchControllerType SwitchInput_GetControllerType();
 bool SwitchInput_SetSecondaryControllerType(SwitchControllerType type);
