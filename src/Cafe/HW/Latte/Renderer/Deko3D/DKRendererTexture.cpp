@@ -369,7 +369,9 @@ class Deko3DRenderer::State::Readback final : public LatteTextureReadbackInfo
 LatteTextureReadbackInfo* Deko3DRenderer::texture_createReadback(LatteTextureView* view)
 {
 	auto* texture = static_cast<LatteTextureDK*>(view->baseTexture);
-	if (texture->hostFormat.isAlternateFormat || texture->IsCompressedFormat())
+	// BC1 is stored natively; the copy and the readback helpers work in 4x4 blocks
+	if (texture->hostFormat.isAlternateFormat ||
+		(texture->IsCompressedFormat() && Latte::GetHWFormat(texture->format) != Latte::E_HWFMT::HWFMT_BC1))
 		return nullptr;
 	return new State::Readback(*m_state, static_cast<LatteTextureViewDK*>(view));
 }
