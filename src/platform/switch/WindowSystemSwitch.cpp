@@ -49,6 +49,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <stdexcept>
 #include <string_view>
 
@@ -59,8 +60,11 @@ void SwitchDestroyRenderer();
 namespace
 {
 	bool s_switchTripleBuffer = true;
-	std::atomic_bool s_gameBootBoostActive{false};
-	std::atomic_bool s_gameBootBoostHandoffArmed{false};
+	std::mutex s_cpuBoostMutex;
+	bool s_cpuBoostActive = false;
+#ifdef __SWITCH2__
+	bool s_keepCpuBoost = false;
+#endif
 	std::atomic<uint64_t> s_gameBootBoostDeadlineTick{0};
 	std::atomic_int s_surfaceWidth{1280};
 	std::atomic_int s_surfaceHeight{720};
@@ -73,16 +77,26 @@ namespace
 
 	constexpr uint64_t kGameBootBoostHandoffTimeoutNs = 300'000'000'000ULL;
 
-	void RestoreNormalCpuBoostMode()
+	// The caller holds s_cpuBoostMutex for each transition.
+	bool SetCpuBoostMode(bool enabled)
 	{
-		s_gameBootBoostHandoffArmed.store(false, std::memory_order_release);
+		if (enabled == s_cpuBoostActive)
+			return true;
+
+		const Result result = appletSetCpuBoostMode(enabled ? ApmCpuBoostMode_FastLoad : ApmCpuBoostMode_Normal);
+		if (R_FAILED(result))
+		{
+			cemuLog_log(LogType::Force, "Switch: CPU Boost {} failed (0x{:08X})", enabled ? "on" : "off", result);
+			return false;
+		}
+		s_cpuBoostActive = enabled;
+		return true;
+	}
+
+	void ReleaseBootBoost()
+	{
 		s_gameBootBoostDeadlineTick.store(0, std::memory_order_release);
-
-		if (!s_gameBootBoostActive.exchange(false, std::memory_order_acq_rel))
-			return;
-
-		// (Normal, never CancelCpuBoostMode: on the Switch 2 that leaves the boost on)
-		appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
+		SetCpuBoostMode(false);
 	}
 
 	bool IsCompositeLayout(SwitchGamePadLayout layout)
@@ -232,52 +246,65 @@ void SwitchPlatform_GetGamePadImageRect(bool padView, int fullWidth, int fullHei
 
 void SwitchPlatform_BeginGameBootBoost()
 {
-	s_gameBootBoostHandoffArmed.store(false, std::memory_order_release);
+	const std::lock_guard lock(s_cpuBoostMutex);
 	s_gameBootBoostDeadlineTick.store(0, std::memory_order_release);
-
-	if (s_gameBootBoostActive.exchange(true, std::memory_order_acq_rel))
-		return;
-
-	const Result result = appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
-	if (R_FAILED(result))
-	{
-		s_gameBootBoostActive.store(false, std::memory_order_release);
-		return;
-	}
+	SetCpuBoostMode(true);
 }
 
 void SwitchPlatform_ArmGameBootBoostHandoff()
 {
-	const uint64_t now = armGetSystemTick();
-	if (!s_gameBootBoostActive.load(std::memory_order_acquire))
+	const std::lock_guard lock(s_cpuBoostMutex);
+#ifdef __SWITCH2__
+	if (s_keepCpuBoost)
 		return;
-
-	s_gameBootBoostDeadlineTick.store(now + armNsToTicks(kGameBootBoostHandoffTimeoutNs), std::memory_order_release);
-	s_gameBootBoostHandoffArmed.store(true, std::memory_order_release);
+#endif
+	if (s_cpuBoostActive)
+	{
+		const uint64_t deadline = armGetSystemTick() + armNsToTicks(kGameBootBoostHandoffTimeoutNs);
+		s_gameBootBoostDeadlineTick.store(deadline, std::memory_order_release);
+	}
 }
 
 void SwitchPlatform_EndGameBootBoost()
 {
-	RestoreNormalCpuBoostMode();
+	const std::lock_guard lock(s_cpuBoostMutex);
+	ReleaseBootBoost();
 }
 
 void SwitchPlatform_NotifyGameFrameSubmitted()
 {
-	if (s_gameBootBoostHandoffArmed.exchange(false, std::memory_order_acq_rel))
-		RestoreNormalCpuBoostMode();
+	if (s_gameBootBoostDeadlineTick.load(std::memory_order_acquire) == 0)
+		return;
+
+	const std::lock_guard lock(s_cpuBoostMutex);
+	if (s_gameBootBoostDeadlineTick.load(std::memory_order_relaxed) != 0)
+		ReleaseBootBoost();
 }
 
 void SwitchPlatform_PollGameBootState()
 {
-	const uint64_t now = armGetSystemTick();
-	const uint64_t boostDeadline = s_gameBootBoostDeadlineTick.load(std::memory_order_acquire);
-	if (s_gameBootBoostActive.load(std::memory_order_acquire) &&
-		s_gameBootBoostHandoffArmed.load(std::memory_order_acquire) && boostDeadline != 0 &&
-		static_cast<int64_t>(now - boostDeadline) >= 0)
+	const uint64_t deadline = s_gameBootBoostDeadlineTick.load(std::memory_order_acquire);
+	if (deadline != 0 && static_cast<int64_t>(armGetSystemTick() - deadline) >= 0)
+		SwitchPlatform_NotifyGameFrameSubmitted();
+}
+
+#ifdef __SWITCH2__
+bool SwitchPlatform_IsCpuBoostEnabled()
+{
+	const std::lock_guard lock(s_cpuBoostMutex);
+	return s_keepCpuBoost && s_cpuBoostActive;
+}
+
+void SwitchPlatform_ToggleCpuBoost()
+{
+	const std::lock_guard lock(s_cpuBoostMutex);
+	if (SetCpuBoostMode(!(s_keepCpuBoost && s_cpuBoostActive)))
 	{
-		RestoreNormalCpuBoostMode();
+		s_keepCpuBoost = s_cpuBoostActive;
+		s_gameBootBoostDeadlineTick.store(0, std::memory_order_release);
 	}
 }
+#endif
 
 namespace WindowSystem
 {
@@ -507,6 +534,12 @@ namespace WindowSystem
 			n_config.Load();
 
 		LoadHandoff();
+#ifdef __SWITCH2__
+		{
+			const std::lock_guard lock(s_cpuBoostMutex);
+			s_keepCpuBoost = Handoff("keep_cpu_boost", "false") == "true";
+		}
+#endif
 #if defined(__SWITCH2__)
 		UpdateOperationMode();
 #endif

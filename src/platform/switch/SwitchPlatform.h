@@ -16,6 +16,10 @@ void SwitchPlatform_ArmGameBootBoostHandoff();
 void SwitchPlatform_EndGameBootBoost();
 void SwitchPlatform_NotifyGameFrameSubmitted();
 void SwitchPlatform_PollGameBootState();
+#ifdef __SWITCH2__
+bool SwitchPlatform_IsCpuBoostEnabled();
+void SwitchPlatform_ToggleCpuBoost();
+#endif
 void SwitchPlatform_ApplyWindowSurfaceSize(int width, int height);
 // The display's refresh rate: 60 on the Switch; on the Switch 2 120 handheld, and docked with frame generation.
 int SwitchPlatform_DisplayRefreshRate();

@@ -6,8 +6,8 @@
 #include <array>
 #include <atomic>
 #include <charconv>
-#include <cstdio>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -43,7 +43,6 @@ enum class HotkeyAction : size_t
 	FastForward,
 	ToggleFrameGeneration,
 	ToggleFps,
-	ToggleShaderNotice,
 	CycleController,
 	ScanAmiibo,
 	ExitLauncher,
@@ -63,11 +62,24 @@ constexpr std::uint64_t kAllowedButtons = HidNpadButton_A | HidNpadButton_B | Hi
 	HidNpadButton_Plus | HidNpadButton_Minus | HidNpadButton_StickL | HidNpadButton_StickR |
 	HidNpadButton_Up | HidNpadButton_Down | HidNpadButton_Left | HidNpadButton_Right;
 constexpr size_t kHotkeyCount = static_cast<size_t>(HotkeyAction::Count);
-#if defined(__SWITCH2__)
-constexpr int kMainMenuItems = 11; // (no "Close quick menu" row: B closes it)
-#else
-constexpr int kMainMenuItems = 12;
+enum MainItem
+{
+	MainResume,
+#ifdef __SWITCH2__
+	MainCpuBoost,
 #endif
+	MainController,
+	MainSecondaryController,
+	MainGamePad,
+	MainFrameGeneration,
+	MainFps,
+	MainPosition,
+	MainHotkeys,
+	MainAccessories,
+	MainAmiibo,
+	MainExit,
+	MainItemCount,
+};
 constexpr float kMainRowHeight = 38.0f;
 constexpr int kAccessoryMenuItems = 4;
 constexpr int kPositionCount = 7;
@@ -78,7 +90,6 @@ constexpr std::array<HotkeyInfo, kHotkeyCount> kHotkeys{{
 	{"Toggle fast-forward", "fast_forward", 0},
 	{"Toggle frame generation", "frame_generation", 0},
 	{"Toggle FPS counter", "fps", 0},
-	{"Toggle shader notice", "shader_notice", 0},
 	{"Cycle controller type", "controller", 0},
 	{"Scan Amiibo", "amiibo", 0},
 	{"Exit to launcher", "exit", HidNpadButton_L | HidNpadButton_R | HidNpadButton_ZL | HidNpadButton_ZR},
@@ -92,7 +103,6 @@ std::atomic<Page> s_page{Page::Main};
 std::atomic_int s_selection{0};
 std::atomic_int s_fpsToggleRequests{0};
 std::atomic_int s_positionRequests{0};
-std::atomic_int s_shaderToggleRequests{0};
 std::atomic_int s_fastForwardToggleRequests{0};
 std::atomic_int s_amiiboScanRequests{0};
 std::atomic_int s_exitRequests{0};
@@ -343,9 +353,6 @@ void DispatchHotkey(HotkeyAction action)
 	case HotkeyAction::ToggleFps:
 		s_fpsToggleRequests.fetch_add(1, std::memory_order_release);
 		break;
-	case HotkeyAction::ToggleShaderNotice:
-		s_shaderToggleRequests.fetch_add(1, std::memory_order_release);
-		break;
 	case HotkeyAction::CycleController:
 		CycleControllerType(1);
 		break;
@@ -419,8 +426,6 @@ void ApplyOverlaySettings()
 			positionDelta % kPositionCount + kPositionCount) % kPositionCount;
 		config.overlay.position = static_cast<ScreenPosition>(position);
 	}
-	if (s_shaderToggleRequests.exchange(0, std::memory_order_acq_rel) & 1)
-		config.notification.shader_compiling = !config.notification.shader_compiling;
 	if (s_fastForwardToggleRequests.exchange(0, std::memory_order_acq_rel) & 1)
 		ActiveSettings::SetTimerShiftFactor(ActiveSettings::GetTimerShiftFactor() < 3 ? 3 : 1);
 }
@@ -441,44 +446,72 @@ void SelectableRow(const std::string& label, int index, float height = 48.0f)
 		ImGui::SetScrollHereY(0.5f);
 }
 
+void OptionRow(const char* label, int index, std::string_view value = {},
+	std::optional<bool> toggle = std::nullopt, float height = kMainRowHeight)
+{
+	SelectableRow(label, index, height);
+	const float center = (ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y) * 0.5f;
+	float right = ImGui::GetItemRectMax().x - 12.0f * s_scale;
+	ImDrawList* draw = ImGui::GetWindowDrawList();
+	if (toggle)
+	{
+		const float trackHeight = 22.0f * s_scale;
+		const float width = trackHeight * 9.0f / 5.0f;
+		const float inset = 3.0f * s_scale;
+		const float radius = trackHeight * 0.5f - inset;
+		draw->AddRectFilled({right - width, center - trackHeight * 0.5f}, {right, center + trackHeight * 0.5f},
+			*toggle ? IM_COL32(75, 155, 222, 255) : IM_COL32(58, 68, 82, 255), trackHeight * 0.5f);
+		const float knob = *toggle ? right - inset - radius : right - width + inset + radius;
+		draw->AddCircleFilled({knob, center}, radius, IM_COL32(245, 250, 255, 255));
+		right -= width + 12.0f * s_scale;
+	}
+	if (!value.empty())
+	{
+		const char* end = value.data() + value.size();
+		const ImVec2 size = ImGui::CalcTextSize(value.data(), end);
+		const float left = ImGui::GetItemRectMin().x + ImGui::CalcTextSize(label, nullptr, true).x + 16.0f * s_scale;
+		if (left >= right)
+			return;
+		draw->PushClipRect({left, ImGui::GetItemRectMin().y}, {right, ImGui::GetItemRectMax().y}, true);
+		draw->AddText({std::max(left, right - size.x), center - size.y * 0.5f},
+			IM_COL32(177, 205, 225, 255), value.data(), end);
+		draw->PopClipRect();
+	}
+}
+
 void RenderMainPage()
 {
-	auto& config = GetConfig();
-	char row[192];
-	std::snprintf(row, sizeof(row), "Controller type     <  %s  >", ControllerTypeName(SwitchInput_GetControllerType()));
-	SelectableRow(row, 0, kMainRowHeight);
-	std::snprintf(row, sizeof(row), "Other controllers   <  %s  >", ControllerTypeName(SwitchInput_GetSecondaryControllerType()));
-	SelectableRow(row, 1, kMainRowHeight);
-	std::snprintf(row, sizeof(row), "GamePad screen      <  %s  >", GamePadLayoutName(SwitchPlatform_GetGamePadLayout()));
-	SelectableRow(row, 2, kMainRowHeight);
-	const char* frameGenerationStatus = !SwitchLSFG_IsPrepared() ? "Not prepared" :
-		(!SwitchLSFG_IsAvailable() ? "Unavailable" :
-		(!SwitchLSFG_IsEnabled() ? "Off" :
-		(SwitchLSFG_IsHighRatePassthrough() ? "On (native rate)" : "On")));
+	const auto& config = GetConfig();
+	OptionRow("Resume Game", MainResume);
+#ifdef __SWITCH2__
+	OptionRow("CPU Boost", MainCpuBoost, {}, SwitchPlatform_IsCpuBoostEnabled());
+#endif
+	OptionRow("Controller type", MainController, ControllerTypeName(SwitchInput_GetControllerType()));
+	OptionRow("Other controllers", MainSecondaryController, ControllerTypeName(SwitchInput_GetSecondaryControllerType()));
+	OptionRow("GamePad screen", MainGamePad, GamePadLayoutName(SwitchPlatform_GetGamePadLayout()));
+	const bool frameGenerationPrepared = SwitchLSFG_IsPrepared();
+	bool frameGenerationAvailable = frameGenerationPrepared && SwitchLSFG_IsAvailable();
+	const bool frameGenerationEnabled = SwitchLSFG_IsEnabled();
+	const char* frameGenerationStatus = frameGenerationAvailable ?
+		(frameGenerationEnabled && SwitchLSFG_IsHighRatePassthrough() ? "Native rate" : "") :
+		(frameGenerationPrepared ? "Unavailable" : "Not prepared");
 #if defined(ENABLE_DEKO3D)
 	if (SwitchLSFGDeko_IsPreparing())
+	{
+		frameGenerationAvailable = false;
 		frameGenerationStatus = "Preparing";
+	}
 #endif
-	std::snprintf(row, sizeof(row), "Frame generation    <  %s  >", frameGenerationStatus);
-	SelectableRow(row, 3, kMainRowHeight);
-	std::snprintf(row, sizeof(row), "FPS counter         <  %s  >", config.overlay.fps ? "On" : "Off");
-	SelectableRow(row, 4, kMainRowHeight);
-	std::snprintf(row, sizeof(row), "Overlay position    <  %s  >", PositionName(config.overlay.position));
-	SelectableRow(row, 5, kMainRowHeight);
-	std::snprintf(row, sizeof(row), "Shader notice       <  %s  >", config.notification.shader_compiling ? "On" : "Off");
-	SelectableRow(row, 6, kMainRowHeight);
-	SelectableRow("Runtime hotkeys                              >", 7, kMainRowHeight);
-	SelectableRow("Virtual USB accessories                      >", 8, kMainRowHeight);
+	OptionRow("Frame generation", MainFrameGeneration, frameGenerationStatus,
+		frameGenerationAvailable ? std::optional{frameGenerationEnabled} : std::nullopt);
+	OptionRow("FPS counter", MainFps, {}, config.overlay.fps);
+	OptionRow("Overlay position", MainPosition, PositionName(config.overlay.position));
+	OptionRow("Runtime hotkeys", MainHotkeys, ">");
+	OptionRow("Virtual USB accessories", MainAccessories, ">");
 	char amiiboStatus[96];
 	SwitchAmiibo_GetStatus(amiiboStatus, sizeof(amiiboStatus));
-	std::snprintf(row, sizeof(row), "Scan Amiibo         %s", amiiboStatus);
-	SelectableRow(row, 9, kMainRowHeight);
-	SelectableRow("Exit to launcher", 10, kMainRowHeight);
-#if !defined(__SWITCH2__)
-	SelectableRow("Close quick menu", 11, kMainRowHeight);
-#endif
-	ImGui::Separator();
-	CenteredText("D-Pad  Navigate     A  Select     B  Close");
+	OptionRow("Scan Amiibo", MainAmiibo, amiiboStatus);
+	OptionRow("Exit to launcher", MainExit);
 }
 
 void RenderHotkeyPage()
@@ -494,16 +527,15 @@ void RenderHotkeyPage()
 		}
 		else
 			binding = HotkeyMaskName(s_hotkeyMasks[index].load(std::memory_order_acquire));
-		std::string row = std::string(kHotkeys[index].label) + "    <  " + binding + "  >##hotkey" + std::to_string(index);
-		SelectableRow(row, static_cast<int>(index));
+		OptionRow(kHotkeys[index].label, static_cast<int>(index), binding);
 	}
-	SelectableRow("Reset hotkeys to defaults", static_cast<int>(kHotkeyCount));
-	SelectableRow("Back", static_cast<int>(kHotkeyCount + 1));
-	ImGui::Separator();
+	OptionRow("Reset hotkeys to defaults", static_cast<int>(kHotkeyCount));
+	OptionRow("Back", static_cast<int>(kHotkeyCount + 1));
 	if (s_bindingRejected.load(std::memory_order_acquire))
+	{
+		ImGui::Separator();
 		CenteredText("That combination is reserved for the quick menu");
-	else
-		CenteredText("A  Remap     X  Disable     B  Back");
+	}
 }
 
 void RenderAccessoryPage()
@@ -511,11 +543,9 @@ void RenderAccessoryPage()
 	for (int index = 0; index < 3; ++index)
 	{
 		const auto type = static_cast<SwitchToyType>(index);
-		std::string row = std::string(ToyTypeName(type)) + "    <  " +
-			(SwitchToys_IsEnabled(type) ? "Enabled" : "Disabled") + "  >##accessory" + std::to_string(index);
-		SelectableRow(row, index, 64.0f);
+		OptionRow(ToyTypeName(type), index, SwitchToys_IsEnabled(type) ? "Enabled" : "Disabled");
 	}
-	SelectableRow("Back", 3, 64.0f);
+	OptionRow("Back", kAccessoryMenuItems - 1);
 	ImGui::Separator();
 	CenteredText("Enable devices in Launcher > Settings > USB Accessories");
 }
@@ -527,16 +557,14 @@ void RenderToySlotsPage()
 	ImGui::BeginChild("toy slots", {0.0f, 500.0f * s_scale}, false, ImGuiWindowFlags_NoInputs);
 	for (int slot = 0; slot < slotCount; ++slot)
 	{
-		std::string row = SwitchToys_GetSlotTitle(type, slot) + "    <  " +
-			Shorten(SwitchToys_GetSlotValue(type, slot), 46) + "  >##slot" + std::to_string(slot);
-		SelectableRow(row, slot);
+		const std::string label = SwitchToys_GetSlotTitle(type, slot) + "##slot" + std::to_string(slot);
+		OptionRow(label.c_str(), slot, SwitchToys_GetSlotValue(type, slot), {}, 48.0f);
 	}
 	SelectableRow("Back", slotCount);
 	ImGui::EndChild();
 	ImGui::Separator();
 	const std::string status = Shorten(SwitchToys_GetStatus(), 72);
 	CenteredText(status.c_str());
-	CenteredText("A  Choose dump     X  Remove     Y  Refresh     B  Back");
 }
 
 void RenderToyFilesPage()
@@ -556,8 +584,6 @@ void RenderToyFilesPage()
 	CenteredText(status.c_str());
 	if (fileCount == 0)
 		CenteredText("No compatible dumps found. Add files to sdmc:/switch/cemu/toys/");
-	else
-		CenteredText("A  Load figure     Y  Refresh     B  Back");
 }
 } // namespace
 
@@ -623,7 +649,7 @@ void SwitchOverlay_UpdateInput(std::uint64_t down, std::uint64_t held)
 
 	const Page page = s_page.load(std::memory_order_acquire);
 	int selection = s_selection.load(std::memory_order_relaxed);
-	int itemCount = kMainMenuItems;
+	int itemCount = MainItemCount;
 	if (page == Page::Hotkeys)
 		itemCount = static_cast<int>(kHotkeyCount + 2);
 	else if (page == Page::Accessories)
@@ -655,43 +681,37 @@ void SwitchOverlay_UpdateInput(std::uint64_t down, std::uint64_t held)
 	const bool confirm = down & HidNpadButton_A;
 	if (page == Page::Main)
 	{
-		if (selection == 0 && previous)
-			CycleControllerType(-1);
-		else if (selection == 0 && (next || confirm))
-			CycleControllerType(1);
-		else if (selection == 1 && previous)
-			CycleSecondaryControllerType(-1);
-		else if (selection == 1 && (next || confirm))
-			CycleSecondaryControllerType(1);
-		else if (selection == 2 && previous)
-			ChangeGamePadLayout(-1);
-		else if (selection == 2 && (next || confirm))
-			ChangeGamePadLayout(1);
-		else if (selection == 3 && (previous || next || confirm))
+		const bool adjust = previous || next || confirm;
+		const int direction = previous ? -1 : 1;
+		if (selection == MainResume && confirm)
+			CloseMenu();
+#ifdef __SWITCH2__
+		else if (selection == MainCpuBoost && adjust)
+			SwitchPlatform_ToggleCpuBoost();
+#endif
+		else if (selection == MainController && adjust)
+			CycleControllerType(direction);
+		else if (selection == MainSecondaryController && adjust)
+			CycleSecondaryControllerType(direction);
+		else if (selection == MainGamePad && adjust)
+			ChangeGamePadLayout(direction);
+		else if (selection == MainFrameGeneration && adjust)
 			SwitchLSFG_RequestEnabled(!SwitchLSFG_IsEnabled());
-		else if (selection == 4 && (previous || next || confirm))
+		else if (selection == MainFps && adjust)
 			s_fpsToggleRequests.fetch_add(1, std::memory_order_release);
-		else if (selection == 5 && previous)
-			s_positionRequests.fetch_sub(1, std::memory_order_release);
-		else if (selection == 5 && (next || confirm))
-			s_positionRequests.fetch_add(1, std::memory_order_release);
-		else if (selection == 6 && (previous || next || confirm))
-			s_shaderToggleRequests.fetch_add(1, std::memory_order_release);
-		else if (selection == 7 && confirm)
+		else if (selection == MainPosition && adjust)
+			s_positionRequests.fetch_add(direction, std::memory_order_release);
+		else if (selection == MainHotkeys && confirm)
 			SetPage(Page::Hotkeys);
-		else if (selection == 8 && confirm)
+		else if (selection == MainAccessories && confirm)
 			SetPage(Page::Accessories);
-		else if (selection == 9 && confirm)
+		else if (selection == MainAmiibo && confirm)
 			s_amiiboScanRequests.fetch_add(1, std::memory_order_release);
-		else if (selection == 10 && confirm)
+		else if (selection == MainExit && confirm)
 		{
 			s_exitRequests.fetch_add(1, std::memory_order_release);
 			CloseMenu();
 		}
-#if !defined(__SWITCH2__)
-		else if (selection == 11 && confirm)
-			CloseMenu();
-#endif
 		return;
 	}
 	if (page == Page::Hotkeys)
@@ -796,12 +816,36 @@ void SwitchOverlay_Render()
 		return;
 	ImGui::GetBackgroundDrawList()->AddRectFilled({0.0f, 0.0f}, io.DisplaySize, IM_COL32(0, 0, 0, 120));
 	ImGui::SetNextWindowPos({io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f}, ImGuiCond_Always, {0.5f, 0.5f});
-	ImGui::SetNextWindowSize({840.0f * s_scale, 680.0f * s_scale}, ImGuiCond_Always);
+	const Page page = s_page.load(std::memory_order_acquire);
+	const float rowStep = kMainRowHeight + 8.0f;
+	float width = 740.0f;
+	float height = 635.0f;
+	switch (page)
+	{
+	case Page::Main:
+		width = 570.0f;
+		height = 76.0f + MainItemCount * rowStep;
+		break;
+	case Page::Hotkeys:
+		width = 650.0f;
+		height = 76.0f + static_cast<float>(kHotkeyCount + 2) * rowStep;
+		if (s_bindingRejected.load(std::memory_order_acquire))
+			height += 44.0f;
+		break;
+	case Page::Accessories:
+		width = 690.0f;
+		height = 120.0f + kAccessoryMenuItems * rowStep;
+		break;
+	default:
+		break;
+	}
+	ImGui::SetNextWindowSize({width * s_scale, height * s_scale}, ImGuiCond_Always);
 	ImGui::SetNextWindowBgAlpha(0.94f);
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 14.0f * s_scale);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {28.0f * s_scale, 20.0f * s_scale});
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {10.0f * s_scale, 8.0f * s_scale});
+	ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, {0.0f, 0.5f});
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(12, 20, 34, 245));
 	ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(94, 201, 255, 255));
 	ImGui::PushStyleColor(ImGuiCol_Header, IM_COL32(31, 82, 112, 235));
@@ -814,7 +858,6 @@ void SwitchOverlay_Render()
 		ImGuiWindowFlags_NoInputs;
 	if (ImGui::Begin("Cemu quick menu", nullptr, flags))
 	{
-		const Page page = s_page.load(std::memory_order_acquire);
 		if (page == Page::Main)
 			CenteredText("Cemu Quick Menu");
 		else if (page == Page::Hotkeys)
@@ -844,5 +887,5 @@ void SwitchOverlay_Render()
 	ImGui::End();
 	ImGui::PopFont();
 	ImGui::PopStyleColor(5);
-	ImGui::PopStyleVar(3);
+	ImGui::PopStyleVar(4);
 }
