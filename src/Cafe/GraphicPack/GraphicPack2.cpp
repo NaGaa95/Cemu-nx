@@ -930,11 +930,23 @@ void GraphicPack2::_iterateReplacedFiles(const fs::path& currentPath, bool isAOC
 {
 	uint64 currentTitleId = CafeSystem::GetForegroundTitleId();
 	uint64 aocTitleId = (currentTitleId & 0xFFFFFFFFull) | 0x0005000c00000000ull;
-	for (auto& it : fs::recursive_directory_iterator(currentPath))
+	// Use the non-throwing overloads: an exception here escapes graphic pack activation and kills the emulator
+	std::error_code ec;
+	for (fs::recursive_directory_iterator itr(currentPath, ec), end; !ec && itr != end; itr.increment(ec))
 	{
-		if (fs::is_regular_file(it))
+		const fs::directory_entry& it = *itr;
+		std::error_code entryEc;
+		if (it.is_regular_file(entryEc) && !entryEc)
 		{
-			fs::path virtualMountPath = fs::relative(it.path(), currentPath);
+			// lexically_relative is purely string based. fs::relative() canonicalizes both paths first, which fails
+			// for device-prefixed paths like "sdmc:/..." on Switch (not absolute under POSIX rules) and throws
+			fs::path virtualMountPath = it.path().lexically_relative(currentPath);
+			const uintmax_t fileSize = it.file_size(entryEc);
+			if (virtualMountPath.empty() || entryEc)
+			{
+				cemuLog_log(LogType::Force, "Graphic pack: skipping replaced file \"{}\"", _pathToUtf8(it.path()));
+				continue;
+			}
 			if (isAOC)
 			{
 				virtualMountPath = fs::path(fmt::format("/vol/aoc{:016x}/", aocTitleId)) / virtualMountPath;
@@ -943,9 +955,11 @@ void GraphicPack2::_iterateReplacedFiles(const fs::path& currentPath, bool isAOC
 			{
 				virtualMountPath = fs::path(virtualMountBase) / virtualMountPath;
 			}
-			fscDeviceRedirect_add(virtualMountPath.generic_string(), it.file_size(), it.path().generic_string(), m_fs_priority);
+			fscDeviceRedirect_add(virtualMountPath.generic_string(), fileSize, it.path().generic_string(), m_fs_priority);
 		}
 	}
+	if (ec)
+		cemuLog_log(LogType::Force, "Graphic pack: failed to scan \"{}\": {}", _pathToUtf8(currentPath), ec.message());
 }
 
 void GraphicPack2::LoadReplacedFiles()
