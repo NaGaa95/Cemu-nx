@@ -1571,7 +1571,7 @@ static void drawFooterHints(const FootItem *it,int n,int cy){
 }
 
 static std::array<FootItem,3> libraryFooter(){
-  return {{{"A","Launch"},{"Y","Game Menu"},{"B","Quit"}}};
+  return {{{"A","Launch"},{"Y","Game menu"},{"B","Quit"}}};
 }
 
 static void drawSettingsFooter(const char *text,int cy=-1){
