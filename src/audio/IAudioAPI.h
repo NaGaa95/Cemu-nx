@@ -46,6 +46,7 @@ public:
 		XAudio2,
 		Cubeb,
 		SwitchAudio,
+		Audren,
 
 		AudioAPIEnd,
 	};

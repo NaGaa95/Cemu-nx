@@ -11,6 +11,7 @@
 #endif
 #if defined(__SWITCH__)
 #include "SwitchAudioAPI.h"
+#include "AudrenAPI.h"
 #endif
 
 std::shared_mutex g_audioMutex;
@@ -91,7 +92,11 @@ void IAudioAPI::InitializeStatic()
 	s_availableApis[Cubeb] = CubebAPI::InitializeStatic();
 #endif
 #if defined(__SWITCH__)
-	s_availableApis[SwitchAudio] = SwitchAudioAPI::InitializeStatic();
+	// only the backend chosen in the launcher is started
+	if (GetConfig().audio_api == SwitchAudio)
+		s_availableApis[SwitchAudio] = SwitchAudioAPI::InitializeStatic();
+	else
+		s_availableApis[Audren] = AudrenAPI::InitializeStatic();
 #endif
 }
 
@@ -178,6 +183,8 @@ AudioAPIPtr IAudioAPI::CreateDevice(AudioAPI api, const DeviceDescriptionPtr& de
 #if defined(__SWITCH__)
 	case SwitchAudio:
 		return std::make_unique<SwitchAudioAPI>(samplerate, channels, samples_per_block, bits_per_sample);
+	case Audren:
+		return std::make_unique<AudrenAPI>(samplerate, channels, samples_per_block, bits_per_sample);
 #endif
 	default:
 		throw std::runtime_error(fmt::format("invalid audio api: {}", api));
@@ -214,6 +221,8 @@ std::vector<IAudioAPI::DeviceDescriptionPtr> IAudioAPI::GetDevices(AudioAPI api)
 #if defined(__SWITCH__)
 	case SwitchAudio:
 		return SwitchAudioAPI::GetDevices();
+	case Audren:
+		return AudrenAPI::GetDevices();
 #endif
 	default:
 		throw std::runtime_error(fmt::format("invalid audio api: {}", api));

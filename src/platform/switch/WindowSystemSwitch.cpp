@@ -20,6 +20,7 @@
 #include "audio/IAudioAPI.h"
 #include "audio/IAudioInputAPI.h"
 #include "audio/SwitchAudioAPI.h"
+#include "audio/AudrenAPI.h"
 #include "platform/switch/SwitchAmiibo.h"
 #include "platform/switch/SwitchSwkbd.h"
 #include "platform/switch/SwitchInput.h"
@@ -361,6 +362,7 @@ namespace WindowSystem
 			const bool active = appletGetFocusState() == AppletFocusState_InFocus;
 			s_windowInfo.app_active.store(active, std::memory_order_release);
 			SwitchAudioAPI::SetApplicationActive(active);
+			AudrenAPI::SetApplicationActive(active);
 			break;
 		}
 		case AppletHookType_OnOperationMode:
@@ -599,7 +601,7 @@ namespace WindowSystem
 
 		LatteOverlay_init();
 
-		GetConfig().audio_api = IAudioAPI::SwitchAudio;
+		GetConfig().audio_api = Handoff("audio_backend", "audren") == "audout" ? IAudioAPI::SwitchAudio : IAudioAPI::Audren;
 		GetConfig().tv_device = L"default";
 		GetConfig().tv_channels = kStereo;
 		if (!GetConfig().pad_device.empty())

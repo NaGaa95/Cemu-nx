@@ -10,6 +10,7 @@
 #include "Cemu/Logging/CemuLogging.h"
 #include "Common/ExceptionHandler/ExceptionHandler.h"
 #include "audio/SwitchAudioAPI.h"
+#include "audio/AudrenAPI.h"
 #include "config/LaunchSettings.h"
 #include "SwitchPlatform.h"
 #include "SwitchMemoryBudget.h"
@@ -248,6 +249,7 @@ static void SwitchPlatformExit()
 	saltynx_stop();
 	MemMapper::SwitchGuestMemory::DiscardEarly("core exited before adoption");
 	SwitchAudioAPI::Destroy();
+	AudrenAPI::Destroy();
 	if (s_storageInitialized)
 	{
 		SwitchStorage::Shutdown();

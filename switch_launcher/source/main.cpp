@@ -313,6 +313,7 @@ static const Choice C_timer[]    = { {"1x (normal)","3"}, {"2x faster","2"}, {"4
                                      {"0.5x slower","4"}, {"0.25x slower","5"} };
 static const Choice C_bool[]     = { {"Off","false"}, {"On","true"} };
 static const Choice C_bool01[]   = { {"Off","0"}, {"On","1"} };
+static const Choice C_audioBackend[] = { {"audren","audren"}, {"audout","audout"} };
 #if defined(__SWITCH2__)
 static const Choice C_backend[]  = { {"Drako3D","deko3d"}, {"Vulkan (NVK)","vk"}, {"OpenGL (NVC0)","gl"},
                                      {"OpenGL (Zink/NVK)","zink"} };
@@ -391,6 +392,7 @@ static const Opt S_graphics[] = {
   O_CHOICE("GamePad screen",        "GamePadLayout",     C_gamepadLayout, "off"),
 };
 static const Opt S_audio[] = {
+  O_CHOICE("Audio backend",    "Wrapper/AudioBackend", C_audioBackend, "audren"),
   O_RANGE ("TV volume",        "TVVolume",    0, 100, 5, "50"),
   O_CHOICE("GamePad audio",    "PadAudio",    C_bool,    "true"),
   O_RANGE ("GamePad volume",   "PadVolume",   0, 100, 5, "50"),
@@ -490,6 +492,8 @@ static const SettingHelpEntry SETTING_HELP[] = {
   {"GamePadLayout", "Wii U GamePad display",
    "Chooses whether to show the TV view, the GamePad view, or both views in a split layout. Composite layouts reduce the space available to each screen."},
 
+  {"Wrapper/AudioBackend", "Audio backend",
+   "Audio renderer mixes the TV and GamePad streams on the Switch's audio DSP. Audio out mixes them on a CPU core instead; use it if a game has no sound or crackles with the audio renderer."},
   {"TVVolume", "Audio output",
    "Sets the volume of the emulated Wii U TV audio stream sent to the Switch output."},
   {"PadAudio", "Wii U GamePad audio",
@@ -8857,6 +8861,7 @@ static bool writeLaunchHandoff(const std::vector<CemuKV> &settings,const std::st
      !appendHandoffValue(handoff,"keep_cpu_boost",cemuKVGet(settings,CPU_BOOST_KEY,"false")) ||
      !appendHandoffValue(handoff,"lsfg_120hz",cemuKVGet(settings,"Wrapper/LSFG120Hz","false")) ||
 #endif
+     !appendHandoffValue(handoff,"audio_backend",cemuKVGet(settings,"Wrapper/AudioBackend","audren")) ||
      !appendHandoffValue(handoff,"usb_skylanders",cemuKVGet(settings,"UsbSkylanders","false")) ||
      !appendHandoffValue(handoff,"usb_infinity",cemuKVGet(settings,"UsbInfinity","false")) ||
      !appendHandoffValue(handoff,"usb_dimensions",cemuKVGet(settings,"UsbDimensions","false")))

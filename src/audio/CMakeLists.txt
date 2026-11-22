@@ -34,6 +34,10 @@ if(PLATFORM_SWITCH)
 	target_sources(CemuAudio PRIVATE
 		SwitchAudioAPI.h
 		${CMAKE_SOURCE_DIR}/src/platform/switch/SwitchAudioAPI.cpp
+		AudrenAPI.h
+		${CMAKE_SOURCE_DIR}/src/platform/switch/AudrenAPI.cpp
+		${CMAKE_SOURCE_DIR}/src/platform/switch/SwitchAudren.h
+		${CMAKE_SOURCE_DIR}/src/platform/switch/SwitchAudren.cpp
 	)
 endif()
 
