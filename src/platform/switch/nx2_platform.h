@@ -56,7 +56,8 @@ void nx2DisplayInit(void);
 // Frame generation's 120 Hz output on or off: docked, the window is capped at 1440 lines and asks for 120 Hz (VI2
 // picks the TV's 1440p or 1080p 120 Hz mode). True when the refresh rate changed (then nx2DisplayReapply).
 bool nx2DisplaySetFrameGeneration(bool enabled);
-// The requested refresh rate: 120 handheld or with the 120 Hz output docked, else 60.
+// The refresh rate the window runs at: 120 handheld, or docked with the 120 Hz output on a TV that has a 120 Hz mode;
+// else 60.
 int nx2DisplayRefreshRate(void);
 // The present pacing for every renderer: at 120 Hz every refresh with VRR (the swap interval is not used), else
 // nwindowSetSwapInterval(swap_interval). Cheap when nothing changed.

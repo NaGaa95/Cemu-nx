@@ -191,7 +191,17 @@ bool nx2DisplaySetFrameGeneration(bool enabled)
 
 int nx2DisplayRefreshRate(void)
 {
-	return s_refreshHz;
+	mutexLock(&s_displayMutex);
+	int hz = s_refreshHz;
+	// 120 Hz is a request, which VI2 grants only where the display has a 120 Hz mode. While nx2's frame rates pace the
+	// window, its present interval is 1 / the rate VI2 runs it at.
+	u16 numerator = 0, denominator = 0;
+	if (hz > 60 && s_presentApplied && s_presentHz > 60 &&
+		R_SUCCEEDED(nwindowGetPresentInterval(nwindowGetDefault(), &numerator, &denominator)) && numerator == 1 &&
+		denominator >= 30)
+		hz = denominator;
+	mutexUnlock(&s_displayMutex);
+	return hz;
 }
 
 Result nx2DisplayApply(int swap_interval)
