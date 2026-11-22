@@ -114,6 +114,11 @@ if(PLATFORM_SWITCH)
 	if(NINTENDO_SWITCH2)
 		# The Switch 2 platform helpers (nx2_platform.h), shared with the other NX ports.
 		target_sources(CemuBin PRIVATE platform/switch/nx2_platform.c)
+	else()
+		# dlmalloc 2.8.6 in place of newlib's malloc (libounce brings mimalloc on Switch 2)
+		target_sources(CemuBin PRIVATE platform/switch/SwitchMalloc.c)
+		set_source_files_properties(platform/switch/SwitchMalloc.c PROPERTIES
+			INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/dependencies/dlmalloc")
 	endif()
 else()
 	add_executable(CemuBin
