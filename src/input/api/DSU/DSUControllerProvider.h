@@ -8,7 +8,11 @@
 #include "util/Socket/Socket.h"
 
 #ifndef HAS_DSU
+#if defined(__SWITCH__)
+#define HAS_DSU 0 // its worker thread would keep one of the few bsd sessions busy in poll()
+#else
 #define HAS_DSU 1
+#endif
 #endif
 
 // #define DEBUG_DSU_CLIENT
