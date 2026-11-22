@@ -4526,12 +4526,8 @@ static void runFileManager() {
 }
 
 static bool folderIsExtractedTitle(const std::string &dir) {
-  struct stat st;
-  if (stat((dir + "/code/app.xml").c_str(), &st) == 0) return true;
-  bool c = stat((dir+"/content").c_str(),&st)==0 && S_ISDIR(st.st_mode);
-  bool o = stat((dir+"/code").c_str(),&st)==0 && S_ISDIR(st.st_mode);
-  bool m = stat((dir+"/meta").c_str(),&st)==0 && S_ISDIR(st.st_mode);
-  return c && o && m;
+  // a title, or a folder holding several (a game with its update and DLC)
+  return !cemu_findTitleFolders(dir).empty();
 }
 static bool isCpuBoostOption([[maybe_unused]] const Opt &option) {
 #ifdef __SWITCH2__
@@ -5505,9 +5501,11 @@ static void launcherSettingsScreen() {
     drawPage(); SDL_RenderPresent(g_ren); waitForNextUiFrame();
   }
 }
+static std::string g_installProgressHeader;
 static void installProgress(int pct) {
   clearUiBackground();
-  drawHeaderStatic("Installing title...", nullptr);
+  if(g_installProgressHeader.empty()) drawHeaderStatic("Installing title...", nullptr);
+  else drawHeader(g_installProgressHeader.c_str(), nullptr);
   const int panelW=std::min(900,SW-160),panelH=150;
   const int panelX=(SW-panelW)/2,panelY=(SH-panelH)/2-16;
   glassPanel(panelX,panelY,panelW,panelH);
@@ -5527,18 +5525,65 @@ static const char *titleIdKindName(uint64_t titleId) {
 }
 
 static void installFromPath(const std::string &picked) {
-  const uint64_t titleId = cemu_peekTitleId(picked);
-  if (!titleId) { modalMessageStatic("Not installable", {"No code/app.xml with a Wii U title id here."}); return; }
-  char detail[80];
-  snprintf(detail, sizeof(detail), "%016llx", (unsigned long long)titleId);
-  if (!confirmBoxStatic("Install this title?",
-                        {fileNameOf(picked), std::string("Type: ") + titleIdKindName(titleId),
-                         std::string("Title id: ") + detail, "", "It will be installed to mlc01."}))
-    return;
-  std::string msg;
-  int r = cemu_installTitle(picked, std::string(DATA_DIR)+"/mlc01", installProgress, msg);
-  toast(msg.c_str());
-  if (r == 0) { ensureDefaultGameSource(); g_rescanAfterSettings = true; }
+  struct Pending { std::string folder; uint64_t titleId; };
+  std::vector<Pending> pending;
+  for (const auto &folder : cemu_findTitleFolders(picked))
+    if (const uint64_t titleId = cemu_peekTitleId(folder)) pending.push_back({folder, titleId});
+  if (pending.empty()) { modalMessageStatic("Not installable", {"No code/app.xml with a Wii U title id here."}); return; }
+  // base games first, then updates, then DLC
+  auto rank = [](uint64_t titleId) {
+    const uint32_t high = (uint32_t)(titleId >> 32);
+    return high == 0x0005000E ? 1 : high == 0x0005000C ? 2 : 0;
+  };
+  std::stable_sort(pending.begin(), pending.end(), [&](const Pending &a, const Pending &b) { return rank(a.titleId) < rank(b.titleId); });
+
+  if (pending.size() == 1) {
+    char detail[80];
+    snprintf(detail, sizeof(detail), "%016llx", (unsigned long long)pending[0].titleId);
+    if (!confirmBoxStatic("Install this title?",
+                          {fileNameOf(pending[0].folder), std::string("Type: ") + titleIdKindName(pending[0].titleId),
+                           std::string("Title id: ") + detail, "", "It will be installed to mlc01."}))
+      return;
+  } else {
+    std::vector<std::string> lines{fileNameOf(picked)};
+    for (size_t i = 0; i < pending.size(); ++i) {
+      if (i == 6) { lines.push_back("..."); break; }
+      char detail[160];
+      snprintf(detail, sizeof(detail), "%s  %016llx  %s", titleIdKindName(pending[i].titleId),
+               (unsigned long long)pending[i].titleId, fileNameOf(pending[i].folder).c_str());
+      lines.push_back(detail);
+    }
+    lines.push_back("");
+    lines.push_back(std::string(LauncherLocalization::Translate("They will be installed to mlc01.")));
+    const std::string title(LauncherLocalization::Translate("Install these titles?"));
+    if (!confirmBox(title.c_str(), lines)) return;
+  }
+
+  int installed = 0;
+  std::string msg, firstError;
+  for (size_t i = 0; i < pending.size(); ++i) {
+    if (pending.size() > 1) {
+      char header[96];
+      snprintf(header, sizeof(header), LauncherLocalization::Translate("Installing %d of %d...").data(), (int)i + 1, (int)pending.size());
+      g_installProgressHeader = header;
+    }
+    if (cemu_installTitle(pending[i].folder, std::string(DATA_DIR)+"/mlc01", installProgress, msg) == 0) ++installed;
+    else if (firstError.empty()) firstError = fileNameOf(pending[i].folder) + ": " + msg;
+  }
+  g_installProgressHeader.clear();
+  if (!firstError.empty()) {
+    char summary[96];
+    snprintf(summary, sizeof(summary), LauncherLocalization::Translate("%d of %d installed.").data(), installed, (int)pending.size());
+    const std::string title(LauncherLocalization::Translate("Install failed"));
+    modalMessage(title.c_str(), {firstError, "", summary});
+  } else if (pending.size() == 1) {
+    toast(msg.c_str());
+  } else {
+    char summary[96];
+    snprintf(summary, sizeof(summary), LauncherLocalization::Translate("Installed %d titles").data(), installed);
+    toast(summary);
+  }
+  if (installed > 0) { ensureDefaultGameSource(); g_rescanAfterSettings = true; }
 }
 
 static void ensureDefaultGameSource() {

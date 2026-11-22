@@ -15,6 +15,7 @@ extern "C" {
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <algorithm>
 #include <array>
 #include <string>
 #include <vector>
@@ -274,6 +275,53 @@ static bool findTitleBase(const std::string &srcFolder, std::string &base) {
   }
   closedir(dir);
   return found;
+}
+
+static bool hasAppXml(const std::string &dir) {
+  struct stat st{};
+  return stat((dir + "/code/app.xml").c_str(), &st) == 0 && S_ISREG(st.st_mode);
+}
+
+static void collectTitleFolders(const std::string &dir, unsigned depth, std::vector<std::string> &out) {
+  if (out.size() >= 64)
+    return;
+  if (hasAppXml(dir)) {
+    out.push_back(dir);
+    return;
+  }
+  if (depth == 0)
+    return;
+  DIR *handle = opendir(dir.c_str());
+  if (!handle)
+    return;
+  std::vector<std::string> children;
+  while (dirent *entry = readdir(handle)) {
+    if (entry->d_name[0] == '.')
+      continue;
+    const std::string child = dir + "/" + entry->d_name;
+    struct stat st{};
+    if (stat(child.c_str(), &st) == 0 && S_ISDIR(st.st_mode))
+      children.push_back(child);
+  }
+  closedir(handle);
+  std::sort(children.begin(), children.end());
+  for (const auto &child : children)
+    collectTitleFolders(child, depth - 1, out);
+}
+
+std::vector<std::string> cemu_findTitleFolders(const std::string &srcFolder) {
+  std::string root = srcFolder;
+  while (root.size() > 1 && root.back() == '/' && root[root.size() - 2] != ':')
+    root.pop_back();
+  std::vector<std::string> found;
+  collectTitleFolders(root, 2, found);
+  std::vector<std::string> valid;
+  for (const auto &folder : found) {
+    const uint64_t tid = readAppTitleId(folder + "/code/app.xml");
+    if (((tid >> 48) & 0xFFFF) == 0x0005)
+      valid.push_back(folder);
+  }
+  return valid;
 }
 
 uint64_t cemu_peekTitleId(const std::string &srcFolder) {
