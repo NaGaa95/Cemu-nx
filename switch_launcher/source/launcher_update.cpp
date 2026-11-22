@@ -393,6 +393,11 @@ namespace
 			error = "GitHub refused the request or its anonymous rate limit was reached.";
 			return false;
 		}
+		if (responseCode == 404)
+		{
+			error = "No release has been published yet.";
+			return false;
+		}
 		if (responseCode < 200 || responseCode >= 300)
 		{
 			error = "GitHub returned HTTP " + std::to_string(responseCode) + ".";
@@ -706,8 +711,9 @@ bool LauncherUpdate_IsNewer(const std::string& candidate, const std::string& ins
 		return false;
 	std::vector<std::uint64_t> candidateParts;
 	std::vector<std::uint64_t> installedParts;
+	// A tag that is not a version number is never offered (it would be offered forever).
 	if (!ParseVersion(candidateTag, candidateParts) || !ParseVersion(installedTag, installedParts))
-		return true;
+		return false;
 	const std::size_t count = std::max(candidateParts.size(), installedParts.size());
 	for (std::size_t index = 0; index < count; ++index)
 	{
