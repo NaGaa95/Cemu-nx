@@ -31,6 +31,10 @@ public:
 protected:
 	static uint32 GetReadbackRowPitch(LatteTextureView* textureView, uint32 rowAlignment = 1);
 	static uint32 GetReadbackImageSize(LatteTextureView* textureView, uint32 rowPitch);
+	// Layout of a raw copy of the base texture's image (Vulkan, deko3d): its texels have the base texture's format,
+	// which can be wider than the view's
+	static uint32 GetCopyRowPitch(LatteTextureView* textureView);
+	static uint32 GetCopyImageSize(LatteTextureView* textureView, uint32 rowPitch);
 
 	LatteTextureView* m_textureView;
 	uint32 m_image_size = 0;

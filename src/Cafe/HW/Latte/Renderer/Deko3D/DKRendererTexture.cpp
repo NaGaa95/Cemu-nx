@@ -308,8 +308,8 @@ class Deko3DRenderer::State::Readback final : public LatteTextureReadbackInfo
   public:
 	Readback(State& state, LatteTextureViewDK* view) : LatteTextureReadbackInfo(view, view->firstMip), m_state(state)
 	{
-		m_rowPitch = GetReadbackRowPitch(view);
-		m_image_size = GetReadbackImageSize(view, m_rowPitch);
+		m_rowPitch = GetCopyRowPitch(view);
+		m_image_size = GetCopyImageSize(view, m_rowPitch);
 		m_memory = dk::MemBlockMaker{g_dk_context->GetDevice(), AlignUp(m_image_size, DK_MEMBLOCK_ALIGNMENT)}
 					   .setFlags(DkMemBlockFlags_CpuUncached | DkMemBlockFlags_GpuCached)
 					   .create();

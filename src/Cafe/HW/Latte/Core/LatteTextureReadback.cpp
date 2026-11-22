@@ -203,3 +203,21 @@ uint32 LatteTextureReadbackInfo::GetReadbackImageSize(LatteTextureView* textureV
 		height = (height + 3) / 4;
 	return height * rowPitch;
 }
+
+uint32 LatteTextureReadbackInfo::GetCopyRowPitch(LatteTextureView* textureView)
+{
+	LatteTexture* baseTexture = textureView->baseTexture;
+	uint32 width = baseTexture->GetMipWidth(textureView->firstMip);
+	if (Latte::IsCompressedFormat(baseTexture->format))
+		width = (width + 3) / 4;
+	return width * (Latte::GetFormatBits(baseTexture->format) / 8);
+}
+
+uint32 LatteTextureReadbackInfo::GetCopyImageSize(LatteTextureView* textureView, uint32 rowPitch)
+{
+	LatteTexture* baseTexture = textureView->baseTexture;
+	uint32 height = baseTexture->GetMipHeight(textureView->firstMip);
+	if (Latte::IsCompressedFormat(baseTexture->format))
+		height = (height + 3) / 4;
+	return height * rowPitch;
+}

@@ -6,7 +6,7 @@ LatteTextureReadbackInfoVk::LatteTextureReadbackInfoVk(VkDevice device, LatteTex
 	: LatteTextureReadbackInfo(textureView, textureView->firstMip), m_device(device)
 {
 	m_image_size = GetImageSize(textureView);
-	m_rowPitch = GetReadbackRowPitch(textureView);
+	m_rowPitch = GetCopyRowPitch(textureView);
 }
 
 LatteTextureReadbackInfoVk::~LatteTextureReadbackInfoVk()
@@ -22,7 +22,7 @@ uint32 LatteTextureReadbackInfoVk::GetImageSize(LatteTextureView* textureView)
 		cemuLog_logDebug(LogType::Force, "Vulkan does not support readback of texture format 0x{:x}", (uint32)baseTexture->format);
 		return 0;
 	}
-	return LatteTextureReadbackInfo::GetReadbackImageSize(textureView, GetReadbackRowPitch(textureView));
+	return LatteTextureReadbackInfo::GetCopyImageSize(textureView, GetCopyRowPitch(textureView));
 }
 
 

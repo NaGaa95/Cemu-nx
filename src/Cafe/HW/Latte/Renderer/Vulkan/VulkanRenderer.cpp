@@ -4170,7 +4170,7 @@ LatteTextureReadbackInfo* VulkanRenderer::texture_createReadback(LatteTextureVie
 {
 	auto* result = new LatteTextureReadbackInfoVk(m_logicalDevice, textureView);
 	const uint32 linearImageSize = result->GetImageSize();
-	if (linearImageSize == 0)
+	if (linearImageSize == 0 || linearImageSize + 256 > TEXTURE_READBACK_SIZE) // larger than the whole readback ring
 	{
 		delete result;
 		return nullptr;
