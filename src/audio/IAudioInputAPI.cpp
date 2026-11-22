@@ -2,6 +2,9 @@
 #if HAS_CUBEB
 #include "CubebInputAPI.h"
 #endif
+#if defined(__SWITCH__)
+#include "SwitchMicInputAPI.h"
+#endif
 
 std::shared_mutex g_audioInputMutex;
 AudioInputAPIPtr g_inputAudio;
@@ -24,6 +27,9 @@ void IAudioInputAPI::InitializeStatic()
 {
 #if HAS_CUBEB
 	s_availableApis[Cubeb] = CubebInputAPI::InitializeStatic();
+#endif
+#if defined(__SWITCH__)
+	s_availableApis[Switch] = SwitchMicInputAPI::InitializeStatic();
 #endif
 }
 
@@ -50,6 +56,10 @@ AudioInputAPIPtr IAudioInputAPI::CreateDevice(AudioInputAPI api, const DeviceDes
 		return std::make_unique<CubebInputAPI>(tmp->GetDeviceId(), samplerate, channels, samples_per_block, bits_per_sample);
 	}
 #endif
+#if defined(__SWITCH__)
+	case Switch:
+		return std::make_unique<SwitchMicInputAPI>(samplerate, channels, samples_per_block, bits_per_sample);
+#endif
 	default:
 		throw std::runtime_error(fmt::format("invalid audio api: {}", api));
 	}
@@ -67,6 +77,10 @@ std::vector<IAudioInputAPI::DeviceDescriptionPtr> IAudioInputAPI::GetDevices(Aud
 	{
 		return CubebInputAPI::GetDevices();
 	}
+#endif
+#if defined(__SWITCH__)
+	case Switch:
+		return SwitchMicInputAPI::GetDevices();
 #endif
 	default:
 		throw std::runtime_error(fmt::format("invalid audio api: {}", api));

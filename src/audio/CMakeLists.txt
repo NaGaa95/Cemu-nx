@@ -38,6 +38,8 @@ if(PLATFORM_SWITCH)
 		${CMAKE_SOURCE_DIR}/src/platform/switch/AudrenAPI.cpp
 		${CMAKE_SOURCE_DIR}/src/platform/switch/SwitchAudren.h
 		${CMAKE_SOURCE_DIR}/src/platform/switch/SwitchAudren.cpp
+		SwitchMicInputAPI.h
+		${CMAKE_SOURCE_DIR}/src/platform/switch/SwitchMicInput.cpp
 	)
 endif()
 

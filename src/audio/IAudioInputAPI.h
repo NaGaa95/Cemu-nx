@@ -29,6 +29,7 @@ public:
 	enum AudioInputAPI
 	{
 		Cubeb,
+		Switch,
 
 		AudioInputAPIEnd,
 	};

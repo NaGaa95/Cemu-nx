@@ -608,6 +608,7 @@ namespace WindowSystem
 			GetConfig().pad_device = L"default";
 		GetConfig().pad_channels = kStereo;
 		GetConfig().portal_device.clear();
+		GetConfig().input_device = L"default"; // the console's microphone
 
 		IAudioAPI::InitializeStatic();
 		IAudioInputAPI::InitializeStatic();

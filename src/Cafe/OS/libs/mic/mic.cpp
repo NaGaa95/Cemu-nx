@@ -144,7 +144,11 @@ void micExport_MICInit(PPCInterpreter_t* hCPU)
 	osLib_returnFromFunction(hCPU, (drcIndex==0)?MIC_HANDLE_DRC0:MIC_HANDLE_DRC1); // success
 
 	auto& config = GetConfig();
+#if defined(__SWITCH__)
+	const auto audio_api = IAudioInputAPI::Switch;
+#else
 	const auto audio_api = IAudioInputAPI::Cubeb; // change this if more input apis get implemented
+#endif
 
 	std::unique_lock lock(g_audioInputMutex);
 	if (!g_inputAudio)
