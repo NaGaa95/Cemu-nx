@@ -57,7 +57,7 @@ fi
 cd "${ROOT}"
 bash "${ROOT}/dist/switch/deps/prepare_submodules.sh"
 bash "${ROOT}/dist/switch/deps/prepare_mesa_sdk_switch2.sh" \
-	"${CEMU_SWITCH2_MESA_SDK_ZIP:-${ROOT}/../mesa-nx/dist/mesa-26.2.7-switch2-horizon-sdk.zip}" \
+	"${CEMU_SWITCH2_MESA_SDK_ZIP:-${ROOT}/../mesa-nx/dist/mesa-26.3.1-switch2-horizon-sdk.zip}" \
 	"${MESA_SDK_ROOT}"
 
 cmake -S . -B "${BUILD_PATH}" -G Ninja \
