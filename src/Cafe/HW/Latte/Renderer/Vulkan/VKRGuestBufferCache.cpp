@@ -85,6 +85,21 @@ void VKRGuestBufferCache::Reclaim()
 	});
 }
 
+uint64 VKRGuestBufferCache::OldestPendingFence() const
+{
+	uint64 oldest = 0;
+	const auto consider = [&](uint64 fence) {
+		if (!m_renderer.HasCommandBufferFinished(fence) && (!oldest || fence < oldest))
+			oldest = fence;
+	};
+	for (const auto& retired : m_retired)
+		consider(retired.fence);
+	for (const auto& [address, entry] : m_entries)
+		if (entry.offset != ~0u)
+			consider(entry.fence);
+	return oldest;
+}
+
 void VKRGuestBufferCache::Release(uint32 offset, uint64 fence)
 {
 	if (m_renderer.HasCommandBufferFinished(fence))

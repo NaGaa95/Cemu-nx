@@ -714,6 +714,8 @@ private:
 	FenceCallbacks m_guestCompletions;
 	std::unique_ptr<VKRGuestBufferCache> m_guestBuffers;
 	std::optional<uint64> m_guestReadbackFence;
+	// The last command buffer in which the GPU writes guest memory that draws may read (streamout)
+	std::optional<uint64> m_guestWriteFence;
 	uint32 m_guestBufferEpoch = 0;
 	uint64 m_guestBufferDraw = 0;
 	uint64 m_guestPreparedCommandBuffer = 0;
@@ -725,7 +727,7 @@ private:
 	bool PrepareGuestBuffers(uint32 maxVertex, uint32 baseInstance, uint32 instanceCount, bool fallback);
 	bool PrepareGuestDraw(uint32 baseVertex, uint32 baseInstance, uint32 instanceCount, uint32 count,
 		MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType);
-	void NotifyGuestReadback();
+	void NotifyGuestReadback(bool writesGuestMemory = false, bool changesSnapshots = true);
 	bool RestartGuestDraw();
 #endif
 

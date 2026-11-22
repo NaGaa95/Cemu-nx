@@ -1965,9 +1965,10 @@ bool VulkanRenderer::PrepareGuestDraw(uint32 baseVertex, uint32 baseInstance, ui
 	MPTR indexDataMPTR, Latte::LATTE_VGT_DMA_INDEX_TYPE::E_INDEX_TYPE indexType)
 {
 	bool submitted = false;
-	if (m_guestReadbackFence && !HasCommandBufferFinished(*m_guestReadbackFence))
+	// Queries and texture readbacks land in their own buffers: only streamout copies into guest memory hold up a draw
+	if (m_guestWriteFence && !HasCommandBufferFinished(*m_guestWriteFence))
 	{
-		WaitCommandBufferFinished(*m_guestReadbackFence);
+		WaitCommandBufferFinished(*m_guestWriteFence);
 		submitted = true;
 	}
 	const auto primitive = static_cast<LattePrimitiveMode>(LatteGPUState.contextRegister[mmVGT_PRIMITIVE_TYPE]);
@@ -1982,6 +1983,14 @@ bool VulkanRenderer::PrepareGuestDraw(uint32 baseVertex, uint32 baseInstance, ui
 			return submitted;
 		if (fallback)
 			throw std::bad_alloc();
+		// free what the oldest submitted command buffers hold before draining the whole GPU
+		for (uint64 oldest; (oldest = m_guestBuffers->OldestPendingFence()) && oldest < GetCurrentCommandBufferId();)
+		{
+			WaitCommandBufferFinished(oldest);
+			LatteBufferCache_processDCFlushQueue([&](MPTR address, uint32 size) { m_guestBuffers->Invalidate(address, size); }, false);
+			if (PrepareGuestBuffers(indexMax + baseVertex, baseInstance, instanceCount, false))
+				return submitted;
+		}
 		WaitCommandBufferFinished(GetCurrentCommandBufferId());
 		submitted = true;
 	}

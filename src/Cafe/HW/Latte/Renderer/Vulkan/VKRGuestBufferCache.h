@@ -17,6 +17,8 @@ public:
 	uint32 Capacity() const { return m_size; }
 	void Invalidate(uint32 address, uint32 size);
 	void Reclaim();
+	// The oldest command buffer still holding cache memory, or 0 if none does
+	uint64 OldestPendingFence() const;
 	std::optional<uint32> Get(uint32 address, std::span<const uint8> bytes, uint32 epoch, uint64 draw);
 	void Flush();
 

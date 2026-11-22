@@ -3458,10 +3458,13 @@ void VulkanRenderer::QueueGuestCompletion(std::function<void()> completion)
 	RequestSubmitOnIdle();
 }
 
-void VulkanRenderer::NotifyGuestReadback()
+void VulkanRenderer::NotifyGuestReadback(bool writesGuestMemory, bool changesSnapshots)
 {
 	m_guestReadbackFence = GetCurrentCommandBufferId();
-	++m_guestBufferEpoch;
+	if (writesGuestMemory)
+		m_guestWriteFence = m_guestReadbackFence;
+	if (changesSnapshots)
+		++m_guestBufferEpoch;
 }
 
 void VulkanRenderer::bufferCache_invalidate(uint32 address, uint32 size)
@@ -4369,7 +4372,12 @@ void VulkanRenderer::bufferCache_init(const sint32 bufferSize)
 #endif
 				LatteBufferCache_setHostMemorySync(m_importedMemBaseAddress, (uint32)hostAllocationSize);
 #if defined(__SWITCH__)
+#if defined(__SWITCH2__)
+				// the whole buffer cache budget (up to 164 MB): fewer draws wait for a full snapshot cache
+				const uint32 cacheSize = static_cast<uint32>(bufferSize);
+#else
 				const uint32 cacheSize = std::min(static_cast<uint32>(bufferSize), 64u * 1024 * 1024);
+#endif
 				m_guestBuffers = std::make_unique<VKRGuestBufferCache>(*this, cacheSize, m_featureControl.limits.minUniformBufferOffsetAlignment);
 				cemuLog_log(LogType::Force, "Host memory import: active, MEM2 imported with {} MB versioned vertex/uniform snapshots", cacheSize / (1024 * 1024));
 #else
@@ -4493,7 +4501,7 @@ void VulkanRenderer::bufferCache_copyStreamoutToMainBuffer(uint32 srcOffset, uin
 #if defined(__SWITCH__)
 	if (m_useHostMemoryForCache)
 	{
-		NotifyGuestReadback();
+		NotifyGuestReadback(true);
 		bufferCache_invalidate(dstOffset, size);
 	}
 #endif
