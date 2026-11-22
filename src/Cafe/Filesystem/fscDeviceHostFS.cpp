@@ -121,11 +121,12 @@ bool FSCVirtualFile_Host::fscDirNext(FSCDirEntry* dirEntry)
 	if (m_type != FSC_TYPE_DIRECTORY)
 		return false;
 
+	std::error_code ec;
 	if (!m_dirIterator)
 	{
-		// init iterator on first iteration attempt
-		m_dirIterator.reset(new fs::directory_iterator(*m_path));
-		if (!m_dirIterator)
+		// init iterator on first iteration attempt (on failure it is the end iterator)
+		m_dirIterator.reset(new fs::directory_iterator(*m_path, ec));
+		if (ec)
 		{
 			cemuLog_log(LogType::Force, "Failed to iterate directory: {}", _pathToUtf8(*m_path));
 			return false;
@@ -135,12 +136,12 @@ bool FSCVirtualFile_Host::fscDirNext(FSCDirEntry* dirEntry)
 		return false;
 
 	const fs::directory_entry& entry = **m_dirIterator;
-	
+
 	std::string fileName = entry.path().filename().generic_string();
 	if (fileName.size() >= sizeof(dirEntry->path) - 1)
 		fileName.resize(sizeof(dirEntry->path) - 1);
 	strncpy(dirEntry->path, fileName.data(), sizeof(dirEntry->path));
-	if (entry.is_directory())
+	if (entry.is_directory(ec))
 	{
 		dirEntry->isDirectory = true;
 		dirEntry->isFile = false;
@@ -150,10 +151,16 @@ bool FSCVirtualFile_Host::fscDirNext(FSCDirEntry* dirEntry)
 	{
 		dirEntry->isDirectory = false;
 		dirEntry->isFile = true;
-		dirEntry->fileSize = entry.file_size();
+		const uintmax_t fileSize = entry.file_size(ec);
+		dirEntry->fileSize = ec ? 0 : fileSize;
 	}
 
-	(*m_dirIterator)++;
+	m_dirIterator->increment(ec);
+	if (ec)
+	{
+		cemuLog_log(LogType::Force, "Failed to iterate directory: {}", _pathToUtf8(*m_path));
+		*m_dirIterator = fs::directory_iterator();
+	}
 	return true;
 }
 
