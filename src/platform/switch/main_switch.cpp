@@ -214,6 +214,19 @@ static std::string ReadLaunchGamePath()
 	return result;
 }
 
+// The defaults (3 bsd sessions, 9 KiB UDP send and 41 KiB receive buffers) are sized for light use: a socket call waits
+// for a free session while others block in poll/select, and games' P2P traffic outgrows the UDP buffers.
+static bool SwitchSocketInitialize()
+{
+	SocketInitConfig config = *socketGetDefaultInitConfig();
+	config.num_bsd_sessions = 8;
+	config.udp_tx_buf_size = 0x10000;
+	config.udp_rx_buf_size = 0x20000;
+	if (R_SUCCEEDED(socketInitialize(&config)))
+		return true;
+	return R_SUCCEEDED(socketInitializeDefault());
+}
+
 static bool SwitchPlatformInit()
 {
 	// Before anything else spawns a thread: new threads inherit this mask.
@@ -223,7 +236,7 @@ static bool SwitchPlatformInit()
 	s_hidInitialized = R_SUCCEEDED(hidInitialize());
 	if (s_hidInitialized)
 		padConfigureInput(8, HidNpadStyleSet_NpadStandard);
-	s_socketInitialized = R_SUCCEEDED(socketInitializeDefault());
+	s_socketInitialized = SwitchSocketInitialize();
 	SwitchStorage::InitializeFromConfig("sdmc:/switch/cemu/launcher.ini", true, nullptr,
 	                                    ReadLaunchGamePath());
 	s_storageInitialized = true;
