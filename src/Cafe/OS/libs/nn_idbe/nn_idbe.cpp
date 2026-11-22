@@ -6,6 +6,7 @@
 #include "openssl/sha.h"
 #include "Cemu/napi/napi.h"
 #include "config/ActiveSettings.h"
+#include "util/helpers/ThreadHelpers.h"
 
 namespace nn
 {
@@ -68,7 +69,7 @@ namespace nn
 			StackAllocator<coreinit::OSEvent> event;
 			coreinit::OSInitEvent(&event, coreinit::OSEvent::EVENT_STATE::STATE_NOT_SIGNALED, coreinit::OSEvent::EVENT_MODE::MODE_AUTO);
 			++s_activeTaskCount;
-			std::thread(asyncDownloadIconFile, titleId, encryptedIconData, &event).detach();
+			cemuCreateDetachedThread(asyncDownloadIconFile, titleId, encryptedIconData, &event);
 			coreinit::OSWaitEvent(&event);
 			osLib_returnFromFunction(hCPU, 1);
 		}
