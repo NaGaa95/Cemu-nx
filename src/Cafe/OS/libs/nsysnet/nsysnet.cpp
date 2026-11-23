@@ -1367,6 +1367,124 @@ MPTR _allocString(char* str)
 	return strMPTR;
 }
 
+#if defined(__SWITCH__)
+// Consoles often use a DNS that blocks Nintendo's hosts (90DNS, Pi-hole...) by answering 127.0.0.1 or nothing, yet games
+// still need some of them, such as the NAT check server of Pia matchmaking. Those names are asked to public DNS instead.
+static bool _IsBlockedDnsAnswer(uint32 addrNetworkOrder)
+{
+	const uint8 firstByte = ((const uint8*)&addrNetworkOrder)[0];
+	return firstByte == 0 || firstByte == 127;
+}
+
+static size_t _SkipDnsName(const uint8* packet, size_t size, size_t at)
+{
+	while (at < size)
+	{
+		const uint8 length = packet[at];
+		if (length == 0)
+			return at + 1;
+		if ((length & 0xC0) == 0xC0)
+			return at + 2 <= size ? at + 2 : 0;
+		at += 1 + length;
+	}
+	return 0;
+}
+
+// One A query over UDP. Returns the first usable IPv4 answer in network order, or 0
+static uint32 _QueryPublicDns(const char* server, std::string_view host)
+{
+	uint8 query[512];
+	const uint16 id = (uint16)std::chrono::steady_clock::now().time_since_epoch().count();
+	const uint8 header[12] = {(uint8)(id >> 8), (uint8)id, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0}; // recursion desired, one question
+	memcpy(query, header, sizeof(header));
+	size_t n = sizeof(header);
+	for (size_t start = 0; start < host.size();)
+	{
+		size_t dot = host.find('.', start);
+		if (dot == std::string_view::npos)
+			dot = host.size();
+		const size_t length = dot - start;
+		if (length == 0 || length > 63 || n + length + 6 > sizeof(query))
+			return 0;
+		query[n++] = (uint8)length;
+		memcpy(query + n, host.data() + start, length);
+		n += length;
+		start = dot + 1;
+	}
+	const uint8 tail[5] = {0, 0, 1, 0, 1}; // root, type A, class IN
+	memcpy(query + n, tail, sizeof(tail));
+	n += sizeof(tail);
+
+	sockaddr_in to{};
+	to.sin_family = AF_INET;
+	to.sin_port = htons(53);
+	if (inet_pton(AF_INET, server, &to.sin_addr) != 1)
+		return 0;
+	const SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (s == INVALID_SOCKET)
+		return 0;
+	timeval timeout{};
+	timeout.tv_sec = 2;
+	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+	uint8 reply[1024];
+	sockaddr_in from{};
+	socklen_t fromLen = sizeof(from);
+	ssize_t got = -1;
+	if (sendto(s, query, n, 0, (sockaddr*)&to, sizeof(to)) == (ssize_t)n)
+		got = recvfrom(s, reply, sizeof(reply), 0, (sockaddr*)&from, &fromLen);
+	closesocket(s);
+	if (got < 12 || from.sin_addr.s_addr != to.sin_addr.s_addr || memcmp(reply, query, 2) != 0 || !(reply[2] & 0x80) || (reply[3] & 0x0F) != 0)
+		return 0;
+	const size_t size = (size_t)got;
+	const uint32 questions = (reply[4] << 8) | reply[5];
+	const uint32 answers = (reply[6] << 8) | reply[7];
+	size_t at = 12;
+	for (uint32 i = 0; i < questions && at; i++)
+	{
+		at = _SkipDnsName(reply, size, at);
+		at = at && at + 4 <= size ? at + 4 : 0;
+	}
+	for (uint32 i = 0; i < answers && at; i++)
+	{
+		at = _SkipDnsName(reply, size, at);
+		if (!at || at + 10 > size)
+			break;
+		const uint32 type = (reply[at] << 8) | reply[at + 1];
+		const uint32 dataClass = (reply[at + 2] << 8) | reply[at + 3];
+		const uint32 length = (reply[at + 8] << 8) | reply[at + 9];
+		at += 10;
+		if (at + length > size)
+			break;
+		if (type == 1 && dataClass == 1 && length == 4)
+		{
+			uint32 address;
+			memcpy(&address, reply + at, 4);
+			if (!_IsBlockedDnsAnswer(address))
+				return address;
+		}
+		at += length;
+	}
+	return 0;
+}
+
+// The address public DNS gives for a name the console's DNS blocks, in network order, or 0
+static uint32 _ResolveDnsBlockedName(const char* name)
+{
+	in_addr numeric;
+	if (!name || !*name || inet_pton(AF_INET, name, &numeric) == 1)
+		return 0;
+	for (const char* server : {"1.1.1.1", "8.8.8.8"})
+	{
+		if (const uint32 address = _QueryPublicDns(server, name))
+		{
+			cemuLog_log(LogType::Force, "nsysnet: the console's DNS blocks {}, resolved through public DNS", name);
+			return address;
+		}
+	}
+	return 0;
+}
+#endif
+
 void nsysnetExport_gethostbyname(PPCInterpreter_t* hCPU)
 {
 	ppcDefineParamStr(name, 0);
@@ -1374,6 +1492,31 @@ void nsysnetExport_gethostbyname(PPCInterpreter_t* hCPU)
 	cemuLog_log(LogType::Socket, "gethostbyname(\"{}\")", name);
 
 	hostent* he = gethostbyname(name);
+#if defined(__SWITCH__)
+	in_addr unblockedAddr{};
+	char* unblockedAddrList[2] = {(char*)&unblockedAddr, nullptr};
+	hostent unblocked{};
+	bool blocked = true;
+	for (sint32 i = 0; he && he->h_addrtype == AF_INET && he->h_addr_list[i]; i++)
+	{
+		uint32 address;
+		memcpy(&address, he->h_addr_list[i], 4);
+		if (!_IsBlockedDnsAnswer(address))
+			blocked = false;
+	}
+	if (blocked)
+	{
+		if (const uint32 address = _ResolveDnsBlockedName(name))
+		{
+			unblockedAddr.s_addr = address;
+			unblocked.h_name = name;
+			unblocked.h_addrtype = AF_INET;
+			unblocked.h_length = sizeof(in_addr);
+			unblocked.h_addr_list = unblockedAddrList;
+			he = &unblocked;
+		}
+	}
+#endif
 	if (he == NULL)
 	{
 		osLib_returnFromFunction(hCPU, MPTR_NULL);
@@ -1501,6 +1644,34 @@ void nsysnetExport_getaddrinfo(PPCInterpreter_t* hCPU)
 	}
 	struct addrinfo* result;
 	sint32 hr = getaddrinfo(nodeName, serviceName, &hint, &result);
+#if defined(__SWITCH__)
+	sockaddr_in unblockedAddr{};
+	addrinfo unblocked{};
+	bool blocked = true;
+	for (addrinfo* entry = hr == 0 ? result : nullptr; entry; entry = entry->ai_next)
+	{
+		if (entry->ai_family == AF_INET && entry->ai_addr && !_IsBlockedDnsAnswer(((sockaddr_in*)entry->ai_addr)->sin_addr.s_addr))
+			blocked = false;
+	}
+	if (blocked)
+	{
+		if (const uint32 address = _ResolveDnsBlockedName(nodeName))
+		{
+			if (hr == 0)
+				freeaddrinfo(result);
+			unblockedAddr.sin_family = AF_INET;
+			unblockedAddr.sin_port = htons(serviceName ? (uint16)strtoul(serviceName, nullptr, 10) : 0);
+			unblockedAddr.sin_addr.s_addr = address;
+			unblocked.ai_family = AF_INET;
+			unblocked.ai_socktype = hint.ai_socktype;
+			unblocked.ai_protocol = hint.ai_protocol;
+			unblocked.ai_addrlen = sizeof(unblockedAddr);
+			unblocked.ai_addr = (sockaddr*)&unblockedAddr;
+			result = &unblocked;
+			hr = 0;
+		}
+	}
+#endif
 	if (hr != 0)
 	{
 		cemuLog_log(LogType::Socket, "getaddrinfo failed with error {}", hr);
