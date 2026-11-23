@@ -23,7 +23,8 @@ public:
 		std::wstring GetIdentifier() const override { return L"default"; }
 	};
 
-	AudrenAPI(uint32 samplerate, uint32 channels, uint32 samples_per_block, uint32 bits_per_sample);
+	AudrenAPI(uint32 samplerate, uint32 channels, uint32 samples_per_block, uint32 bits_per_sample,
+			  AudioType type = AudioType::TV);
 	~AudrenAPI() override;
 
 	AudioAPI GetType() const override { return Audren; }
@@ -41,5 +42,9 @@ public:
 	static void Destroy();
 
 private:
+	bool IsGameShareGuestStream() const;
+	bool UpdateGuestRouting();
 	SwitchAudren::Stream* m_stream = nullptr;
+	AudioType m_type;
+	bool m_routedToGuest = false;
 };

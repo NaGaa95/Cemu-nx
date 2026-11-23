@@ -8,3 +8,5 @@ void SwitchOverlay_Render();
 bool SwitchOverlay_IsInputCaptured(std::uint64_t held);
 bool SwitchOverlay_TakeAmiiboScanRequest();
 bool SwitchOverlay_TakeExitRequest();
+// Times the GameShare screen was toggled since the last call
+int SwitchOverlay_TakeGameShareScreenRequests();

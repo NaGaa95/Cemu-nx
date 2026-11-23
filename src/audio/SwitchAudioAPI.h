@@ -30,6 +30,8 @@ class SwitchAudioAPI : public IAudioAPI
 	static std::vector<DeviceDescriptionPtr> GetDevices();
 
   private:
+	bool IsGameShareGuestStream() const;
+	bool UpdateGuestRouting();
 	struct Impl;
 	std::unique_ptr<Impl> m_impl;
 };

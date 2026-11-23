@@ -22,6 +22,7 @@
 #include "audio/SwitchAudioAPI.h"
 #include "audio/AudrenAPI.h"
 #include "platform/switch/SwitchAmiibo.h"
+#include "platform/switch/SwitchGameShare.h"
 #include "platform/switch/SwitchSwkbd.h"
 #include "platform/switch/SwitchInput.h"
 #include "platform/switch/SwitchJit.h"
@@ -75,6 +76,8 @@ namespace
 	std::atomic<SwitchGamePadLayout> s_lastCompositeLayout{SwitchGamePadLayout::Right};
 	std::atomic_bool s_gamePadLayoutChanged{false};
 	std::string s_rendererBackend{"vk"};
+	// GameShare's matchmaking was cancelled: the core returns to the launcher
+	bool s_gameShareCancelled = false;
 
 	constexpr uint64_t kGameBootBoostHandoffTimeoutNs = 300'000'000'000ULL;
 
@@ -151,7 +154,10 @@ bool SwitchPlatform_UseTripleBuffer()
 	return s_switchTripleBuffer;
 }
 
-void SwitchPlatform_SetGamePadLayout(SwitchGamePadLayout layout)
+// GameShare sets the layout for the whole session
+static std::atomic_bool s_gamePadLayoutHeld{false};
+
+static void ApplyGamePadLayout(SwitchGamePadLayout layout)
 {
 	if (IsCompositeLayout(layout))
 		s_lastCompositeLayout.store(layout, std::memory_order_release);
@@ -159,6 +165,18 @@ void SwitchPlatform_SetGamePadLayout(SwitchGamePadLayout layout)
 	if (previous != layout)
 		s_gamePadLayoutChanged.store(true, std::memory_order_release);
 	WindowSystem::GetWindowInfo().pad_open.store(layout != SwitchGamePadLayout::Disabled, std::memory_order_release);
+}
+
+void SwitchPlatform_SetGamePadLayout(SwitchGamePadLayout layout)
+{
+	if (!s_gamePadLayoutHeld.load(std::memory_order_acquire))
+		ApplyGamePadLayout(layout);
+}
+
+void SwitchPlatform_ForceGamePadLayout(SwitchGamePadLayout layout)
+{
+	s_gamePadLayoutHeld.store(true, std::memory_order_release);
+	ApplyGamePadLayout(layout);
 }
 
 SwitchGamePadLayout SwitchPlatform_GetGamePadLayout()
@@ -586,6 +604,7 @@ namespace WindowSystem
 			gamePadLayout == "left" ? SwitchGamePadLayout::Left :
 			gamePadLayout == "below" ? SwitchGamePadLayout::Below :
 			gamePadLayout == "above" ? SwitchGamePadLayout::Above : SwitchGamePadLayout::Disabled);
+		SwitchGameShare_Configure(Handoff("gameshare") == "1", Handoff("gameshare_swap") == "true");
 
 		auto applyUsbSetting = [](const char* key, auto& value) {
 			const std::string setting = Handoff(key);
@@ -639,6 +658,8 @@ namespace WindowSystem
 			CafeSystem::Shutdown();
 			s_cafeInitialized = false;
 		}
+		// (the game has stopped: nothing renders to the guest's screen or writes its audio any more)
+		SwitchGameShare_End();
 		SwitchDestroyRenderer();
 		if (s_saveListInitialized)
 		{
@@ -749,12 +770,42 @@ namespace WindowSystem
 		return CafeTitleList::FindBaseTitleId(title.GetAppTitleId(), baseTitleId);
 	}
 
+	// Separate screens: the host shows its own player's view alone (the TV, or the GamePad when the roles are swapped).
+	// Mirrored: the guest sees the host's screen, which shows the guest's player view.
+	static void ApplyGameShareLayout()
+	{
+		SwitchPlatform_ForceGamePadLayout(SwitchGameShare_SeparateActive() || SwitchGameShare_SwapRoles()
+											  ? SwitchGamePadLayout::Disabled
+											  : SwitchGamePadLayout::PadOnly);
+	}
+
+	// The quick menu's GameShare screen: which player view, and so which player, the guest gets
+	static void SetGameShareScreen(bool swapRoles)
+	{
+		SwitchGameShare_SetSwapRoles(swapRoles);
+		ApplyGameShareLayout();
+		SwitchInput_ApplyGameShareRoles();
+	}
+
 	static bool LaunchPreparedTitle()
 	{
 		if (!SwitchCreateRenderer(s_surfaceWidth.load(std::memory_order_acquire),
 		                          s_surfaceHeight.load(std::memory_order_acquire),
 		                          s_rendererBackend))
 			throw std::runtime_error("failed to initialize graphics renderer: " + s_rendererBackend);
+		if (SwitchGameShare_Requested())
+		{
+			std::string error;
+			const SwitchGameShareResult result = SwitchGameShare_Begin(error);
+			if (result == SwitchGameShareResult::Cancelled)
+			{
+				s_gameShareCancelled = true;
+				return false;
+			}
+			if (result == SwitchGameShareResult::Failed)
+				throw std::runtime_error("GameShare: " + error);
+			ApplyGameShareLayout();
+		}
 		CafeSystem::LaunchForegroundTitle();
 		return true;
 	}
@@ -845,6 +896,7 @@ namespace WindowSystem
 	{
 		PadState pad;
 		padInitializeDefault(&pad);
+		u64 guestHeldBefore = 0;
 		appletSetMediaPlaybackState(true);
 		for (;;)
 		{
@@ -856,6 +908,7 @@ namespace WindowSystem
 			if (s_exitRequested.load(std::memory_order_acquire))
 				break;
 			SwitchPlatform_PollGameBootState();
+			SwitchGameShare_Update();
 #if defined(__SWITCH2__)
 			// Docking, the TV's resolution and frame generation.
 			UpdateOperationMode();
@@ -867,9 +920,14 @@ namespace WindowSystem
 				continue;
 			}
 			padUpdate(&pad);
-			const u64 down = padGetButtonsDown(&pad);
-			const u64 held = padGetButtons(&pad);
+			// (GameShare's guest opens and uses the quick menu too; it shows on both screens)
+			const u64 guestHeld = SwitchGameShare_GetGuestButtons();
+			const u64 down = padGetButtonsDown(&pad) | (guestHeld & ~guestHeldBefore);
+			const u64 held = padGetButtons(&pad) | guestHeld;
+			guestHeldBefore = guestHeld;
 			SwitchOverlay_UpdateInput(down, held);
+			if (SwitchOverlay_TakeGameShareScreenRequests() % 2)
+				SetGameShareScreen(!SwitchGameShare_SwapRoles());
 			if (SwitchOverlay_TakeAmiiboScanRequest())
 				SwitchAmiibo_StartScan();
 			if (SwitchOverlay_TakeExitRequest())
@@ -892,8 +950,13 @@ namespace WindowSystem
 			SwitchPlatform_BeginGameBootBoost();
 			CommonInit();
 			if (!BootTitle())
-				throw std::runtime_error("no launchable title was found");
-			RunLoop();
+			{
+				if (!s_gameShareCancelled)
+					throw std::runtime_error("no launchable title was found");
+				// GameShare's matchmaking was cancelled: back to the launcher
+			}
+			else
+				RunLoop();
 		}
 		catch (...)
 		{
@@ -912,6 +975,12 @@ namespace WindowSystem
 	void GetWindowSize(int& w, int& h) { w = s_surfaceWidth.load(); h = s_surfaceHeight.load(); }
 	void GetPadWindowSize(int& w, int& h)
 	{
+		if (SwitchGameShare_SeparateActive())
+		{
+			w = kSwitchGameShareGuestWidth;
+			h = kSwitchGameShareGuestHeight;
+			return;
+		}
 		int x, y;
 		SwitchPlatform_GetGamePadViewRegion(true, s_surfaceWidth.load(), s_surfaceHeight.load(), x, y, w, h);
 	}
@@ -919,7 +988,7 @@ namespace WindowSystem
 	void GetPadWindowPhysSize(int& w, int& h) { GetPadWindowSize(w, h); }
 	double GetWindowDPIScale() { return 1.0; }
 	double GetPadDPIScale() { return 1.0; }
-	bool IsPadWindowOpen() { return SwitchPlatform_IsGamePadOutputActive(); }
+	bool IsPadWindowOpen() { return SwitchPlatform_IsGamePadOutputActive() || SwitchGameShare_SeparateActive(); }
 	bool IsKeyDown(uint32) { return false; }
 	bool IsKeyDown(PlatformKeyCodes) { return false; }
 	std::string GetKeyCodeName(uint32) { return ""; }

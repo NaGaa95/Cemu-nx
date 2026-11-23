@@ -9,6 +9,7 @@
 #include "config/CemuConfig.h"
 #include "platform/switch/SwitchPlatform.h"
 #include "platform/switch/SwitchSwkbd.h"
+#include "WindowSystem.h"
 #if defined(__SWITCH2__)
 // nx2_platform's GPU handover (not included: its <switch.h> Semaphore clashes with util/helpers/Semaphore.h).
 extern "C"
@@ -276,6 +277,57 @@ void SwitchRendererThreadExit()
 #if defined(ENABLE_OPENGL)
 	if (s_openGLCanvas)
 		s_openGLCanvas->ReleaseCurrent();
+#endif
+}
+
+bool SwitchRenderer_SupportsGuestScreen()
+{
+#if defined(__SWITCH2__)
+	return g_renderer && (g_renderer->GetType() == RendererAPI::Vulkan || g_renderer->GetType() == RendererAPI::Deko3D);
+#else
+	return false;
+#endif
+}
+
+bool SwitchRenderer_OpenGuestScreen(void* window, int width, int height)
+{
+	try
+	{
+#if defined(ENABLE_DEKO3D)
+		if (g_renderer && g_renderer->GetType() == RendererAPI::Deko3D &&
+			static_cast<Deko3DRenderer*>(g_renderer.get())->OpenGuestScreen(window))
+			return true;
+#endif
+#if defined(ENABLE_VULKAN)
+		if (g_renderer && g_renderer->GetType() == RendererAPI::Vulkan)
+		{
+			auto& canvas = WindowSystem::GetWindowInfo().canvas_pad;
+			canvas.backend = WindowSystem::WindowHandleInfo::Backend::ViNN;
+			canvas.display = nullptr;
+			canvas.surface = window;
+			VulkanRenderer::GetInstance()->InitializeSurface({width, height}, false);
+			return true;
+		}
+#endif
+	}
+	catch (const std::exception& error)
+	{
+		cemuLog_log(LogType::Force, "GameShare: guest screen: {}", error.what());
+	}
+	SwitchRenderer_CloseGuestScreen();
+	return false;
+}
+
+void SwitchRenderer_CloseGuestScreen()
+{
+#if defined(ENABLE_DEKO3D)
+	if (g_renderer && g_renderer->GetType() == RendererAPI::Deko3D)
+		static_cast<Deko3DRenderer*>(g_renderer.get())->CloseGuestScreen();
+#endif
+#if defined(ENABLE_VULKAN)
+	if (g_renderer && g_renderer->GetType() == RendererAPI::Vulkan)
+		VulkanRenderer::GetInstance()->DestroyPadSurface();
+	WindowSystem::GetWindowInfo().canvas_pad.surface = nullptr;
 #endif
 }
 

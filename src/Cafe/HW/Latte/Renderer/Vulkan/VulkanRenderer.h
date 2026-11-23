@@ -200,6 +200,10 @@ public:
 	void GetDeviceFeatures();
 	void DetermineVendor();
 	void InitializeSurface(const Vector2i& size, bool mainWindow);
+#if defined(__SWITCH__)
+	// The pad swapchain and its surface (GameShare's guest screen), once nothing renders any more
+	void DestroyPadSurface();
+#endif
 
 	const std::unique_ptr<SwapchainInfoVk>& GetChainInfoPtr(bool mainWindow) const;
 	SwapchainInfoVk& GetChainInfo(bool mainWindow) const;

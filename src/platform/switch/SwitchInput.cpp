@@ -27,6 +27,7 @@ extern "C" {
 #include "input/emulated/ClassicController.h"
 #include "input/emulated/WiimoteController.h"
 #include "input/motion/MotionHandler.h"
+#include "platform/switch/SwitchGameShare.h"
 #include "platform/switch/SwitchInput.h"
 #include "platform/switch/SwitchOverlay.h"
 #include "platform/switch/SwitchPlatform.h"
@@ -132,11 +133,15 @@ bool PollJoyConMouse(uint64_t& held)
 class SwitchGamepadController : public ControllerBase
 {
   public:
-	SwitchGamepadController(size_t playerIndex, HidNpadIdType npadId, bool useHandheld, bool gamePadFeatures, bool enableMotion, bool enablePointer)
+	// guest: the controller, touch screen and motion of GameShare's guest console instead of a local Npad
+	SwitchGamepadController(size_t playerIndex, HidNpadIdType npadId, bool useHandheld, bool gamePadFeatures, bool enableMotion, bool enablePointer,
+							bool guest = false)
 		: ControllerBase(fmt::format("switch-{}", playerIndex), fmt::format("Switch Controller {}", playerIndex + 1)),
 		  m_npadId(npadId), m_useHandheld(useHandheld), m_hasTouch(gamePadFeatures),
-		  m_enableMotion(enableMotion), m_hasPointer(enablePointer)
+		  m_enableMotion(enableMotion), m_hasPointer(enablePointer), m_guest(guest)
 	{
+		if (m_guest)
+			return;
 		u64 mask = BITL(static_cast<u32>(m_npadId));
 		if (m_useHandheld)
 			mask |= BITL(static_cast<u32>(HidNpadIdType_Handheld));
@@ -180,6 +185,8 @@ class SwitchGamepadController : public ControllerBase
 	bool has_rumble() override
 	{
 		std::scoped_lock lock(m_padMutex);
+		if (m_guest)
+			return m_connected;
 		return std::any_of(m_vibration.begin(), m_vibration.end(), [](const auto& device) { return device.ready; });
 	}
 	void start_rumble() override { sendVibration(std::clamp(get_settings().rumble, 0.0f, 1.0f)); }
@@ -192,6 +199,10 @@ class SwitchGamepadController : public ControllerBase
 	bool usesPointer() const
 	{
 		return m_hasPointer;
+	}
+	bool matchesSource(bool guest, HidNpadIdType npadId, bool useHandheld) const
+	{
+		return m_guest == guest && (guest || (m_npadId == npadId && m_useHandheld == useHandheld));
 	}
 	void setRecenterButton(uint32 code)
 	{
@@ -230,6 +241,8 @@ class SwitchGamepadController : public ControllerBase
   private:
 	ControllerState pollStateLocked()
 	{
+		if (m_guest)
+			return pollGuestLocked();
 		padUpdate(&m_pad);
 		m_connected = padIsConnected(&m_pad);
 		updateMotion();
@@ -263,8 +276,6 @@ class SwitchGamepadController : public ControllerBase
 
 		if (m_hasTouch)
 		{
-			const bool previousTouchDown = m_touchDown;
-			const glm::vec2 previousTouchPos = m_touchPos;
 			// The screen's touch, else the Joy-Con mouse's, in the screen's 1280x720.
 			HidTouchScreenState ts{};
 			bool touching = hidGetTouchScreenStates(&ts, 1) && ts.count > 0;
@@ -277,13 +288,48 @@ class SwitchGamepadController : public ControllerBase
 				touchY = s_joyConMouse.y.load(std::memory_order_relaxed);
 			}
 #endif
+			applyTouch(touching, touchX, touchY, true);
+		}
+
+		constexpr float kInv = 1.0f / 32767.0f;
+		return buildState(b, m_pad.sticks[0].x * kInv, m_pad.sticks[0].y * kInv, m_pad.sticks[1].x * kInv, m_pad.sticks[1].y * kInv);
+	}
+
+	ControllerState pollGuestLocked()
+	{
+		SwitchGameShareInput input;
+		m_connected = SwitchGameShare_GetGuestInput(input);
+		// The guest can open and use the quick menu too: the game does not see that input
+		if (m_connected && SwitchOverlay_IsInputCaptured(input.buttons))
+		{
+			if (m_hasTouch)
+				applyTouch(false, 0, 0, false);
+			return {};
+		}
+		// (the guest's touch screen is the whole guest screen: no composite layout to map from)
+		if (m_hasTouch)
+			applyTouch(m_connected && input.touchDown, input.touchX, input.touchY, false);
+		if (!m_connected)
+			return {};
+		if (m_enableMotion && input.hasMotion)
+			updateGuestMotion(input);
+		constexpr float kInv = 1.0f / 32767.0f;
+		return buildState(input.buttons, input.stick[0] * kInv, input.stick[1] * kInv, input.stick[2] * kInv, input.stick[3] * kInv);
+	}
+
+	// A touch in the screen's 1280x720 for the GamePad's touch screen and Cemu's main mouse
+	void applyTouch(bool touching, int touchX, int touchY, bool compositeRemap)
+	{
+		{
+			const bool previousTouchDown = m_touchDown;
+			const glm::vec2 previousTouchPos = m_touchPos;
 			if (touching)
 			{
 				const float nx = std::clamp((float)touchX / 1280.0f, 0.0f, 1.0f);
 				const float ny = std::clamp((float)touchY / 720.0f, 0.0f, 1.0f);
 				glm::vec2 nextTouch{nx, ny};
 				bool touchAccepted = true;
-				if (SwitchPlatform_IsGamePadCompositeActive())
+				if (compositeRemap && SwitchPlatform_IsGamePadCompositeActive())
 				{
 					int x, y, width, height;
 					SwitchPlatform_GetGamePadImageRect(true, 1280, 720, 854, 480, x, y, width, height);
@@ -332,7 +378,15 @@ class SwitchGamepadController : public ControllerBase
 			}
 			m_mainMouseWasDown = m_touchDown;
 		}
+	}
 
+	// Cemu's state of a Switch controller: its HidNpadButton bits and stick positions (-1 to 1)
+	ControllerState buildState(uint64_t b, float lx, float ly, float rx, float ry)
+	{
+		lx = std::clamp(lx, -1.0f, 1.0f);
+		ly = std::clamp(ly, -1.0f, 1.0f);
+		rx = std::clamp(rx, -1.0f, 1.0f);
+		ry = std::clamp(ry, -1.0f, 1.0f);
 		ControllerState s{};
 		auto set = [&](uint32 code, bool pressed) { if (pressed) s.buttons.SetButtonState(code, true); };
 		set(kButton0, b & HidNpadButton_A);
@@ -352,11 +406,6 @@ class SwitchGamepadController : public ControllerBase
 		set(kButton8, b & HidNpadButton_StickL);
 		set(kButton9, b & HidNpadButton_StickR);
 
-		constexpr float kInv = 1.0f / 32767.0f;
-		const float lx = std::clamp(m_pad.sticks[0].x * kInv, -1.0f, 1.0f);
-		const float ly = std::clamp(m_pad.sticks[0].y * kInv, -1.0f, 1.0f);
-		const float rx = std::clamp(m_pad.sticks[1].x * kInv, -1.0f, 1.0f);
-		const float ry = std::clamp(m_pad.sticks[1].y * kInv, -1.0f, 1.0f);
 		s.axis = {lx, ly};
 		s.rotation = {rx, ry};
 		constexpr float th = 0.15f;
@@ -548,6 +597,34 @@ class SwitchGamepadController : public ControllerBase
 			updatePointer(sample, deltaTime);
 	}
 
+	void updateGuestMotion(const SwitchGameShareInput& input)
+	{
+		constexpr size_t index = 0;
+		if (m_motionHasSample[index] && input.motionSampling == m_motionSamplingNumber[index])
+			return;
+		const auto now = std::chrono::steady_clock::now();
+		float deltaTime = m_motionHasSample[index] ? std::chrono::duration<float>(now - m_motionSampleTime[index]).count() : 1.0f / 60.0f;
+		deltaTime = std::clamp(deltaTime, 0.001f, 0.1f);
+		m_motionHasSample[index] = true;
+		m_motionSamplingNumber[index] = input.motionSampling;
+		m_motionSampleTime[index] = now;
+		const float* gyro = input.gyro;
+		const float* accel = input.accel;
+		if (!std::isfinite(gyro[0]) || !std::isfinite(gyro[1]) || !std::isfinite(gyro[2]) ||
+			!std::isfinite(accel[0]) || !std::isfinite(accel[1]) || !std::isfinite(accel[2]))
+			return;
+		// (the same conversion as a local controller's)
+		m_motionHandlers[index].processMotionSample(deltaTime, gyro[0] * kTau, -gyro[2] * kTau, gyro[1] * kTau, accel[0], -accel[2], accel[1]);
+		const MotionSample sample = m_motionHandlers[index].getMotionSample();
+		{
+			std::scoped_lock lock(m_motionMutex);
+			m_motionSample = sample;
+		}
+		m_hasMotion = true;
+		if (m_hasPointer)
+			updatePointer(sample, deltaTime);
+	}
+
 	void updatePointer(MotionSample sample, float deltaTime)
 	{
 		glm::vec3 gyro, acc;
@@ -578,6 +655,11 @@ class SwitchGamepadController : public ControllerBase
 
 	void sendVibration(float amp)
 	{
+		if (m_guest)
+		{
+			SwitchGameShare_SetGuestRumble(amp);
+			return;
+		}
 		std::scoped_lock lock(m_padMutex);
 		initializeVibration();
 		const u32 style = padGetStyleSet(&m_pad);
@@ -610,6 +692,7 @@ class SwitchGamepadController : public ControllerBase
 	bool m_hasTouch = false;
 	bool m_enableMotion = false;
 	bool m_hasPointer = false;
+	bool m_guest = false;
 	std::mutex m_padMutex;
 	ControllerState m_cachedState{};
 	bool m_connected = false;
@@ -838,17 +921,39 @@ bool ConfigureMappings(const EmulatedControllerPtr& emu, EmulatedController::Typ
 	return true;
 }
 
+// With GameShare, the guest drives one player (the GamePad, or player 2 when the roles are swapped) and the console's
+// own controllers drive the others in order
+struct PlayerSource
+{
+	bool guest;
+	size_t localSlot;
+};
+
+PlayerSource GetPlayerSource(size_t player)
+{
+	if (!SwitchGameShare_Requested())
+		return {false, player};
+	const size_t guestPlayer = SwitchGameShare_SwapRoles() ? 1 : 0;
+	if (player == guestPlayer)
+		return {true, 0};
+	return {false, player < guestPlayer ? player : player - 1};
+}
+
 void EnsurePhysicalController(size_t index, EmulatedController::Type type)
 {
 	const bool gamePadFeatures = type == EmulatedController::Type::VPAD;
 	const bool pointer = type == EmulatedController::Type::Wiimote;
 	const bool motion = gamePadFeatures || pointer;
+	const PlayerSource source = GetPlayerSource(index);
+	const HidNpadIdType npadId = kNpadIds[source.localSlot];
+	const bool useHandheld = source.localSlot == 0;
 	if (s_controllers[index] && s_controllers[index]->usesGamePadFeatures() == gamePadFeatures &&
-		s_controllers[index]->usesMotion() == motion && s_controllers[index]->usesPointer() == pointer)
+		s_controllers[index]->usesMotion() == motion && s_controllers[index]->usesPointer() == pointer &&
+		s_controllers[index]->matchesSource(source.guest, npadId, useHandheld))
 		return;
 	s_controllers[index].reset();
 	s_controllers[index] = std::make_shared<SwitchGamepadController>(
-		index, kNpadIds[index], index == 0, gamePadFeatures, motion, pointer);
+		index, npadId, useHandheld, gamePadFeatures, motion, pointer, source.guest);
 	const auto recenter = s_config.map.find("Recenter");
 	s_controllers[index]->setRecenterButton(physCode(recenter != s_config.map.end() ? recenter->second : "RCLICK"));
 	auto settings = s_controllers[index]->get_settings();
@@ -868,8 +973,12 @@ bool ConfigureControllers(SwitchControllerType type)
 		inputManager.delete_controller(i);
 	}
 
+	// GameShare: player 1 is the GamePad, and both consoles have a player
+	const bool gameShare = SwitchGameShare_Requested();
+	if (gameShare)
+		type = SwitchControllerType::GamePad;
 	const EmulatedController::Type playerOneType = ToEmulatedType(type);
-	const size_t requestedPlayers = static_cast<size_t>(s_config.players);
+	const size_t requestedPlayers = gameShare ? std::max<size_t>(s_config.players, 2) : static_cast<size_t>(s_config.players);
 	const size_t maxPlayers = playerOneType == EmulatedController::Type::VPAD
 		? kSwitchControllerCount
 		: InputManager::kMaxWPADControllers;
@@ -936,6 +1045,11 @@ void SwitchInput_DrawJoyConMouse()
 	draw->AddCircleFilled(position, radius, IM_COL32(255, 255, 255, 230));
 	draw->AddCircle(position, radius, IM_COL32(0, 0, 0, 200), 0, radius / 4.0f);
 #endif
+}
+
+void SwitchInput_ApplyGameShareRoles()
+{
+	ConfigureControllers(SwitchInput_GetControllerType());
 }
 
 bool SwitchInput_SetControllerType(SwitchControllerType type)

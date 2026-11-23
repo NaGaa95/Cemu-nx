@@ -1075,6 +1075,16 @@ void VulkanRenderer::InitializeSurface(const Vector2i& size, bool mainWindow)
 	}
 }
 
+#if defined(__SWITCH__)
+void VulkanRenderer::DestroyPadSurface()
+{
+	if (!m_padSwapchainInfo)
+		return;
+	vkDeviceWaitIdle(m_logicalDevice);
+	m_padSwapchainInfo.reset();
+}
+#endif
+
 const std::unique_ptr<SwapchainInfoVk>& VulkanRenderer::GetChainInfoPtr(bool mainWindow) const
 {
 	return mainWindow ? m_mainSwapchainInfo : m_padSwapchainInfo;

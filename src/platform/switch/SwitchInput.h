@@ -18,3 +18,5 @@ bool SwitchInput_SetControllerType(SwitchControllerType type);
 SwitchControllerType SwitchInput_GetControllerType();
 bool SwitchInput_SetSecondaryControllerType(SwitchControllerType type);
 SwitchControllerType SwitchInput_GetSecondaryControllerType();
+// GameShare's roles changed: the guest and the console's controllers move to their new players
+void SwitchInput_ApplyGameShareRoles();

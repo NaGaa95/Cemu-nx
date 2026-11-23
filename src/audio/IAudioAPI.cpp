@@ -141,6 +141,8 @@ AudioAPIPtr IAudioAPI::CreateDeviceFromConfig(AudioType type, sint32 rate, sint3
 #if defined(__SWITCH__)
 	if (audio_api == SwitchAudio)
 		audioAPIDev = std::make_unique<SwitchAudioAPI>(rate, channels, samples_per_block, bits_per_sample, type);
+	else if (audio_api == Audren)
+		audioAPIDev = std::make_unique<AudrenAPI>(rate, channels, samples_per_block, bits_per_sample, type);
 	else
 #endif
 		audioAPIDev = CreateDevice(audio_api, device_description, rate, channels, samples_per_block, bits_per_sample);

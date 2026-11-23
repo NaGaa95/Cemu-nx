@@ -106,6 +106,7 @@ if(PLATFORM_SWITCH)
 		${SWITCH_LSFG_CONTROL}
 		platform/switch/SwitchToys.cpp
 		platform/switch/SwitchSwkbd.cpp
+		platform/switch/SwitchGameShare.cpp
 		platform/switch/common/SwitchPosixCompat.cpp
 		platform/switch/common/SwitchPerformance.cpp
 		platform/switch/common/SwitchStorage.cpp

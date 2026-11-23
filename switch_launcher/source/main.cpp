@@ -335,6 +335,9 @@ static const Choice C_secondaryCtype[] = { {"Pro Controller","Pro"}, {"Classic C
                                            {"Wii Remote + MotionPlus","Wiimote"}, {"Wii Remote + MotionPlus + Nunchuk","WiimoteNunchuk"} };
 static const Choice C_gamepadLayout[] = { {"TV only","off"}, {"PAD only","pad"}, {"PAD on right","right"}, {"PAD on left","left"},
                                            {"PAD below TV","below"}, {"PAD above TV","above"} };
+#if defined(__SWITCH2__)
+static const Choice C_gameShareScreen[] = { {"GamePad","false"}, {"TV","true"} };
+#endif
 static const Choice C_lsfgFlowScale[] = { {"Quarter resolution","0.25"}, {"Half resolution","0.5"},
                                            {"Full resolution","1"} };
 #if defined(__SWITCH2__)
@@ -390,6 +393,9 @@ static const Opt S_graphics[] = {
   O_CHOICE("Downscale filter",      "DownscaleFilter",   C_filter,  "0"),
   O_CHOICE("Fullscreen scaling",    "FullscreenScaling", C_scaling, "0"),
   O_CHOICE("GamePad screen",        "GamePadLayout",     C_gamepadLayout, "off"),
+#if defined(__SWITCH2__)
+  O_CHOICE("GameShare screen",      "Wrapper/GameShareSwap", C_gameShareScreen, "false"),
+#endif
 };
 static const Opt S_audio[] = {
   O_CHOICE("Audio backend",    "Wrapper/AudioBackend", C_audioBackend, "audren"),
@@ -491,6 +497,10 @@ static const SettingHelpEntry SETTING_HELP[] = {
    "Keep aspect ratio preserves the game's intended shape and may leave borders. Stretch fills the output but can distort the image."},
   {"GamePadLayout", "Wii U GamePad display",
    "Chooses whether to show the TV view, the GamePad view, or both views in a split layout. Composite layouts reduce the space available to each screen."},
+#if defined(__SWITCH2__)
+  {"Wrapper/GameShareSwap", "GamePad GameShare",
+   "Press Minus on a game to play it with another Nintendo Switch or Switch 2 console. Chooses what the other console shows and plays: the GamePad, or the TV as player 2 while this console shows the GamePad. The quick menu of either console can change it during play."},
+#endif
 
   {"Wrapper/AudioBackend", "Audio backend",
    "Audio renderer mixes the TV and GamePad streams on the Switch's audio DSP. Audio out mixes them on a CPU core instead; use it if a game has no sound or crackles with the audio renderer."},
@@ -1574,9 +1584,15 @@ static void drawFooterHints(const FootItem *it,int n,int cy){
   }
 }
 
+#if defined(__SWITCH2__)
+static std::array<FootItem,4> libraryFooter(){
+  return {{{"A","Launch"},{"Y","Game menu"},{"-","GameShare"},{"B","Quit"}}};
+}
+#else
 static std::array<FootItem,3> libraryFooter(){
   return {{{"A","Launch"},{"Y","Game menu"},{"B","Quit"}}};
 }
+#endif
 
 static void drawSettingsFooter(const char *text,int cy=-1){
   if(!text||!text[0]) return;
@@ -8891,6 +8907,11 @@ static void initializeLauncherDefaults() {
   commitAll();
 }
 
+#if defined(__SWITCH2__)
+// Minus on a game: it starts with a GameShare session, another console being its GamePad
+static bool g_gameShareRequested=false;
+#endif
+
 static bool writeLaunchHandoff(const std::vector<CemuKV> &settings,const std::string &renderer,
                               const std::string &gamePath,uint64_t titleId,bool lsfgPrepared) {
   std::string handoff;
@@ -8905,6 +8926,8 @@ static bool writeLaunchHandoff(const std::vector<CemuKV> &settings,const std::st
 #if defined(__SWITCH2__)
      !appendHandoffValue(handoff,"keep_cpu_boost",cemuKVGet(settings,CPU_BOOST_KEY,"false")) ||
      !appendHandoffValue(handoff,"lsfg_120hz",cemuKVGet(settings,"Wrapper/LSFG120Hz","false")) ||
+     !appendHandoffValue(handoff,"gameshare",g_gameShareRequested?"1":"0") ||
+     !appendHandoffValue(handoff,"gameshare_swap",cemuKVGet(settings,"Wrapper/GameShareSwap","false")) ||
 #endif
      !appendHandoffValue(handoff,"audio_backend",cemuKVGet(settings,"Wrapper/AudioBackend","audren")) ||
      !appendHandoffValue(handoff,"usb_skylanders",cemuKVGet(settings,"UsbSkylanders","false")) ||
@@ -9296,6 +9319,21 @@ int main(int argc, char **argv){
     launch = true;
     running = false;
   };
+#if defined(__SWITCH2__)
+  // Minus: the highlighted game with another Nintendo Switch or Switch 2 console as its GamePad
+  auto requestGameShare=[&](Game &game){
+    const std::string title(LauncherLocalization::Translate("GamePad GameShare"));
+    if(!confirmBox(title.c_str(),{game.title,
+         std::string(LauncherLocalization::Translate("Play this game with another Nintendo Switch or Nintendo Switch 2 console as the GamePad?")),
+         "",
+         std::string(LauncherLocalization::Translate("kaiHEN must be running in a game that supports GameShare."))})){
+      beginScreenFx(); return;
+    }
+    g_gameShareRequested=true;
+    selectGame(game);
+    if(!launch) g_gameShareRequested=false;
+  };
+#endif
   auto requestExit=[&](){
     if(!confirmBox(LauncherLocalization::Translate("Exit Cemu?").data(),{
          std::string(LauncherLocalization::Translate("Active scans and network operations will be cancelled safely.")),
@@ -9561,6 +9599,11 @@ int main(int argc, char **argv){
             beginScreenFx();
           }
           break;
+#if defined(__SWITCH2__)
+        case SDL_CONTROLLER_BUTTON_BACK:
+          if(!g_libraryHeaderFocused) if(Game *game=visibleGame(sel)) requestGameShare(*game);
+          break;
+#endif
         case BTN_CANCEL:
           if(g_libraryHeaderFocused) g_libraryHeaderFocused=false;
           else requestExit();

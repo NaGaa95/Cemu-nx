@@ -6,6 +6,7 @@ extern "C" {
 #include <switch/services/audout.h>
 }
 
+#include "platform/switch/SwitchGameShare.h"
 #include "platform/switch/SwitchThread.h"
 
 #include <algorithm>
@@ -581,6 +582,7 @@ bool s_audioInitialized{};
 struct SwitchAudioAPI::Impl
 {
 	SwitchAudioEndpoint endpoint;
+	bool routedToGuest{};
 };
 
 SwitchAudioAPI::SwitchAudioAPI(uint32 samplerate, uint32 channels, uint32 samples_per_block,
@@ -604,13 +606,47 @@ SwitchAudioAPI::~SwitchAudioAPI()
 		s_mixer->Remove(&m_impl->endpoint);
 }
 
+// GameShare: the guest's player stream goes to the guest, not to the host's mixer (which then waits for it neither);
+// the host's other stream paces the emulated audio
+bool SwitchAudioAPI::IsGameShareGuestStream() const
+{
+	const AudioType type = m_impl->endpoint.type;
+	return m_samplerate == 48000 && m_channels == 2 && (type == AudioType::TV || type == AudioType::Gamepad) &&
+		   SwitchGameShare_IsGuestAudio(type == AudioType::TV);
+}
+
+// The guest stream changes with the GameShare screen and when the guest leaves; the mixer then drops or takes the stream
+bool SwitchAudioAPI::UpdateGuestRouting()
+{
+	const bool toGuest = IsGameShareGuestStream();
+	if (toGuest != m_impl->routedToGuest)
+	{
+		m_impl->routedToGuest = toGuest;
+		if (m_playing)
+		{
+			if (toGuest)
+				s_mixer->Stop(m_impl->endpoint);
+			else
+				s_mixer->Play(m_impl->endpoint);
+		}
+	}
+	return toGuest;
+}
+
 bool SwitchAudioAPI::NeedAdditionalBlocks() const
 {
+	if (IsGameShareGuestStream())
+		return false;
 	return s_mixer && s_mixer->NeedsBlocks(m_impl->endpoint, GetAudioDelay());
 }
 
 bool SwitchAudioAPI::FeedBlock(sint16* data)
 {
+	if (UpdateGuestRouting())
+	{
+		SwitchGameShare_WriteGuestAudio(data, m_samplesPerBlock, m_volume);
+		return true;
+	}
 	return s_mixer && s_mixer->Feed(m_impl->endpoint, data);
 }
 
@@ -618,6 +654,12 @@ bool SwitchAudioAPI::Play()
 {
 	if (!s_mixer)
 		return false;
+	m_impl->routedToGuest = IsGameShareGuestStream();
+	if (m_impl->routedToGuest)
+	{
+		m_playing = true;
+		return true;
+	}
 	m_playing = s_mixer->Play(m_impl->endpoint);
 	return m_playing;
 }

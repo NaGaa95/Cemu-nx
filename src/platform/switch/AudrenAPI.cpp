@@ -4,6 +4,7 @@
 
 #include "audio/AudrenAPI.h"
 #include "platform/switch/SwitchAudren.h"
+#include "platform/switch/SwitchGameShare.h"
 #include "platform/switch/SwitchThread.h"
 #include "util/helpers/helpers.h"
 
@@ -36,8 +37,8 @@ static bool EnsureRendererStarted()
 	return true;
 }
 
-AudrenAPI::AudrenAPI(uint32 samplerate, uint32 channels, uint32 samples_per_block, uint32 bits_per_sample)
-	: IAudioAPI(samplerate, channels, samples_per_block, bits_per_sample)
+AudrenAPI::AudrenAPI(uint32 samplerate, uint32 channels, uint32 samples_per_block, uint32 bits_per_sample, AudioType type)
+	: IAudioAPI(samplerate, channels, samples_per_block, bits_per_sample), m_type(type)
 {
 	if (bits_per_sample != 16)
 		throw std::runtime_error(fmt::format("audren can't play {}-bit samples", bits_per_sample));
@@ -53,13 +54,41 @@ AudrenAPI::~AudrenAPI()
 	SwitchAudren::CloseStream(m_stream);
 }
 
+// GameShare: the guest's player stream goes to the guest, not to this voice; the host's other stream paces the emulated
+// audio
+bool AudrenAPI::IsGameShareGuestStream() const
+{
+	return m_samplerate == 48000 && m_channels == 2 && (m_type == AudioType::TV || m_type == AudioType::Gamepad) &&
+		   SwitchGameShare_IsGuestAudio(m_type == AudioType::TV);
+}
+
+// The guest stream changes with the GameShare screen and when the guest leaves; the voice then pauses or plays again
+bool AudrenAPI::UpdateGuestRouting()
+{
+	const bool toGuest = IsGameShareGuestStream();
+	if (toGuest != m_routedToGuest)
+	{
+		m_routedToGuest = toGuest;
+		if (m_playing)
+			SwitchAudren::SetPlaying(m_stream, !toGuest);
+	}
+	return toGuest;
+}
+
 bool AudrenAPI::NeedAdditionalBlocks() const
 {
+	if (IsGameShareGuestStream())
+		return false;
 	return SwitchAudren::IsActive() && SwitchAudren::GetQueuedBlocks(m_stream) < GetAudioDelay();
 }
 
 bool AudrenAPI::FeedBlock(sint16* data)
 {
+	if (UpdateGuestRouting())
+	{
+		SwitchGameShare_WriteGuestAudio(data, m_samplesPerBlock, m_volume);
+		return true;
+	}
 	if (!SwitchAudren::IsActive())
 		return true; // dropped while the application is in the background
 	if (SwitchAudren::QueueBlock(m_stream, data))
@@ -70,7 +99,8 @@ bool AudrenAPI::FeedBlock(sint16* data)
 
 bool AudrenAPI::Play()
 {
-	SwitchAudren::SetPlaying(m_stream, true);
+	m_routedToGuest = IsGameShareGuestStream();
+	SwitchAudren::SetPlaying(m_stream, !m_routedToGuest);
 	m_playing = true;
 	return true;
 }

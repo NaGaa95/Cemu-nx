@@ -30,6 +30,13 @@ void SwitchPlatform_SetGamePadLayout(SwitchGamePadLayout layout);
 SwitchGamePadLayout SwitchPlatform_GetGamePadLayout();
 void SwitchPlatform_CycleGamePadMode();
 bool SwitchPlatform_TakeGamePadLayoutChange();
+// Sets the layout while GameShare holds it (SwitchPlatform_SetGamePadLayout leaves it alone then)
+void SwitchPlatform_ForceGamePadLayout(SwitchGamePadLayout layout);
+// GameShare's guest screen: the renderer's second swapchain on the guest's window (SwitchRenderer.cpp). The OpenGL
+// renderer cannot present there, and the guest then mirrors the host's screen.
+bool SwitchRenderer_SupportsGuestScreen();
+bool SwitchRenderer_OpenGuestScreen(void* window, int width, int height);
+void SwitchRenderer_CloseGuestScreen();
 bool SwitchPlatform_IsGamePadOutputActive();
 bool SwitchPlatform_IsGamePadOnly();
 bool SwitchPlatform_IsGamePadCompositeActive();

@@ -22,6 +22,7 @@
 #if defined(ENABLE_DEKO3D)
 #include "platform/switch/SwitchLSFGDeko.h"
 #endif
+#include "platform/switch/SwitchGameShare.h"
 #include "platform/switch/SwitchPlatform.h"
 #include "platform/switch/SwitchToys.h"
 
@@ -106,6 +107,7 @@ std::atomic_int s_positionRequests{0};
 std::atomic_int s_fastForwardToggleRequests{0};
 std::atomic_int s_amiiboScanRequests{0};
 std::atomic_int s_exitRequests{0};
+std::atomic_int s_gameShareScreenRequests{0};
 std::array<std::atomic_uint64_t, kHotkeyCount> s_hotkeyMasks{};
 std::atomic_int s_bindingAction{-1};
 std::atomic_int s_bindingStage{0};
@@ -342,7 +344,11 @@ void DispatchHotkey(HotkeyAction action)
 		ToggleMenu();
 		return;
 	case HotkeyAction::CycleDisplay:
-		SwitchPlatform_CycleGamePadMode();
+		// (during GameShare: which screen the other console shows)
+		if (SwitchGameShare_Active())
+			s_gameShareScreenRequests.fetch_add(1, std::memory_order_release);
+		else
+			SwitchPlatform_CycleGamePadMode();
 		break;
 	case HotkeyAction::FastForward:
 		s_fastForwardToggleRequests.fetch_add(1, std::memory_order_release);
@@ -488,7 +494,10 @@ void RenderMainPage()
 #endif
 	OptionRow("Controller type", MainController, ControllerTypeName(SwitchInput_GetControllerType()));
 	OptionRow("Other controllers", MainSecondaryController, ControllerTypeName(SwitchInput_GetSecondaryControllerType()));
-	OptionRow("GamePad screen", MainGamePad, GamePadLayoutName(SwitchPlatform_GetGamePadLayout()));
+	if (SwitchGameShare_Active())
+		OptionRow("GameShare screen", MainGamePad, SwitchGameShare_SwapRoles() ? "TV" : "GamePad");
+	else
+		OptionRow("GamePad screen", MainGamePad, GamePadLayoutName(SwitchPlatform_GetGamePadLayout()));
 	const bool frameGenerationPrepared = SwitchLSFG_IsPrepared();
 	bool frameGenerationAvailable = frameGenerationPrepared && SwitchLSFG_IsAvailable();
 	const bool frameGenerationEnabled = SwitchLSFG_IsEnabled();
@@ -694,7 +703,12 @@ void SwitchOverlay_UpdateInput(std::uint64_t down, std::uint64_t held)
 		else if (selection == MainSecondaryController && adjust)
 			CycleSecondaryControllerType(direction);
 		else if (selection == MainGamePad && adjust)
-			ChangeGamePadLayout(direction);
+		{
+			if (SwitchGameShare_Active())
+				s_gameShareScreenRequests.fetch_add(1, std::memory_order_release);
+			else
+				ChangeGamePadLayout(direction);
+		}
 		else if (selection == MainFrameGeneration && adjust)
 			SwitchLSFG_RequestEnabled(!SwitchLSFG_IsEnabled());
 		else if (selection == MainFps && adjust)
@@ -785,6 +799,11 @@ bool SwitchOverlay_TakeAmiiboScanRequest()
 bool SwitchOverlay_TakeExitRequest()
 {
 	return s_exitRequests.exchange(0, std::memory_order_acq_rel) != 0;
+}
+
+int SwitchOverlay_TakeGameShareScreenRequests()
+{
+	return s_gameShareScreenRequests.exchange(0, std::memory_order_acq_rel);
 }
 
 bool SwitchOverlay_IsInputCaptured(std::uint64_t held)
