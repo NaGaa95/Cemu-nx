@@ -6,7 +6,8 @@ namespace Deko3D
 	class DKSwapChain
 	{
 	  public:
-		static std::unique_ptr<DKSwapChain> Create();
+		// On an NWindow (window); null: the default window, whose display pacing it also applies
+		static std::unique_ptr<DKSwapChain> Create(void* window = nullptr);
 		~DKSwapChain();
 		int Acquire();
 		void Present(int slot);
@@ -25,7 +26,7 @@ namespace Deko3D
 		}
 
 	  private:
-		bool Initialize();
+		bool Initialize(void* window);
 		static constexpr u32 NUM_IMAGES = 3;
 		dk::UniqueMemBlock m_memory;
 		std::array<dk::Image, NUM_IMAGES> m_images;

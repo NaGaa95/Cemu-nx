@@ -17,15 +17,16 @@ extern "C"
 
 namespace Deko3D
 {
-	std::unique_ptr<DKSwapChain> DKSwapChain::Create()
+	std::unique_ptr<DKSwapChain> DKSwapChain::Create(void* window)
 	{
 		auto result = std::make_unique<DKSwapChain>();
-		return result->Initialize() ? std::move(result) : nullptr;
+		return result->Initialize(window) ? std::move(result) : nullptr;
 	}
 
-	bool DKSwapChain::Initialize()
+	bool DKSwapChain::Initialize(void* nativeWindow)
 	{
-		NWindow* window = nwindowGetDefault();
+		const bool defaultWindow = !nativeWindow;
+		NWindow* window = defaultWindow ? nwindowGetDefault() : static_cast<NWindow*>(nativeWindow);
 		m_imageCount = SwitchPlatform_UseTripleBuffer() || SwitchLSFG_IsPrepared() ? 3 : 2;
 		if (R_FAILED(nwindowGetDimensions(window, &m_width, &m_height)) || !m_width || !m_height)
 			return false;
@@ -58,7 +59,7 @@ namespace Deko3D
 		}
 		m_swapchain = dk::SwapchainMaker{g_dk_context->GetDevice(), window, images.data(), m_imageCount}.create();
 #if defined(__SWITCH2__)
-		if (m_swapchain)
+		if (m_swapchain && defaultWindow)
 			SwitchPlatform_ApplyDisplayPacing(1, true);
 #endif
 		return !!m_swapchain;

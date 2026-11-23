@@ -57,6 +57,10 @@ struct Deko3DRenderer::State
 	class Query;
 	std::unique_ptr<Deko3D::DKSwapChain> swapchain;
 	std::unique_ptr<Deko3D::DKImage> display;
+	// GameShare's guest screen: a swapchain on the guest's window and the image its view is composed in
+	std::unique_ptr<Deko3D::DKSwapChain> guestSwapchain;
+	std::unique_ptr<Deko3D::DKImage> guestDisplay;
+	bool guestCompositeStarted = false;
 	std::array<std::unique_ptr<Deko3D::DKImage>, 5> nullTextures;
 	std::unique_ptr<Deko3D::DKStreamBuffer> uploads;
 	std::unique_ptr<Deko3D::DKStreamBuffer> dynamic;
@@ -160,7 +164,7 @@ struct Deko3DRenderer::State
 	DkImageView RenderView(Deko3D::LatteTextureViewDK& view);
 	void CopyVolumeSlice(Deko3D::LatteTextureViewDK& view, bool store);
 	void StoreFramebuffer();
-	void BindDisplay();
+	void BindDisplay(bool guest = false);
 	Deko3D::DKImage* CreateUITexture(const uint8* pixels, uint32 width, uint32 height);
 	void BindUtility(const Deko3D::DKShaderProgram* vertex, const Deko3D::DKShaderProgram* fragment, bool blend);
 	void BindShaders(bool bind = true);
@@ -172,7 +176,8 @@ struct Deko3DRenderer::State
 	void BindPipeline();
 	void BindVertexBuffers(std::span<const DkBufExtents> buffers);
 	void BindBlendStates(std::span<const DkBlendState> states);
-	void PresentImage(const Deko3D::DKImage& image);
+	// On the main swapchain, or on target
+	void PresentImage(const Deko3D::DKImage& image, Deko3D::DKSwapChain* target = nullptr);
 	void PollFrameGeneration();
 	bool GenerateFrame();
 	void TextureBarrier(Deko3D::LatteTextureDK& texture, bool write, DkBarrier barrier = DkBarrier_Primitives);

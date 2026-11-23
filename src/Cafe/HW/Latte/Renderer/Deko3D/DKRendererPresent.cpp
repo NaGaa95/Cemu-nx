@@ -15,9 +15,9 @@ extern "C"
 
 using namespace Deko3D;
 
-void Deko3DRenderer::State::BindDisplay()
+void Deko3DRenderer::State::BindDisplay(bool guest)
 {
-	auto view = display->MakeView();
+	auto view = (guest ? guestDisplay : display)->MakeView();
 	const DkImageView* target = &view;
 	dkCmdBufBindRenderTargets(Cmd(), &target, 1, nullptr);
 	Invalidate();
@@ -61,7 +61,22 @@ void Deko3DRenderer::State::BindUtility(const DKShaderProgram* vertex, const DKS
 
 bool Deko3DRenderer::BeginFrame(bool mainWindow)
 {
-	if (HandleAppletSuspension() || (!mainWindow && !SwitchPlatform_IsGamePadOutputActive()))
+	if (HandleAppletSuspension())
+		return false;
+	if (!mainWindow && m_state->guestSwapchain)
+	{
+		if (!m_state->guestCompositeStarted)
+		{
+			m_state->BindDisplay(true);
+			const DkScissor scissor{0, 0, m_state->guestDisplay->Width(), m_state->guestDisplay->Height()};
+			dkCmdBufSetScissors(m_state->Cmd(), 0, &scissor, 1);
+			const float black[4]{};
+			dkCmdBufClearColor(m_state->Cmd(), 0, DkColorMask_RGBA, black);
+			m_state->guestCompositeStarted = true;
+		}
+		return true;
+	}
+	if (!mainWindow && !SwitchPlatform_IsGamePadOutputActive())
 		return false;
 	if (!m_state->compositeStarted)
 	{
@@ -79,9 +94,12 @@ void Deko3DRenderer::ClearColorbuffer(bool padView)
 {
 	if (!BeginFrame(!padView))
 		return;
-	m_state->BindDisplay();
-	int x, y, width, height;
-	SwitchPlatform_GetGamePadViewRegion(padView, m_state->display->Width(), m_state->display->Height(), x, y, width, height);
+	const bool guest = padView && m_state->guestSwapchain;
+	const auto& target = guest ? *m_state->guestDisplay : *m_state->display;
+	m_state->BindDisplay(guest);
+	int x = 0, y = 0, width = target.Width(), height = target.Height();
+	if (!guest)
+		SwitchPlatform_GetGamePadViewRegion(padView, target.Width(), target.Height(), x, y, width, height);
 	const DkScissor scissor{static_cast<u32>(x), static_cast<u32>(y), static_cast<u32>(width), static_cast<u32>(height)};
 	dkCmdBufSetScissors(m_state->Cmd(), 0, &scissor, 1);
 	const float black[4]{};
@@ -101,9 +119,11 @@ void Deko3DRenderer::DrawBackbufferQuad(LatteTextureView* source, RendererOutput
 		return;
 	auto* texture = static_cast<LatteTextureViewDK*>(source);
 	auto& state = *m_state;
+	const bool guest = padView && state.guestSwapchain;
+	const auto& target = guest ? *state.guestDisplay : *state.display;
 	state.TextureBarrier(*texture->Texture(), false);
-	if (SwitchPlatform_IsGamePadCompositeActive())
-		SwitchPlatform_GetGamePadImageRect(padView, state.display->Width(), state.display->Height(),
+	if (!guest && SwitchPlatform_IsGamePadCompositeActive())
+		SwitchPlatform_GetGamePadImageRect(padView, target.Width(), target.Height(),
 										   source->baseTexture->width, source->baseTexture->height, x, y, width, height);
 	if (clear)
 		ClearColorbuffer(padView);
@@ -128,10 +148,10 @@ void Deko3DRenderer::DrawBackbufferQuad(LatteTextureView* source, RendererOutput
 		if (fence == g_dk_command_buffer_mgr->GetCurrentFenceCounter())
 			break;
 	}
-	state.BindDisplay();
+	state.BindDisplay(guest);
 	state.BindUtility(vertex, fragment, false);
 	const DkViewport viewport{static_cast<float>(x), static_cast<float>(y), static_cast<float>(width), static_cast<float>(height), 0, 1};
-	const DkScissor scissor{0, 0, state.display->Width(), state.display->Height()};
+	const DkScissor scissor{0, 0, target.Width(), target.Height()};
 	SetViewport(state.Cmd(), viewport);
 	dkCmdBufSetScissors(state.Cmd(), 0, &scissor, 1);
 	const DkBufExtents buffer{uniforms.gpu, uniforms.size};
@@ -140,7 +160,8 @@ void Deko3DRenderer::DrawBackbufferQuad(LatteTextureView* source, RendererOutput
 	if (fragment->bindings.textures[0] >= 0)
 		dkCmdBufBindTextures(state.Cmd(), DkStage_Fragment, fragment->bindings.textures[0], &handle, 1);
 	dkCmdBufDraw(state.Cmd(), DkPrimitive_Triangles, 6, 1, 0, 0);
-	state.gameFrame = true;
+	if (!guest)
+		state.gameFrame = true;
 }
 
 void Deko3DRenderer::State::PollFrameGeneration()
@@ -268,21 +289,48 @@ bool Deko3DRenderer::State::GenerateFrame()
 	}
 }
 
-void Deko3DRenderer::State::PresentImage(const DKImage& image)
+void Deko3DRenderer::State::PresentImage(const DKImage& image, DKSwapChain* target)
 {
-	int slot;
-	{
-		slot = swapchain->Acquire();
-	}
+	auto& chain = target ? *target : *swapchain;
+	const int slot = chain.Acquire();
 	if (slot < 0)
 		throw std::runtime_error("Deko3D could not acquire a presentation image");
 	auto source = image.MakeView();
 	DkImageView destination;
-	dkImageViewDefaults(&destination, &swapchain->GetImage(slot));
-	const DkImageRect region{0, 0, 0, display->Width(), display->Height(), 1};
+	dkImageViewDefaults(&destination, &chain.GetImage(slot));
+	const DkImageRect region{0, 0, 0, std::min(image.Width(), chain.Width()), std::min(image.Height(), chain.Height()), 1};
 	Barrier(DkBarrier_Full, DkInvalidateFlags_Image);
 	dkCmdBufBlitImage(Cmd(), &source, &region, &destination, &region, DkBlitFlag_FilterNearest, 0);
-	Submit(false, swapchain.get(), slot);
+	Submit(false, &chain, slot);
+}
+
+bool Deko3DRenderer::OpenGuestScreen(void* window)
+{
+	auto& state = *m_state;
+	state.guestSwapchain = DKSwapChain::Create(window);
+	if (!state.guestSwapchain)
+		return false;
+	state.guestDisplay = DKImage::Create(state.guestSwapchain->Width(), state.guestSwapchain->Height(), DkImageFormat_RGBA8_Unorm,
+										 DkImageFlags_UsageRender | DkImageFlags_Usage2DEngine);
+	if (!state.guestDisplay)
+	{
+		state.guestSwapchain.reset();
+		return false;
+	}
+	state.guestCompositeStarted = false;
+	return true;
+}
+
+void Deko3DRenderer::CloseGuestScreen()
+{
+	auto& state = *m_state;
+	if (!state.guestSwapchain)
+		return;
+	state.Submit(true);
+	g_dk_context->WaitIdle();
+	state.guestSwapchain.reset();
+	state.guestDisplay.reset();
+	state.guestCompositeStarted = false;
 }
 
 #if defined(__SWITCH2__)
@@ -316,8 +364,17 @@ void Deko3DRenderer::State::FollowWindowSize()
 void Deko3DRenderer::SwapBuffers(bool tv, bool drc)
 {
 	auto& state = *m_state;
-	if (HandleAppletSuspension() || !(tv || (drc && SwitchPlatform_IsGamePadOutputActive())))
+	const bool mainOutput = tv || (drc && SwitchPlatform_IsGamePadOutputActive());
+	const bool guestOutput = drc && state.guestSwapchain && state.guestCompositeStarted;
+	if (HandleAppletSuspension() || !(mainOutput || guestOutput))
 		return;
+	if (guestOutput)
+	{
+		state.PresentImage(*state.guestDisplay, state.guestSwapchain.get());
+		state.guestCompositeStarted = false;
+		if (!mainOutput)
+			return;
+	}
 	if (SwitchPlatform_TakeGamePadLayoutChange())
 	{
 		if (state.frameGenerator)

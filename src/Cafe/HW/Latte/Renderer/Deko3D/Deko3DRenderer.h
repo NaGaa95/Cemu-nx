@@ -26,6 +26,9 @@ class Deko3DRenderer final : public Renderer
 	void Flush(bool waitIdle = false) override;
 	void NotifyLatteCommandProcessorIdle() override;
 	bool HandleAppletSuspension();
+	// GameShare's guest screen on an NWindow: the pad view is drawn and presented there
+	bool OpenGuestScreen(void* window);
+	void CloseGuestScreen();
 	void QueueGuestCompletion(std::function<void()> completion) override;
 	void ImguiEnd() override;
 	ImTextureID GenerateTexture(const std::vector<uint8>& data, const Vector2i& size) override;

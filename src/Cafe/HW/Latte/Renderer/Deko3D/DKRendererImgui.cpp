@@ -89,14 +89,11 @@ void main() { outputColor=passColor*texture(source,passUV); }
 	auto& io = ImGui::GetIO();
 	io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 	ImGui_UpdateWindowInformation(mainWindow);
-	int x, y, width, height;
-	SwitchPlatform_GetGamePadViewRegion(!mainWindow, state.display->Width(), state.display->Height(), x, y, width, height);
-	if (mainWindow)
-	{
-		x = y = 0;
-		width = state.display->Width();
-		height = state.display->Height();
-	}
+	const bool guest = !mainWindow && state.guestSwapchain;
+	const auto& target = guest ? *state.guestDisplay : *state.display;
+	int x = 0, y = 0, width = target.Width(), height = target.Height();
+	if (!mainWindow && !guest)
+		SwitchPlatform_GetGamePadViewRegion(true, target.Width(), target.Height(), x, y, width, height);
 	io.DisplaySize = {static_cast<float>(width), static_cast<float>(height)};
 	ImGui::NewFrame();
 	return true;
@@ -147,16 +144,13 @@ void Deko3DRenderer::ImguiEnd()
 	const float transform[]{2.0f / data->DisplaySize.x, 2.0f / data->DisplaySize.y,
 							-1.0f - data->DisplayPos.x * (2.0f / data->DisplaySize.x), -1.0f - data->DisplayPos.y * (2.0f / data->DisplaySize.y)};
 	std::memcpy(static_cast<u8*>(allocation.cpu) + uniformOffset, transform, sizeof(transform));
-	int x, y, width, height;
-	SwitchPlatform_GetGamePadViewRegion(state.imguiPad, state.display->Width(), state.display->Height(), x, y, width, height);
-	if (!state.imguiPad)
-	{
-		x = y = 0;
-		width = state.display->Width();
-		height = state.display->Height();
-	}
+	const bool guest = state.imguiPad && state.guestSwapchain;
+	const auto& target = guest ? *state.guestDisplay : *state.display;
+	int x = 0, y = 0, width = target.Width(), height = target.Height();
+	if (state.imguiPad && !guest)
+		SwitchPlatform_GetGamePadViewRegion(true, target.Width(), target.Height(), x, y, width, height);
 	auto setup = [&] {
-		state.BindDisplay();
+		state.BindDisplay(guest);
 		state.BindUtility(vertex, fragment, true);
 		const DkViewport viewport{static_cast<float>(x), static_cast<float>(y), static_cast<float>(width), static_cast<float>(height), 0, 1};
 		SetViewport(state.Cmd(), viewport);

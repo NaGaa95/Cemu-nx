@@ -153,7 +153,7 @@ bool Deko3DRenderer::GetVRAMInfo(int& usage, int& total) const
 
 bool Deko3DRenderer::IsPadWindowActive()
 {
-	return SwitchPlatform_IsGamePadOutputActive();
+	return SwitchPlatform_IsGamePadOutputActive() || m_state->guestSwapchain;
 }
 void Deko3DRenderer::InvalidateState()
 {
