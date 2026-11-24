@@ -523,7 +523,7 @@ namespace snd_core
 			if (deviceIndex != 0 && deviceIndex != 1)
 				return -2;
 		}
-		else if (device == AX_DEV_TV)
+		else if (device == AX_DEV_RMT)
 		{
 			if (deviceIndex < 0 || deviceIndex >= 4)
 				return -2;
@@ -566,19 +566,21 @@ namespace snd_core
 		if (device == AX_DEV_TV)
 		{
 			channelCount = AX_TV_CHANNEL_COUNT;
-			voiceMix = internal->deviceMixTV + deviceIndex * 0x60 / 4;
+			voiceMix = internal->deviceMixTV + deviceIndex * (AX_BUS_COUNT * AX_TV_CHANNEL_COUNT);
 			deviceMixMask = internal->deviceMixMaskTV;
 		}
 		else if (device == AX_DEV_DRC)
 		{
 			channelCount = AX_DRC_CHANNEL_COUNT;
-			voiceMix = internal->deviceMixDRC + deviceIndex * 16;
+			voiceMix = internal->deviceMixDRC + deviceIndex * (AX_BUS_COUNT * AX_DRC_CHANNEL_COUNT);
 			deviceMixMask = internal->deviceMixMaskDRC + deviceIndex * AX_BUS_COUNT;
 		}
 		else if (device == AX_DEV_RMT)
 		{
 			cemu_assert_debug(false);
 			channelCount = AX_RMT_CHANNEL_COUNT;
+			voiceMix = internal->deviceMixRMT + deviceIndex * (AX_BUS_COUNT * AX_RMT_CHANNEL_COUNT);
+			deviceMixMask = internal->deviceMixMaskRMT + deviceIndex * AX_BUS_COUNT;
 		}
 		else
 		{
@@ -678,7 +680,7 @@ namespace snd_core
 	{
 		AXVPBInternal_t* internal = __AXVPBInternalVoiceArray + (sint32)(vpb->index);
 		for (sint32 i = 0; i < 16; i++)
-			internal->adpcmData.coef[i] = adpcm->a[i];
+			internal->adpcmData.coef[i] = adpcm->coef[i];
 		internal->adpcmData.gain = adpcm->gain;
 		internal->adpcmData.scale = adpcm->scale;
 		AXSetSyncFlag(vpb, AX_SYNCFLAG_ADPCMDATA);
