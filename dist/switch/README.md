@@ -74,7 +74,7 @@ The SDL launcher checks the latest published release from
 Set `RELEASE_VERSION` to the GitHub tag when making a release:
 
 ```sh
-RELEASE_VERSION=1.3.3 BUILD_JOBS=18 ./build_switch_all.sh
+RELEASE_VERSION=1.3.4 BUILD_JOBS=18 ./build_switch_all.sh
 ```
 
 The updater requires GitHub's SHA-256 asset digest and validates both the

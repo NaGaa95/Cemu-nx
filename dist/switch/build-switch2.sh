@@ -24,7 +24,7 @@ case "${SWITCH2_BUILD_DIR}" in
 	*) BUILD_PATH="${ROOT}/${SWITCH2_BUILD_DIR}" ;;
 esac
 CEMU_RUNTIME_OUTPUT_DIR="${CEMU_RUNTIME_OUTPUT_DIR:-${BUILD_PATH}/bin}"
-RELEASE_VERSION="${RELEASE_VERSION:-1.3.3}"
+RELEASE_VERSION="${RELEASE_VERSION:-1.3.4}"
 MESA_SDK_ROOT="${CEMU_SWITCH2_MESA_SDK_ROOT:-${ROOT}/dependencies/switch2_mesa_sdk}"
 case "${BUILD_JOBS}" in
 	''|*[!0-9]*|0) echo "BUILD_JOBS must be a positive integer" >&2; exit 2 ;;
